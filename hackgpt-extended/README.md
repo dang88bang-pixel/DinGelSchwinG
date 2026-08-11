@@ -339,22 +339,13 @@ Geräte, Clients, Pairings und Audit-Trail liegen in `data.db` — Daten überle
 
 ### WebAuthn (FIDO2) für kritische Aktionen
 
-`device.delete`, `pairing.delete`, `client.server`, `client.kick`, `user.admin`
-sowie die L3+/L5-Aktionen **`terminal.dongle.flash`**, **`terminal.network.ssh`**
-und **`emergency.override`** erfordern eine WebAuthn-Assertion
-(Challenge/Response + einmaliges Grant-Token).
+`device.delete`, `pairing.delete`, `client.server`, `client.kick` erfordern eine WebAuthn-Assertion (Challenge/Response + einmaliges Grant-Token).
 
 **Flow:**
 1. `POST /api/webauthn/challenge` → Browser bestätigt via FIDO2-Gerät
-2. `POST /api/webauthn/assert` → Grant-Token (JWT) → kritische Aktion
-   (REST: Header `X-WebAuthn`; WS Terminal-Bridge: Query `wa_token`)
-3. Registrierung: `POST /api/webauthn/register/challenge` + `/register`
-   (speichert den Public Key des FIDO2-Geräts in der Credential-DB)
+2. `POST /api/webauthn/assert` → `X-WebAuthn-Token` → kritische Aktion
 
-**Features:** Echte FIDO2-Verifikation (ECDSA/P-256 über `authenticatorData ||
-SHA-256(clientDataJSON)`, COSE-Parsing via cbor2), Counter-Replay-Schutz,
-einmalige Grant-Tokens dienstübergreifend über die geteilte SQLite-DB,
-alles im Audit-Trail. Demo-HMAC-Pfad nur außerhalb von Produktion.
+**Features:** Replay-Schutz (einmalige Token + Challenge-Nutzung), alles im Audit-Trail. Vollständige FIDO2-Verifikation erfordert eine Credential-DB (im README als Produktions-Hinweis markiert).
 
 ---
 

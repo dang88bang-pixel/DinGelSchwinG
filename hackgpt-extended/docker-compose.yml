@@ -1,0 +1,103 @@
+# NEXUS-BUILDER v2.2 — Infrastruktur (Service/Developer-Konsole)
+# Produktion: .env anlegen (siehe .env.example) — SECRET_KEY ist Pflicht.
+version: "3.9"
+
+services:
+  auth:
+    build: ./server
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY ist Pflicht (siehe .env.example)}
+      - HACKGPT_DB=/data/hackgpt.db
+      - BOOTSTRAP_ADMIN_EMAIL=${BOOTSTRAP_ADMIN_EMAIL:-}
+      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:-}
+      - BOOTSTRAP_ADMIN_ROLE=${BOOTSTRAP_ADMIN_ROLE:-expert}
+      - WEBAUTHN_ORIGIN=${WEBAUTHN_ORIGIN:-}
+      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-}
+    ports:
+      - "5000:5000"
+    volumes:
+      - db-data:/data
+    networks: [app]
+    restart: unless-stopped
+
+  terminal-bridge:
+    build: ./server
+    command: ["python", "pty_bridge.py"]
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY ist Pflicht (siehe .env.example)}
+      - TERM_IDLE_TIMEOUT=${TERM_IDLE_TIMEOUT:-600}
+      - TERM_ABS_TIMEOUT=${TERM_ABS_TIMEOUT:-3600}
+      - SSH_KEY_PATH=${SSH_KEY_PATH:-/run/secrets/service_ed25519}
+      - SSH_USER=${SSH_USER:-service}
+      - SSH_STRICT_HOSTKEYS=${SSH_STRICT_HOSTKEYS:-1}
+      - SERIAL_DEVICE=${SERIAL_DEVICE:-}
+      - SERIAL_BAUD=${SERIAL_BAUD:-115200}
+      - WEBAUTHN_DEMO_BYPASS=${WEBAUTHN_DEMO_BYPASS:-0}
+      - HACKGPT_DB=/data/hackgpt.db
+    ports:
+      - "8765:8765"
+    # Zugriff auf USB-C-Dongles am Host — an Zielmaschine anpassen!
+    devices:
+      - "${HOST_TTY_ACM:-/dev/ttyACM0}:/dev/ttyACM0"
+      - "${HOST_TTY_USB:-/dev/ttyUSB0}:/dev/ttyUSB0"
+    volumes:
+      - /run/secrets:/run/secrets:ro
+      - db-data:/data
+    networks: [app]
+    restart: unless-stopped
+
+  discovery-scanner:
+    build: ./server
+    command: ["python", "scanner.py"]
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY ist Pflicht (siehe .env.example)}
+      - SCAN_INTERVAL=${SCAN_INTERVAL:-15}
+      - NODE_TTL=${NODE_TTL:-90}
+      - SCAN_PORT=${SCAN_PORT:-8766}
+    # Zugriff auf USB-C-BLE-Dongle + Bluetooth
+    devices:
+      - "${HOST_TTY_ACM:-/dev/ttyACM0}:/dev/ttyACM0"
+    volumes:
+      - /run/bluetooth:/run/bluetooth:ro
+    # network_mode: host (mDNS/SSDP-Multicast + BLE erfordert Host-Netz) —
+    # ACHTUNG: Port ${SCAN_PORT:-8766} muss am Host frei sein!
+    network_mode: host
+    restart: unless-stopped
+
+  status-board:
+    build: ./server
+    command: ["python", "status.py"]
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY ist Pflicht (siehe .env.example)}
+      - CLIENT_TTL=${CLIENT_TTL:-30}
+    ports:
+      - "8767:8767"
+    networks: [app]
+    restart: unless-stopped
+
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run build && npm run preview -- --host 0.0.0.0 --port 4173"
+    volumes:
+      - ./:/app
+    environment:
+      # Echte Domain (siehe .env.example); ohne Setzung same-origin
+      - VITE_API_BASE=${VITE_API_BASE:-}
+      - VITE_WS_BASE=${VITE_WS_BASE:-}
+      - VITE_WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-}
+    ports:
+      - "4173:4173"
+    networks: [app]
+    restart: unless-stopped
+    depends_on: [auth, terminal-bridge, status-board, discovery-scanner]
+
+volumes:
+  db-data:
+
+networks:
+  app:

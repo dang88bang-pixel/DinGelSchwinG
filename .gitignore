@@ -32,3 +32,13 @@ build/
 
 # Capacitor
 capacitor/
+
+# hackgpt-extended: Laufzeit-Datenbanken + Build-Artefakte
+hackgpt-extended/data/*.db
+hackgpt-extended/data/*.db-*
+hackgpt-extended/logs/
+hackgpt-extended/dist/
+
+# Python
+__pycache__/
+*.pyc
