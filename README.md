@@ -610,6 +610,48 @@ npm test          # 22/22 echte-Runtime-Tests (Root-App)
 
 ---
 
+## 🖥️ Web-Bluetooth/USB/NFC & Human-in-the-Loop (2026-08-11)
+
+### Aktive Hardware-Anbindung (Root-App, `src/lib/hardwareAccess.ts`)
+
+| API | Aktive Operation | Ohne Gerät |
+|-----|------------------|------------|
+| **Web-Bluetooth** | `requestDevice` → GATT-Connect → Characteristic **lesen/schreiben** (UUIDs via `VITE_BLE_RSSI_SERVICE`/`VITE_BLE_RSSI_CHAR`), RSSI aus `watchAdvertisements` | ehrlicher Fehler „Web Bluetooth nicht verfügbar/kein Gerät" |
+| **Web-USB** | `requestDevice` → `open()` → `controlTransferIn(0x06)` → echter **Gerätedeskriptor** (VID/PID, bcdUSB, Klasse, MaxPacket) | ehrlicher Fehler/leere Liste |
+| **WebNFC (NDEF)** | `NDEFReader.scan()` → echte Tag-Reads (Serial + Records); `NDEFWriter.write()` → echte NDEF-Payloads | „WebNFC nicht verfügbar (Android Chrome + NFC)" |
+
+Eingebunden in: PairingPanel (BLE mit GATT-Read, USB-Deskriptor-Probe, NFC-Scan),
+Chat-Skills (device.scan/flash/nfc.write) — alle mit ehrlichen Meldungen statt
+erfundener Geräte. **25/25 Runtime-Tests** decken die Fehlerpfade ab.
+
+### Human-in-the-Loop (HITL) für kritische Aktionen
+
+1. **Chat („flash dongle"/„nfc schreiben"/„usb schreiben")**: Skill wird geparkt
+   (`pendingActionRef`) → Permission-Modal → **erst nach menschlicher Freigabe**
+   wird die echte Operation ausgeführt (USB-Transfer/NFC-Write/BLE-Write) und das
+   Ergebnis als Chat-Nachricht geliefert. Kein stiller Bypass.
+2. **Temp-Auth (Research-Chat)**: Der generierte Code wird angezeigt, der Mensch
+   muss ihn **eingeben** (Code-Eingabe-Feld, max. 3 Versuche) — Verbindung wird
+   erst nach manueller Bestätigung aktiv.
+3. **hackgpt-extended Demo-Grant**: `WEBAUTHN_DEMO_BYPASS` ersetzt durch
+   **Passwortbestätigung gegen die DB** (`/api/webauthn/demo-grant` verlangt
+   `password`; falsch → 403, auditierbar). Der Client fragt das Passwort aktiv ab
+   (prompt) — die Freigabe ist immer eine bewusste menschliche Aktion. Produktion:
+   weiterhin echte FIDO2-Assertion.
+
+### hackgpt-extended: Demo-Parts → aktive Implementierungen
+
+| Demo-Part (vorher) | Jetzt aktiv |
+|--------------------|-------------|
+| **Terminal-Bridge**: `cat`-Echo-Platzhalter | **Echte interaktive PTY-Shell** (`PtyShellBridge` via `pty.fork` + `/bin/bash`): Befehle werden TATSÄCHLICH ausgeführt (live getestet: `echo $((6*7))` → `42`). Produktion unverändert: pyserial. |
+| **Scanner**: nur mDNS + Demo-Nodes | **Aktive ARP-Quelle** (`ip neigh`): echte Netzwerknachbarn mit MAC + Zustand (live: `arp:169.254.0.22 … REACHABLE`). Demo-Nodes nur noch als expliziter Fallback (markiert). |
+
+**Verifiziert live:** HITL-Grant (falsches Passwort 403 / richtig 200) · PTY-Shell
+(`echo` → echte Ausgabe) · ARP-Scan (echte MAC) · Unit **47/47** · Audit **89/89** ·
+Suite **16/16** · Chain **53/53** · Stress 0 Fehler.
+
+---
+
 ## 📦 Abhängigkeiten
 
 ### JavaScript / Node.js

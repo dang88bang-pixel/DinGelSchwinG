@@ -195,32 +195,46 @@ class SerialBridge:
             pass
 
 
-class PtyDemoBridge:
-    """Demo-Fallback (NUR Entwicklung mit SERIAL_PTY_FALLBACK=1):
-    'cat'-Subprozess — Eingaben werden zurückgespiegelt, keine echte HW."""
+class PtyShellBridge:
+    """ECHTE interaktive PTY-Shell (kein cat-Echo): startet /bin/bash (oder
+    $SHELL) auf einem echten PTY (pty.fork). Eingaben laufen durch den
+    echten Terminal-Treiber — Befehle werden TATSÄCHLICH ausgeführt
+    (ls, pwd, echo …), Ausgaben kommen vom Prozess zurück."""
 
-    def __init__(self, proc, kind: str = "pty-demo"):
-        self.proc = proc
-        self.kind = kind
+    def __init__(self, shell: str = "/bin/bash"):
+        import pty as pty_mod
+        self.shell = shell
+        self.kind = "pty-shell"
         self._loop = asyncio.get_event_loop()
+        self._pid, self._master_fd = pty_mod.fork()
+        if self._pid == 0:
+            # Kindprozess: echte Shell auf dem Slave-PTY
+            os.environ.setdefault("TERM", "xterm-256color")
+            os.execvp(shell, [shell, "-i"])
+        # Master-FD nicht-blockierend
+        import fcntl
+        flags = fcntl.fcntl(self._master_fd, fcntl.F_GETFL)
+        fcntl.fcntl(self._master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
     async def write(self, data: bytes) -> None:
-        if not data or not self.proc.stdin:
+        if not data:
             return
-        self.proc.stdin.write(data)
-        await self.proc.stdin.drain()
+        await self._loop.run_in_executor(None, os.write, self._master_fd, data)
 
     async def read(self, n: int = 4096) -> bytes:
-        # asyncio-StreamReader.read ist eine Koroutine — direkt awaiten
-        # (liefert zurück, sobald Daten anliegen bzw. EOF).
-        if not self.proc.stdout:
+        try:
+            return await self._loop.run_in_executor(None, os.read, self._master_fd, n)
+        except (BlockingIOError, OSError):
             return b""
-        return await self.proc.stdout.read(n)
 
     def close(self) -> None:
         try:
-            self.proc.terminate()
-        except Exception:
+            os.kill(self._pid, 9)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+        try:
+            os.close(self._master_fd)
+        except OSError:
             pass
 
 
@@ -243,14 +257,10 @@ async def _open_serial(target: dict) -> object:
                 raise TerminalSessionError("SERIAL_NOT_FOUND", f"Serielles Gerät {device} nicht verfügbar: {e}")
     # Kein Gerät / nicht öffnbar
     if os.getenv("SERIAL_PTY_FALLBACK", "0") == "1" and not security.is_production():
-        log.warning(json.dumps({"event": "pty_demo_fallback", "reason": "SERIAL_PTY_FALLBACK=1 (nur Entwicklung)"}))
-        proc = await asyncio.create_subprocess_exec(
-            "cat",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        return PtyDemoBridge(proc)
+        shell = os.getenv("SERIAL_PTY_SHELL", "/bin/bash")
+        log.warning(json.dumps({"event": "pty_shell_fallback", "shell": shell,
+                                "reason": "SERIAL_PTY_FALLBACK=1 (nur Entwicklung, ohne echte Hardware)"}))
+        return PtyShellBridge(shell)
     raise TerminalSessionError(
         "SERIAL_NOT_FOUND",
         f"Kein serielles Gerät gefunden (gesucht: {device or '/dev/ttyACM*, /dev/ttyUSB*'}). "
@@ -373,8 +383,8 @@ async def _forward(ws: WSProto, session: Session, idle_timeout: int, abs_timeout
             data = msg.get("data", "")
             session.last_active = datetime.datetime.now(datetime.timezone.utc)
             await bridge.write(data.encode())
-            if (bridge is not None and getattr(bridge, "kind", "") == "pty-demo"
-                    and data.lower() in ("exit\r", "exit\n", "logout\r")):
+            if (bridge is not None and getattr(bridge, "kind", "") in ("pty-demo", "pty-shell")
+                    and data.lower() in ("exit\r", "exit\n", "logout\r", "exit\n")):
                 await ws.send(json.dumps({"type": "close", "reason": "user_exit"}))
                 return
         elif msg.get("type") == "ping":

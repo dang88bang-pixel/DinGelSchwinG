@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { bleConnectAndRead, usbOpenAndProbe, nfcStartScan } from '../lib/hardwareAccess';
 import { QrCode, Bluetooth, Waves, Wifi, ShieldCheck, Smartphone, Zap } from 'lucide-react';
 
 export interface PairedDevice {
@@ -67,46 +68,53 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
     }, 300);
   }, [onBind, scanningQR]);
 
-  // ECHTE Kopplung: Web-Bluetooth / Web-USB — keine Zufallsgeräte mehr.
-  // BLE: requestDevice → GATT-Connect → Disconnect (Verbindungstest).
-  // WiFi/NFC: ehrliche Rückmeldung (native APIs nicht im Browser verfügbar).
+  // ECHTE Kopplung: Web-Bluetooth mit GATT-Verbindung + optionalem
+  // Characteristic-Read (RSSI-Charakteristik konfigurierbar über
+  // VITE_BLE_RSSI_SERVICE/VITE_BLE_RSSI_CHAR) — keine Zufallsgeräte.
   const bindMethod = async (method: 'ble' | 'nfc' | 'wifi') => {
     setPairingMethod(method);
     if (method === 'nfc') {
-      setStatusMsg('NFC: WebNFC ist nur in Android-Chrome verfügbar (navigator.ndef). Prüfe Gerät…');
-      const nav = navigator as any;
-      if (nav?.ndef) {
-        setStatusMsg('NFC bereit — bitte Token an das Gerät halten (WebNFC aktiv).');
-      } else {
-        setStatusMsg('NFC nicht verfügbar: WebNFC wird von diesem Browser nicht unterstützt.');
+      setStatusMsg('NFC-Scan aktiv — Token ans Gerät halten …');
+      const stop = nfcStartScan(
+        (tag) => {
+          const payload = tag.records.map((r) => `${r.type}:${r.data}`).join(' | ') || 'leerer NDEF-Record';
+          onBind({
+            id: `nfc:${tag.serialNumber}`,
+            name: `NFC-Token ${tag.serialNumber.slice(-4)}`,
+            method: 'nfc',
+            rssi: -1,
+            boundAt: new Date().toISOString(),
+          });
+          setStatusMsg(`NFC-Tag gelesen: ${tag.serialNumber} — ${payload.slice(0, 60)}`);
+        },
+        (err) => setStatusMsg(`NFC: ${err.message}`),
+      );
+      if (stop) {
+        setTimeout(() => stop(), 20_000); // Scan nach 20 s stoppen
       }
       return;
     }
     if (method === 'wifi') {
-      setStatusMsg('WiFi-Kopplung: Es gibt keine Browser-API zum aktiven WiFi-Pairing. Bitte QR-Code (WPA-Einrichtung) verwenden.');
+      setStatusMsg('WiFi-Kopplung: Keine Browser-API für aktives WiFi-Pairing — QR-Code (WPA) verwenden.');
       return;
     }
-    // BLE — echter Request mit Geräteauswahl-Dialog des Browsers
+    // BLE — echter Request mit Geräteauswahl + GATT-Read
     setStatusMsg('BLE-Scan: Browser-Dialog öffnen (Gerät auswählen)…');
     try {
-      const nav = navigator as any;
-      if (!nav?.bluetooth) {
-        setStatusMsg('BLE nicht verfügbar: Web Bluetooth wird von diesem Browser nicht unterstützt (HTTPS + Chromium nötig).');
-        return;
-      }
-      const device = await nav.bluetooth.requestDevice({ acceptAllDevices: true });
-      setStatusMsg(`Gerät gefunden: ${device.name ?? device.id} — verbinde (GATT)…`);
-      const server = await device.gatt.connect();
-      await new Promise((r) => setTimeout(r, 400));
-      await server.disconnect();
+      const rssiService = import.meta.env.VITE_BLE_RSSI_SERVICE as string | undefined;
+      const rssiChar = import.meta.env.VITE_BLE_RSSI_CHAR as string | undefined;
+      const char = rssiService && rssiChar ? { serviceUuid: rssiService, charUuid: rssiChar } : undefined;
+      const { device, value, rssi } = await bleConnectAndRead(null, char);
       onBind({
         id: `ble:${device.id}`,
         name: device.name ?? 'BLE-Gerät',
         method,
-        rssi: -62,
+        rssi: rssi ?? -62,
         boundAt: new Date().toISOString(),
       });
-      setStatusMsg(`Kopplung erfolgreich: ${device.name ?? device.id} (GATT-Verbindung getestet)`);
+      setStatusMsg(
+        `Kopplung OK: ${device.name ?? device.id} (GATT${value ? ` · Charakteristik: ${value.slice(0, 40)}` : ''}${rssi && rssi !== -1 ? ` · RSSI ${rssi} dBm` : ''})`,
+      );
     } catch (e: any) {
       if ((e as any)?.name === 'NotFoundError') {
         setStatusMsg('Kein Gerät ausgewählt — Kopplung abgebrochen.');
@@ -116,7 +124,7 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
     }
   };
 
-  /** Echte Enumeration bereits berechtigter USB-Geräte (Web-USB). */
+  /** Echte Enumeration + aktive Deskriptor-Probe (Web-USB). */
   const scanUSB = async () => {
     const nav = navigator as any;
     if (!nav?.usb) {
@@ -124,25 +132,22 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
       return;
     }
     try {
-      const devices = await nav.usb.getDevices();
-      if (devices.length === 0) {
-        setStatusMsg('USB: Keine Geräte berechtigt — im Browser-Dialog freigeben.');
-        return;
-      }
-      for (const d of devices) {
-        onBind({
-          id: `usb:${d.vendorId}:${d.productId}`,
-          name: d.productName ?? `USB 0x${d.vendorId.toString(16)}`,
-          method: 'wifi' as const, // USB-Geräte werden als Hardware-Knoten gebunden
-          rssi: -1,
-          boundAt: new Date().toISOString(),
-        });
-      }
-      setStatusMsg(`USB: ${devices.length} berechtigte(s) Gerät(e) gebunden.`);
+      const { device, descriptor } = await usbOpenAndProbe();
+      onBind({
+        id: `usb:${device.vendorId}:${device.productId}`,
+        name: device.productName ?? `USB 0x${device.vendorId.toString(16)}`,
+        method: 'wifi' as const,
+        rssi: -1,
+        boundAt: new Date().toISOString(),
+      });
+      await device.close().catch(() => {});
+      setStatusMsg(`USB-Gerät aktiv geprüft: ${descriptor}`);
     } catch (e: any) {
-      setStatusMsg(`USB-Fehler: ${e?.message ?? 'unbekannt'}`);
+      setStatusMsg(`USB: ${e?.message ?? 'unbekannt'}`);
     }
   };
+
+
 
   return (
     <div className="flex flex-col gap-3 h-full">

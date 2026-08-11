@@ -344,9 +344,14 @@ def run_pty_bridge_idle():
                 m = json.loads(await asyncio.wait_for(w.recv(), timeout=6))
                 if m.get("type") != "open":
                     return False, m
-                # KEINE Nachricht senden → Server muss nach ~1 s schließen
-                m2 = json.loads(await asyncio.wait_for(w.recv(), timeout=8))
-                return m2.get("type") == "close" and m2.get("reason") == "idle_timeout", m2
+                # KEINE Nachricht senden → Server muss nach ~1 s schließen.
+                # Shell-Prompt-Daten zuerst konsumieren, dann auf close warten.
+                while True:
+                    m2 = json.loads(await asyncio.wait_for(w.recv(), timeout=8))
+                    if m2.get("type") == "close":
+                        return m2.get("reason") == "idle_timeout", m2
+                    if m2.get("type") == "error":
+                        return False, m2
         finally:
             server.close()
             await server.wait_closed()

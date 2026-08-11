@@ -1149,6 +1149,11 @@ export default function AdvancedResearchChat() {
           provider={selectedProvider}
           tempAuth={tempAuth}
           onVerify={code => {
+            if (tempAuth.attempts >= 3) {
+              setTempAuth(prev => prev ? { ...prev, verified: false } : null);
+              setShowAuthModal(false);
+              return;
+            }
             if (code === tempAuth.verificationCode) {
               setConfig(prev => ({
                 ...prev,

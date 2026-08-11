@@ -12,6 +12,7 @@ import { executeTask, routeTask } from "../src/lib/agentSkills";
 import { probeHttp, networkInfo } from "../src/lib/networkProbe";
 import { RosettaConverter } from "../src/lib/rosetta/rosettaConverter";
 import { loadBLEWasm, bleWasmVerifiedSimulation } from "../src/lib/bleWasm";
+import { usbListDevices, bleConnectAndRead, nfcStartScan } from "../src/lib/hardwareAccess";
 
 let pass = 0;
 let fail = 0;
@@ -89,6 +90,19 @@ async function main() {
   check("bleWasm: JS-Simulation ist die verifizierte Referenz", bleWasmVerifiedSimulation.calculate_distance(-65, -59) === Math.pow(10, 6 / 20));
   const batch = wasm.batch_distances(new Float64Array([-65, -70]), -59);
   check("bleWasm: batch_distances ausführbar", batch.length === 2 && Math.abs(batch[0] - Math.pow(10, 6 / 20)) < 1e-9, String(batch[0]));
+
+  // ── 6) hardwareAccess: ehrliche Ergebnisse ohne Hardware/Browser ──
+  try {
+    await bleConnectAndRead(null);
+    check("bleConnectAndRead wirft ohne Web-Bluetooth", false, "sollte werfen");
+  } catch (e) {
+    check("bleConnectAndRead wirft ehrlich ohne Web-Bluetooth", (e as Error).message.includes("Web Bluetooth"), (e as Error).message);
+  }
+  const usb = await usbListDevices();
+  check("usbListDevices liefert leere Liste ohne Web-USB", Array.isArray(usb) && usb.length === 0);
+  let nfcErr: Error | null = null;
+  nfcStartScan(() => {}, (err) => { nfcErr = err; });
+  check("nfcStartScan meldet ehrlich fehlendes WebNFC", nfcErr !== null && nfcErr.message.includes("WebNFC"), nfcErr?.message);
 
   console.log(`═══════ ECHTE-RUNTIME-TESTS: ${pass}/${pass + fail} · ${fail} Fehler ═══════`);
   process.exit(fail ? 1 : 0);

@@ -153,6 +153,37 @@ def _ble_rssi(mac: str) -> int:
     return -1
 
 
+def scan_network_arp() -> list[dict]:
+    """AKTIVE ARP-Quelle: liest die echte Nachbartabelle (ip neigh) —
+    liefert Netzwerk-Knoten mit echter MAC-Adresse und Zustand (REACHABLE/STALE).
+    Ohne 'ip' oder leerer Tabelle → leere Liste (kein Crash)."""
+    out = []
+    try:
+        res = subprocess.run(["ip", "neigh", "show"], capture_output=True, text=True, timeout=5)
+        for line in res.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 2 and "." in parts[0]:
+                ip_addr = parts[0]
+                mac = parts[parts.index("lladdr") + 1] if "lladdr" in parts else None
+                state = parts[-1] if parts[-1] in ("REACHABLE", "STALE", "DELAY", "PROBE", "FAILED") else ""
+                if mac:
+                    out.append({
+                        "id": f"arp:{ip_addr}",
+                        "kind": "network",
+                        "label": f"ARP {ip_addr} ({mac})",
+                        "transport": "wifi",
+                        "signal": {"rssi": -1, "channel": "arp", "measuredAt": _now()},
+                        "lastSeen": _now(),
+                        "autoBindable": False,
+                        "mac": mac,
+                        "state": state,
+                        "source": "arp",
+                    })
+    except (subprocess.SubprocessError, OSError):
+        pass  # ip nicht verfügbar
+    return out
+
+
 def scan_ble() -> list[dict]:
     """BLE-Token-Scan über USB-C-BLE-Dongle via bluetoothctl. Fehlertolerant.
 
@@ -208,7 +239,7 @@ def scan_demo_nodes() -> list[dict]:
 def collect() -> dict:
     """Sammelt Nodes aus allen Quellen, dedupliziert und merged vorhandene."""
     nodes = {}
-    for src in (scan_network_mdns(), scan_ble(), scan_usb_dongles(), scan_demo_nodes()):
+    for src in (scan_network_mdns(), scan_network_arp(), scan_ble(), scan_usb_dongles(), scan_demo_nodes()):
         for n in src:
             prev = known.get(n["id"], {})
             # RSSI nur überschreiben, wenn neuer Messwert vorhanden ist

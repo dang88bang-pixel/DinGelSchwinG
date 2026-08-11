@@ -405,10 +405,19 @@ def webauthn_demo_grant():
     scope = data.get("scope", "")
     if scope not in WEBAUTHN_SCOPES:
         return jsonify({"error": "ungültiger Scope"}), 400
+    # HUMAN-IN-THE-LOOP: Der Grant wird NICHT automatisch ausgestellt —
+    # der Nutzer muss sein Passwort bestätigen (echte Prüfung gegen die DB).
+    # Damit ist die Freigabe immer eine bewusste menschliche Aktion.
+    password = data.get("password", "")
+    if not userstore.verify_credentials(u, password):
+        auditlog.log_event("webauthn.demo_grant", tid=auditlog.begin_trace(), step=1, user=u, role=role,
+                           resource="webauthn", action=scope, result="denied",
+                           detail="HITL-Passwortbestätigung fehlgeschlagen")
+        return jsonify({"error": "Passwortbestätigung erforderlich (Human-in-the-Loop)"}), 403
     token = webauthn_mod.grant_token(scope)
     auditlog.log_event("webauthn.demo_grant", tid=auditlog.begin_trace(), step=1, user=u, role=role,
                        resource="webauthn", action=scope, result="ok",
-                       detail="Demo-Grant (Entwicklung, WEBAUTHN_DEMO_BYPASS)")
+                       detail="Demo-Grant nach HITL-Passwortbestätigung (Entwicklung)")
     return jsonify({"ok": True, "scope": scope, "token": token})
 
 

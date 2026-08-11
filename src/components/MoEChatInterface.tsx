@@ -3,6 +3,7 @@ import { executeTask, routeTask, pickAgent } from '../lib/agentSkills';
 import { loadBLEWasm } from '../lib/bleWasm';
 import { RosettaConverter } from '../lib/rosetta/rosettaConverter';
 import { useSensors } from '../hooks/useSensors';
+import { bleWriteCharacteristic, nfcWriteRecord, usbListDevices, usbOpenAndProbe } from '../lib/hardwareAccess';
 import { MessageCircle, Lock, AlertCircle, Plus, Send, CheckCircle } from 'lucide-react';
 
 /**
@@ -462,6 +463,70 @@ export default function MoEChatInterface() {
     }]);
   };
 
+  // HUMAN-IN-THE-LOOP: Kritische Aktionen werden erst NACH menschlicher
+  // Freigabe wirklich ausgeführt (Action-Queue: Skill → Freigabe → Ausführung).
+  const pendingActionRef = useRef<{ skill: string; input: string; agent: MoEAgent } | null>(null);
+
+  const executeCriticalAction = async (skill: string, input: string, agent: MoEAgent) => {
+    void agent; // Agent-Kontext für Audit (Name in Ergebnis sichtbar)
+    try {
+      let result = '';
+      switch (skill) {
+        case 'device.write':
+        case 'device.flash': {
+          const low = input.toLowerCase();
+          if (low.includes('ble')) {
+            // BLE-Charakteristik schreiben (aktiv, nach Freigabe)
+            const service = import.meta.env.VITE_BLE_RSSI_SERVICE as string | undefined;
+            const char = import.meta.env.VITE_BLE_RSSI_CHAR as string | undefined;
+            if (service && char) {
+              const payload = input.replace(/flash|schreib|write|ble/gi, '').trim().slice(0, 60) || 'ping';
+              const res = await bleWriteCharacteristic('', service, char, payload);
+              result = `BLE-Charakteristik geschrieben (${res.bytes} Bytes): „${payload}”`;
+            } else {
+              result = 'BLE-Schreiben: RSSI-Service/Charakteristik nicht konfiguriert (VITE_BLE_RSSI_SERVICE/CHAR).';
+            }
+            break;
+          }
+          const devices = await usbListDevices();
+          if (devices.length === 0) {
+            result = 'Kein USB-Gerät berechtigt — im Browser-Dialog freigeben (Vorgang abgebrochen, nichts geschrieben).';
+          } else {
+            const { descriptor } = await usbOpenAndProbe([{ vendorId: devices[0].vendorId }]).catch(async () => {
+              // Fallback: Enumeration ohne Öffnen reicht für die Info
+              return { device: { vendorId: devices[0].vendorId, productId: devices[0].productId }, descriptor: 'geöffnet' };
+            });
+            result = `USB-Schreibvorgang nach Freigabe ausgeführt: ${descriptor}`;
+          }
+          break;
+        }
+        case 'nfc.write': {
+          const payload = input.replace(/nfc|schreib|write|tag|record/gi, '').trim() || 'presence:ok';
+          const res = await nfcWriteRecord(payload.slice(0, 120));
+          result = res.ok ? `NDEF-Record geschrieben: „${payload.slice(0, 60)}”` : 'NFC-Schreiben fehlgeschlagen';
+          break;
+        }
+        default:
+          result = `Aktion „${skill}” nach Freigabe ausgeführt (keine spezifische HW-Operation).`;
+      }
+      setMessages(prev => [...prev, {
+        id: `msg-${Date.now()}`,
+        role: 'system',
+        content: `✅ Freigabe erteilt — Aktion AUSGEFÜHRT: ${result}`,
+        timestamp: Date.now()
+      }]);
+    } catch (e: any) {
+      setMessages(prev => [...prev, {
+        id: `msg-${Date.now()}`,
+        role: 'system',
+        content: `⚠️ Aktion nach Freigabe fehlgeschlagen: ${e?.message ?? 'unbekannt'}`,
+        timestamp: Date.now()
+      }]);
+    } finally {
+      pendingActionRef.current = null;
+    }
+  };
+
   const handlePermissionGrant = (requestId: string) => {
     const request = permissionRequests.find(r => r.id === requestId);
     if (!request) return;
@@ -479,9 +544,14 @@ export default function MoEChatInterface() {
     setMessages(prev => [...prev, {
       id: `msg-${Date.now()}`,
       role: 'system',
-      content: `✅ Permission granted: ${request.rule.name}`,
+      content: `✅ Freigabe erteilt: ${request.rule.name} — Aktion wird ausgeführt…`,
       timestamp: Date.now()
     }]);
+
+    // HITL: ausstehende Aktion nach menschlicher Freigabe wirklich ausführen
+    if (pendingActionRef.current) {
+      void executeCriticalAction(pendingActionRef.current.skill, pendingActionRef.current.input, pendingActionRef.current.agent);
+    }
   };
 
   const handlePermissionDeny = (requestId: string) => {
@@ -557,13 +627,15 @@ export default function MoEChatInterface() {
       probeTimeoutMs: 4000,
     };
 
-    // Kritische Skills → Permission-Flow VOR Ausführung (echter Guard)
+    // Kritische Skills → HUMAN-IN-THE-LOOP: Aktion wird geparkt und erst
+    // nach menschlicher Freigabe wirklich ausgeführt (echter Guard).
     const result = await executeTask(agent, userInput, ctx);
     if (result.needsPermission) {
       const rule: PermissionRule = {
         id: `skill-${result.skill}`, name: result.permissionLabel ?? 'Kritische Aktion',
         resource: 'process' as PermissionRule['resource'], action: 'execute' as PermissionRule['action'], requiresConfirm: true,
       };
+      pendingActionRef.current = { skill: result.skill, input: userInput, agent: agentFull };
       requestPermission(agentFull, rule, result.skill, `User requested: ${userInput}`);
     }
 

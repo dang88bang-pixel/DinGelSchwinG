@@ -66,9 +66,20 @@ export async function assertWebAuthn(token: string, scope: string): Promise<stri
   if (!webAuthnSupported()) {
     if (import.meta.env.DEV) {
       try {
-        const res = await fetchJson("/api/webauthn/demo-grant", token, { scope });
+        // HUMAN-IN-THE-LOOP: Der Nutzer muss sein Passwort bestätigen,
+        // bevor der Server den Grant ausstellt (echte Prüfung gegen die DB).
+        const password = window.prompt(
+          `Human-in-the-Loop-Freigabe für „${scope}":\n\nBitte Passwort bestätigen (Entwicklungs-Modus ohne FIDO2-Gerät).`,
+          "",
+        );
+        if (password === null) {
+          throw new AppError("AUTH_FAILED", "Freigabe abgebrochen (Human-in-the-Loop)");
+        }
+        const res = await fetchJson("/api/webauthn/demo-grant", token, { scope, password });
         if (res?.ok && res.token) return res.token as string;
-      } catch {
+        throw new AppError("AUTH_FAILED", res?.error ?? "Freigabe abgelehnt");
+      } catch (e) {
+        if (e instanceof AppError) throw e;
         /* Fall durch → klare Fehlermeldung unten */
       }
     }

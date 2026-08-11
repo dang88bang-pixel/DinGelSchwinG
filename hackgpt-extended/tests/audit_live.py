@@ -188,13 +188,13 @@ async def run_ws_terminal():
     async with websockets.connect(f"{PROXY_WS}/api/ws/terminal?token={svc}&kind=hardware&conn=serial") as w:
         m = json.loads(await asyncio.wait_for(w.recv(), timeout=6))
         check("Terminal hardware: open", m.get("type") == "open", m)
-        await w.send(json.dumps({"type": "input", "data": "audit-echo\r"}))
+        await w.send(json.dumps({"type": "input", "data": "echo audit-echo-42\r"}))
         data = ""
-        while "audit-echo" not in data:
+        while "audit-echo-42" not in data:
             m2 = json.loads(await asyncio.wait_for(w.recv(), timeout=6))
             if m2.get("type") == "data":
                 data += m2["data"]
-        check("Terminal hardware: bidirektionaler Echo-Betrieb", "audit-echo" in data, repr(data[:20]))
+        check("Terminal hardware: bidirektionaler Shell-Betrieb (bash)", "audit-echo-42" in data, repr(data[:20]))
 
     # RBAC: operator → denied
     async with websockets.connect(f"{PROXY_WS}/api/ws/terminal?token={op}&kind=hardware") as w:

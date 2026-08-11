@@ -90,8 +90,8 @@ const ROUTES: Array<{ keywords: string[]; hint: RouteHint }> = [
     hint: { skill: "diagnostics.run", agentRoles: ["analyzer", "critic"], label: "System-Diagnose" },
   },
   {
-    keywords: ["gerät", "device", "usb", "dongle", "bluetooth", "scannen", "koppeln", "pairing", "flash", "peripherie"],
-    hint: { skill: "device.scan", agentRoles: ["executor"], label: "Geräte erkennen (USB/BT)" },
+    keywords: ["gerät", "device", "usb", "dongle", "bluetooth", "scannen", "koppeln", "pairing", "flash", "peripherie", "nfc", "tag", "ndef"],
+    hint: { skill: "device.scan", agentRoles: ["executor"], label: "Geräte erkennen (USB/BT/NFC)" },
   },
   {
     keywords: ["rosetta", "konvert", "umwandeln", "übersetzen", "format", "konverter", "protokoll"],
@@ -251,12 +251,14 @@ async function execSkill(skill: SkillId, input: string, ctx: SkillContext): Prom
     }
     case "device.scan": {
       const devices = await scanDevices();
-      const flashRequested = input.toLowerCase().includes("flash");
+      const low = input.toLowerCase();
+      const flashRequested = low.includes("flash") || low.includes("schreib") || low.includes("write");
+      const nfcWrite = low.includes("nfc") && (low.includes("schreib") || low.includes("write") || low.includes("tag"));
       if (flashRequested) {
         return {
           skill, ok: true,
-          summary: `Geräte erkannt (${devices.length}). Flash/Schreiben wird im Browser nicht unterstützt (kein Schreib-USB-Zugriff) — erkannte Geräte:\n${devices.map((d) => `• ${d.name} (${d.source}${d.vid ? ` 0x${d.vid.toString(16)}` : ""})`).join("\n") || "• keine"}`,
-          data: devices, needsPermission: true, permissionLabel: "device.write",
+          summary: `Geräte erkannt (${devices.length}). Schreibvorgang wartet auf HUMAN-IN-THE-LOOP-Freigabe (USB/NFC-Transfer wird erst nach Bestätigung ausgeführt).\n${devices.map((d) => `• ${d.name} (${d.source}${d.vid ? ` 0x${d.vid.toString(16)}` : ""})`).join("\n") || "• keine berechtigten Geräte"}`,
+          data: devices, needsPermission: true, permissionLabel: nfcWrite ? "nfc.write" : "device.write",
         };
       }
       return {
