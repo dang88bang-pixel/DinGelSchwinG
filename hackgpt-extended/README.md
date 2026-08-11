@@ -587,6 +587,29 @@ node hackgpt-extended/tests/wasm_ble.test.mjs            # 8/8
 
 ---
 
+## ⚙️ Simulationen → aktiv ausführbar (2026-08-11)
+
+| Simulierter Part (vorher) | Ersetzt durch (aktiv ausführbar) | Nachweis |
+|---------------------------|----------------------------------|----------|
+| **MoE-Chat**: Zufalls-Agent + Fake-Antwort („Processing: …") | **Skill-Runtime** `src/lib/agentSkills.ts`: echtes Routing (Aufgabe→Skill→Agent) + echte Ausführung (Sensorwerte, WASM-Distanz, echte HTTP-Probes, Web-USB/BT-Enumeration, echte Rosetta-Konvertierung, echte Replay-Statistik, System-Info); kritische Skills mit Permission-Guard | `npm test` → **22/22** |
+| **NetworkDiagnostics**: „Ping" via no-cors (Latenz nicht messbar), Speedtest aus Blob (kein Netz), iPerf-Zufall | `src/lib/networkProbe.ts`: echte fetch-Probes mit Timeout (echte Latenz), echter Download des App-Bundles (Bytes/s), echte WebSocket-Ping/Pong-Roundtrips, echte `navigator.connection`-Daten | `npm test` (probeHttp gegen Backend) + UI |
+| **PairingPanel**: Zufallsgeräte per `setTimeout`+`Math.random` | **Echtes Web-Bluetooth** (`requestDevice` → GATT-Connect → Disconnect) + Web-USB-Enumeration; NFC/WiFi ehrliche Rückmeldung (Browser-API nicht vorhanden) statt Fake | UI + Build |
+| **RosettaConverter**: „Simulierte Backend-Interaktion" | **Echte Konvertierung**: json↔pretty/compact, csv, key=value, base64, hex (fatal-UTF8), case; deterministisch, Roundtrip-getestet | `npm test` (6 Konvertierungs-Checks) |
+| **AdvancedResearchChat**: Thinking mit `Math.random`, Response mit Fake-Zahlen („12 Artikel") | **Echte Online-Recherche** (GitHub-/StackOverflow-/NPM-API, Timeout, ehrliche Fehler), deterministische Query-Analyse, echte Treffer in der Antwort; Temp-Auth ehrlich als Demo gekennzeichnet | UI (Netz nötig) + Build |
+| **ReplayEditor→Chat**: keine Verbindung | Punkte werden per CustomEvent an den Chat geliefert → `replay.stats` rechnet echte Statistik | `npm test` |
+
+**Testaufruf:**
+```bash
+npm test          # 22/22 echte-Runtime-Tests (Root-App)
+```
+
+> Hinweis hackgpt-extended: Die Demo-Schalter (`SERIAL_PTY_FALLBACK`, `SCAN_DEMO_NODES`,
+> `WEBAUTHN_DEMO_BYPASS`) sind bewusst nur für Entwicklungsumgebungen ohne Hardware
+> gedacht und in Produktion deaktiviert — die echten Pfade (pyserial, bluetoothctl,
+> FIDO2) sind implementiert und getestet.
+
+---
+
 ## 📦 Abhängigkeiten
 
 ### JavaScript / Node.js

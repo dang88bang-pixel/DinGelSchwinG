@@ -6,7 +6,7 @@ import NetworkDiagnostics from './diagnostics/NetworkDiagnostics';
 import MeshControl from './MeshControl';
 import ReplayEditor from './ReplayEditor';
 import RosettaPanel from './RosettaPanel';
-import NetworkSettings from './NetworkSettings';
+import NetworkSettings, { NetworkConfig } from './NetworkSettings';
 import { useSensors } from '../hooks/useSensors';
 import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
 
@@ -23,6 +23,12 @@ export interface SceneDevice {
 export default function NetworkDashboard() {
   const sensors = useSensors();
   const [mode, setMode] = useState<'ble' | 'wifi' | 'usb'>('ble');
+  const [settings, setSettings] = useState<NetworkConfig>({
+    defaultMode: 'ble', scanIntervalMs: 2000, bleTxPower: -59, bleEnvFactor: 2.0,
+    sensorTimeoutMs: 1000, meshIntervalMs: 2000, meshFreqStart: 2400, meshFreqEnd: 2500,
+    pairingMethods: { qr: true, ble: true, nfc: true, wifi: true },
+    wasmCalibrationRssiRef: -59, wasmCalibrationDistRef: 2.0,
+  });
   const [wasmModule, setWasmModule] = useState<BLEWasmExports | null>(null);
   const [devices, setDevices] = useState<SceneDevice[]>([
     { id: 'master-1', name: 'MASTER-Gold', x: 0, y: 0, z: 0, type: 'master', rssi: -42, txPower: -59 },
@@ -263,7 +269,7 @@ export default function NetworkDashboard() {
               )}
             </div>
           </div>
-        <NetworkSettings config={{ defaultMode: "ble", scanIntervalMs: 2000, bleTxPower: -59, bleEnvFactor: 2.0, sensorTimeoutMs: 1000, meshIntervalMs: 2000, meshFreqStart: 2400, meshFreqEnd: 2500, pairingMethods: { qr: true, ble: true, nfc: true, wifi: true }, wasmCalibrationRssiRef: -59, wasmCalibrationDistRef: 2.0 }} onChange={(() => {})} />
+        <NetworkSettings config={settings} onChange={setSettings} />
         </aside>
       </main>
 

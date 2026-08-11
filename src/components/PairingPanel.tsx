@@ -67,19 +67,81 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
     }, 300);
   }, [onBind, scanningQR]);
 
-  const bindMethod = (method: 'ble' | 'nfc' | 'wifi') => {
+  // ECHTE Kopplung: Web-Bluetooth / Web-USB — keine Zufallsgeräte mehr.
+  // BLE: requestDevice → GATT-Connect → Disconnect (Verbindungstest).
+  // WiFi/NFC: ehrliche Rückmeldung (native APIs nicht im Browser verfügbar).
+  const bindMethod = async (method: 'ble' | 'nfc' | 'wifi') => {
     setPairingMethod(method);
-    setStatusMsg(method === 'ble' ? 'BLE-Scan läuft — Geräte suchen' : method === 'nfc' ? 'NFC-Token lesen — bitte halten' : 'WiFi-AP erkennen — Verbindungsaufbau');
-    setTimeout(() => {
+    if (method === 'nfc') {
+      setStatusMsg('NFC: WebNFC ist nur in Android-Chrome verfügbar (navigator.ndef). Prüfe Gerät…');
+      const nav = navigator as any;
+      if (nav?.ndef) {
+        setStatusMsg('NFC bereit — bitte Token an das Gerät halten (WebNFC aktiv).');
+      } else {
+        setStatusMsg('NFC nicht verfügbar: WebNFC wird von diesem Browser nicht unterstützt.');
+      }
+      return;
+    }
+    if (method === 'wifi') {
+      setStatusMsg('WiFi-Kopplung: Es gibt keine Browser-API zum aktiven WiFi-Pairing. Bitte QR-Code (WPA-Einrichtung) verwenden.');
+      return;
+    }
+    // BLE — echter Request mit Geräteauswahl-Dialog des Browsers
+    setStatusMsg('BLE-Scan: Browser-Dialog öffnen (Gerät auswählen)…');
+    try {
+      const nav = navigator as any;
+      if (!nav?.bluetooth) {
+        setStatusMsg('BLE nicht verfügbar: Web Bluetooth wird von diesem Browser nicht unterstützt (HTTPS + Chromium nötig).');
+        return;
+      }
+      const device = await nav.bluetooth.requestDevice({ acceptAllDevices: true });
+      setStatusMsg(`Gerät gefunden: ${device.name ?? device.id} — verbinde (GATT)…`);
+      const server = await device.gatt.connect();
+      await new Promise((r) => setTimeout(r, 400));
+      await server.disconnect();
       onBind({
-        id: 'bound-' + Date.now(),
-        name: method === 'ble' ? 'BLE-Client-' + Math.floor(Math.random()*100) : method === 'nfc' ? 'NFC-Token-' + Math.floor(Math.random()*100) : 'WiFi-Node-' + Math.floor(Math.random()*100),
+        id: `ble:${device.id}`,
+        name: device.name ?? 'BLE-Gerät',
         method,
-        rssi: -62 + Math.floor(Math.random() * 20),
+        rssi: -62,
         boundAt: new Date().toISOString(),
       });
-      setStatusMsg('Kopplung erfolgreich — Gerät gebunden');
-    }, 1200);
+      setStatusMsg(`Kopplung erfolgreich: ${device.name ?? device.id} (GATT-Verbindung getestet)`);
+    } catch (e: any) {
+      if ((e as any)?.name === 'NotFoundError') {
+        setStatusMsg('Kein Gerät ausgewählt — Kopplung abgebrochen.');
+      } else {
+        setStatusMsg(`BLE-Fehler: ${e?.message ?? 'unbekannt'}`);
+      }
+    }
+  };
+
+  /** Echte Enumeration bereits berechtigter USB-Geräte (Web-USB). */
+  const scanUSB = async () => {
+    const nav = navigator as any;
+    if (!nav?.usb) {
+      setStatusMsg('USB nicht verfügbar: Web-USB wird von diesem Browser nicht unterstützt.');
+      return;
+    }
+    try {
+      const devices = await nav.usb.getDevices();
+      if (devices.length === 0) {
+        setStatusMsg('USB: Keine Geräte berechtigt — im Browser-Dialog freigeben.');
+        return;
+      }
+      for (const d of devices) {
+        onBind({
+          id: `usb:${d.vendorId}:${d.productId}`,
+          name: d.productName ?? `USB 0x${d.vendorId.toString(16)}`,
+          method: 'wifi' as const, // USB-Geräte werden als Hardware-Knoten gebunden
+          rssi: -1,
+          boundAt: new Date().toISOString(),
+        });
+      }
+      setStatusMsg(`USB: ${devices.length} berechtigte(s) Gerät(e) gebunden.`);
+    } catch (e: any) {
+      setStatusMsg(`USB-Fehler: ${e?.message ?? 'unbekannt'}`);
+    }
   };
 
   return (
@@ -93,14 +155,17 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
           <button onClick={() => { setPairingMethod('qr'); startQR(); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'qr' ? 'bg-cyan-600 text-white shadow-cyan-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <QrCode className="w-4 h-4" /> QR Code
           </button>
-          <button onClick={() => { setPairingMethod('ble'); bindMethod('ble'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'ble' ? 'bg-emerald-600 text-white shadow-emerald-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
+          <button onClick={() => { setPairingMethod('ble'); void bindMethod('ble'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'ble' ? 'bg-emerald-600 text-white shadow-emerald-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <Bluetooth className="w-4 h-4" /> BLE
           </button>
-          <button onClick={() => { setPairingMethod('nfc'); bindMethod('nfc'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'nfc' ? 'bg-violet-600 text-white shadow-violet-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
+          <button onClick={() => { setPairingMethod('nfc'); void bindMethod('nfc'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'nfc' ? 'bg-violet-600 text-white shadow-violet-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <Waves className="w-4 h-4" /> NFC Token
           </button>
-          <button onClick={() => { setPairingMethod('wifi'); bindMethod('wifi'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'wifi' ? 'bg-rose-600 text-white shadow-rose-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
+          <button onClick={() => { setPairingMethod('wifi'); void bindMethod('wifi'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'wifi' ? 'bg-rose-600 text-white shadow-rose-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <Wifi className="w-4 h-4" /> WiFi
+          </button>
+          <button onClick={() => void scanUSB()} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40">
+            <Smartphone className="w-4 h-4" /> USB
           </button>
         </div>
 

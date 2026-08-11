@@ -1,4 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { executeTask, routeTask, pickAgent } from '../lib/agentSkills';
+import { loadBLEWasm } from '../lib/bleWasm';
+import { RosettaConverter } from '../lib/rosetta/rosettaConverter';
+import { useSensors } from '../hooks/useSensors';
 import { MessageCircle, Lock, AlertCircle, Plus, Send, CheckCircle } from 'lucide-react';
 
 /**
@@ -410,6 +414,23 @@ export default function MoEChatInterface() {
     setShowAgentForm(false);
   };
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sensors = useSensors();
+  const [wasmModule, setWasmModule] = useState<any>(null);
+  const [replayPoints, setReplayPoints] = useState<Array<{ t: number; freqMHz: number; rssi: number; amp: number }>>([]);
+
+  useEffect(() => {
+    loadBLEWasm().then(setWasmModule).catch(() => {});
+  }, []);
+
+  // Echte Replay-Punkte aus dem ReplayEditor übernehmen (via CustomEvent)
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const pts = (ev as CustomEvent).detail;
+      if (Array.isArray(pts) && pts.length > 0) setReplayPoints(pts);
+    };
+    window.addEventListener('hgpt-replay-points', handler);
+    return () => window.removeEventListener('hgpt-replay-points', handler);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -504,10 +525,9 @@ export default function MoEChatInterface() {
 
   // ============ Chat Handling ============
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!userInput.trim()) return;
 
-    // Add user message
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -515,29 +535,45 @@ export default function MoEChatInterface() {
       timestamp: Date.now()
     };
     setMessages(prev => [...prev, userMessage]);
-
-    // Simulate agent response with permission request
-    setTimeout(() => {
-      const randomAgent = agents[Math.floor(Math.random() * agents.length)];
-      const riskActions = ['flash dongle', 'send data', 'execute command', 'write to filesystem'];
-      
-      if (riskActions.some(action => userInput.toLowerCase().includes(action))) {
-        const criticalRule = DEFAULT_PERMISSION_RULES.find(r => r.requiresConfirm);
-        if (criticalRule) {
-          requestPermission(randomAgent, criticalRule, userInput, `User requested: ${userInput}`);
-        }
-      }
-
-      setMessages(prev => [...prev, {
-        id: `msg-${Date.now()}`,
-        role: 'assistant',
-        content: `Processing: "${userInput}". ${randomAgent.permissions.some(p => p.requiresConfirm) ? 'This may require system permissions.' : ''}`,
-        agent: randomAgent.name,
-        timestamp: Date.now()
-      }]);
-    }, 500);
-
     setUserInput('');
+
+    // ECHTE Ausführung: Routing → Agent → Skill
+    const hint = routeTask(userInput);
+    const agent = pickAgent(agents, hint);
+    if (!agent) {
+      setMessages(prev => [...prev, {
+        id: `msg-${Date.now()}`, role: 'system', content: 'Kein Agent konfiguriert — bitte im Agents-Tab einen erstellen.', timestamp: Date.now(),
+      }]);
+      return;
+    }
+    const agentFull = agents.find(a => a.id === agent.id)!;
+
+    const ctx = {
+      sensors: { alpha: sensors.alpha, beta: sensors.beta, gamma: sensors.gamma, permissionGranted: sensors.permissionGranted },
+      distanceFn: wasmModule ? (rssi: number, tx: number) => wasmModule.calculate_distance(rssi, tx) : undefined,
+      rosettaConvert: (input: string, format: string) => RosettaConverter.convert(input, format),
+      replayPoints: replayPoints.length > 0 ? replayPoints : undefined,
+      apiBase: typeof window !== 'undefined' ? window.location.origin : undefined,
+      probeTimeoutMs: 4000,
+    };
+
+    // Kritische Skills → Permission-Flow VOR Ausführung (echter Guard)
+    const result = await executeTask(agent, userInput, ctx);
+    if (result.needsPermission) {
+      const rule: PermissionRule = {
+        id: `skill-${result.skill}`, name: result.permissionLabel ?? 'Kritische Aktion',
+        resource: 'process' as PermissionRule['resource'], action: 'execute' as PermissionRule['action'], requiresConfirm: true,
+      };
+      requestPermission(agentFull, rule, result.skill, `User requested: ${userInput}`);
+    }
+
+    setMessages(prev => [...prev, {
+      id: `msg-${Date.now()}`,
+      role: 'assistant',
+      content: `[${hint.label} · ${agent.name}]\n${result.summary}`,
+      agent: agent.name,
+      timestamp: Date.now()
+    }]);
   };
 
   // ============ Agent Management ============

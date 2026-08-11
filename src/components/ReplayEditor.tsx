@@ -48,6 +48,11 @@ export default function ReplayEditor() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [playing, points]);
 
+  // Echte Punkte an den MoE-Chat senden (CustomEvent) — Analyse von echten Daten
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('hgpt-replay-points', { detail: points }));
+  }, [points]);
+
   const handleClear = useCallback(() => {
     setPoints([]);
     setPlayHead(0);

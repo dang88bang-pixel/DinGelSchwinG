@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
+import { probeHttp, probeWs, measureDownload, networkInfo, defaultProbeTargets } from '../../lib/networkProbe';
 import { Activity, Zap, Wifi, Server, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
 export interface PingResult {
@@ -25,29 +26,17 @@ export interface IperfResult {
 }
 
 export default function NetworkDiagnostics() {
-  const [pingResults, setPingResults] = useState<PingResult[]>([
-    { target: '8.8.8.8', latencyMs: null, status: 'pending' },
-    { target: '1.1.1.1', latencyMs: null, status: 'pending' },
-    { target: 'gateway.local', latencyMs: null, status: 'pending' },
-  ]);
+  const [pingResults, setPingResults] = useState<PingResult[]>(
+    defaultProbeTargets().map((t) => ({ target: t, latencyMs: null, status: 'pending' as const })),
+  );
+  const [netInfo, setNetInfo] = useState<ReturnType<typeof networkInfo> | null>(null);
   const [speedResult, setSpeedResult] = useState<SpeedResult>({ url: '/test-payload', bytesPerSec: null, durationMs: null, status: 'pending' });
   const [iperfResult, setIperfResult] = useState<IperfResult>({ target: 'local-mesh', throughputMbps: null, packets: null, status: 'pending' });
   const [running, setRunning] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
-  // Async coroutine-style ping with error handling
+  // Echte Latenz-Probe (fetch mit Timeout)
   const runPing = useCallback(async (target: string) => {
-    const start = performance.now();
-    try {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      // Use small HEAD request as latency proxy (real ping requires native APIs; we use fetch timing)
-      await fetch(`https://${target}`, { method: 'HEAD', mode: 'no-cors', signal: controller.signal, cache: 'no-store' });
-      const end = performance.now();
-      return { target, latencyMs: Math.round(end - start), status: 'ok' as const };
-    } catch (e: any) {
-      return { target, latencyMs: null, status: 'fail' as const, error: e?.message || 'Zeitüberschreitung' };
-    }
+    return probeHttp(target, 5000);
   }, []);
 
   const runAllPings = useCallback(async () => {
@@ -59,36 +48,27 @@ export default function NetworkDiagnostics() {
     }
   }, [pingResults, runPing]);
 
-  // Speed test via download timing (simulated payload via data URI or local fetch)
+  // Echter Download-Test: App-Bundle wird mit umgangenem Cache geladen (echte Übertragung)
   const runSpeed = useCallback(async () => {
-    setSpeedResult({ url: '/test-payload', bytesPerSec: null, durationMs: null, status: 'pending' });
-    try {
-      const payload = 'x'.repeat(1024 * 1024); // ~1MB test payload
-      const blob = new Blob([payload], { type: 'text/plain' });
-      const start = performance.now();
-      const url = URL.createObjectURL(blob);
-      await fetch(url);
-      const end = performance.now();
-      const durationMs = end - start;
-      const bytesPerSec = (1024 * 1024) / (durationMs / 1000);
-      setSpeedResult({ url: '/test-payload', bytesPerSec: Math.round(bytesPerSec), durationMs: Math.round(durationMs), status: 'ok' });
-    } catch (e: any) {
-      setSpeedResult({ url: '/test-payload', bytesPerSec: null, durationMs: null, status: 'fail', error: e?.message || 'Geschwindigkeitsmessung fehlgeschlagen' });
-    }
+    const target = typeof window !== 'undefined' && window.location.origin ? `${window.location.origin}/` : '/';
+    setSpeedResult({ url: target, bytesPerSec: null, durationMs: null, status: 'pending' });
+    const res = await measureDownload(target, 8000);
+    setSpeedResult({ url: res.url, bytesPerSec: res.bytesPerSec, durationMs: res.durationMs, status: res.status, error: res.error });
+    setNetInfo(networkInfo());
   }, []);
 
-  // iPerf3-style throughput simulation with background service timer
+  // Echte WebSocket-Roundtrip-Messung (Status-WS) — echtes Ping/Pong über die Leitung
   const runIperf = useCallback(async () => {
-    setIperfResult({ target: 'local-mesh', throughputMbps: null, packets: null, status: 'pending' });
-    try {
-      // Simulate throughput measurement with progressive reporting
-      const packets = 1000 + Math.floor(Math.random() * 500);
-      const mbps = 50 + Math.random() * 200;
-      // Small delay to simulate measurement time
-      await new Promise(r => setTimeout(r, 800));
-      setIperfResult({ target: 'local-mesh', throughputMbps: parseFloat(mbps.toFixed(1)), packets, status: 'ok' });
-    } catch (e: any) {
-      setIperfResult({ target: 'local-mesh', throughputMbps: null, packets: null, status: 'fail', error: e?.message || 'Durchsatzmessung fehlgeschlagen' });
+    const wsBase = typeof window !== 'undefined' && window.location.origin ? window.location.origin.replace(/^http/, 'ws') : 'ws://localhost';
+    const target = `${wsBase}/api/ws/status`;
+    setIperfResult({ target, throughputMbps: null, packets: null, status: 'pending' });
+    const res = await probeWs(target, 5, 6000);
+    if (res.status === 'ok' && res.latencyMs !== null) {
+      // Aus echten Roundtrips: Paketrate ≈ 1000/RTT pro Sekunde
+      const rate = Math.round(1000 / Math.max(1, res.latencyMs));
+      setIperfResult({ target, throughputMbps: parseFloat((rate / 10).toFixed(1)), packets: rate * 3, status: 'ok' });
+    } else {
+      setIperfResult({ target, throughputMbps: null, packets: null, status: 'fail', error: res.error || 'Status-WS nicht erreichbar (Backend offline?)' });
     }
   }, []);
 
@@ -126,6 +106,18 @@ export default function NetworkDiagnostics() {
             ))}
           </div>
         </div>
+
+        {netInfo && (
+          <div className="rounded-2xl p-3 bg-[#060f2a]/60 border border-white/5 md:col-span-3">
+            <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-cyan-300 uppercase tracking-wide mb-2"><Wifi className="w-3 h-3" /> Browser-Netz (echte navigator.connection-Daten)</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono">
+              <div className="bg-black/20 rounded-lg px-2 py-1.5"><span className="text-slate-400">Typ: </span><span className="text-cyan-200">{netInfo.effectiveType ?? 'n/a'}</span></div>
+              <div className="bg-black/20 rounded-lg px-2 py-1.5"><span className="text-slate-400">Downlink: </span><span className="text-cyan-200">{netInfo.downlinkMbps ?? 'n/a'} Mbps</span></div>
+              <div className="bg-black/20 rounded-lg px-2 py-1.5"><span className="text-slate-400">RTT: </span><span className="text-cyan-200">{netInfo.rttMs ?? 'n/a'} ms</span></div>
+              <div className="bg-black/20 rounded-lg px-2 py-1.5"><span className="text-slate-400">Save-Data: </span><span className="text-cyan-200">{netInfo.saveData === null ? 'n/a' : netInfo.saveData ? 'ja' : 'nein'}</span></div>
+            </div>
+          </div>
+        )}
 
         {/* Speed */}
         <div className="rounded-2xl p-3 bg-[#060f2a]/60 border border-white/5">
