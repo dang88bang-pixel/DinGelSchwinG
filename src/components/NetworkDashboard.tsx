@@ -71,12 +71,7 @@ export default function NetworkDashboard() {
   const sceneDevices = useMemo(() => devices.map(d => ({ id: d.id, name: d.name, x: d.x, y: d.y, z: d.z, type: d.type, rssi: d.rssi })), [devices]);
   const selectedDevice = devices.find(d => d.id === selectedId);
 
-  const cardGradient = (t: SceneDevice['type']) => {
-    if (t === 'master') return 'from-amber-900/40 to-amber-950/60 border-amber-500/40 text-amber-100';
-    if (t === 'client') return 'from-emerald-900/40 to-emerald-950/60 border-emerald-500/40 text-emerald-100';
-    if (t === 'target') return 'from-rose-900/40 to-rose-950/60 border-rose-500/40 text-rose-100';
-    return 'from-slate-800/60 to-slate-950/60 border-slate-600/30 text-slate-200';
-  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#050a18] to-[#0b1220] text-slate-100 font-sans selection:bg-cyan-400/30 overflow-hidden">

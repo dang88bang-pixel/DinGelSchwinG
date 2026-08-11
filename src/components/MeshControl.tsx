@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Waves, Radio, Settings, Play, Pause, Activity } from 'lucide-react';
+import { Radio, Play, Pause, Settings } from 'lucide-react';
 
 export interface MeshNode {
   id: string;

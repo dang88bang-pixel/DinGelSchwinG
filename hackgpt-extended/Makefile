@@ -38,3 +38,10 @@ test: ## Führt den System-Health-Check aus
 	cd server && python3 -c "import db,audit,rights,security,userstore,webauthn,app,pty_bridge,scanner,status; print('Server-Module OK')"
 	cd tests && python3 unit_prod.py
 	node tests/offline_sw.mjs
+	python3 tests/wasm_interp.py ../public/wasm/ble_distance_bg.wasm
+	node tests/wasm_ble.test.mjs
+
+wasm: ## BLE-Distanz-WASM deterministisch bauen + verifizieren
+	python3 scripts/build-wasm.py
+	python3 tests/wasm_interp.py public/wasm/ble_distance_bg.wasm
+	node tests/wasm_ble.test.mjs

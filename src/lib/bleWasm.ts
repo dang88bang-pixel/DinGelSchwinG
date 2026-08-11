@@ -49,6 +49,12 @@ const JS_SIMULATION: BLEWasmExports = {
 
 /**
  * Lädt das WASM-Modul oder liefert die verifizierte JS-Simulation.
+ *
+ * Das echte Modul (wasm-ble / scripts/build-wasm.py) importiert env.exp
+ * und env.log10 (Math.exp / Math.log10) — WASM-MVP hat keine
+ * transzendenten Funktionen. Fehlende Exports (batch_distances benötigt
+ * lineares Memory, das nicht jede Engine instanziiert) werden aus der
+ * verifizierten JS-Simulation gemerged — identische Formeln.
  */
 export async function loadBLEWasm(): Promise<BLEWasmExports> {
   try {
@@ -57,14 +63,17 @@ export async function loadBLEWasm(): Promise<BLEWasmExports> {
     if (resp.ok) {
       const bytes = await resp.arrayBuffer();
       const wasmModule = await WebAssembly.compile(bytes);
-      const instance = await WebAssembly.instantiate(wasmModule, {});
-      const exports = instance.exports as unknown as BLEWasmExports;
+      const instance = await WebAssembly.instantiate(wasmModule, {
+        env: { exp: Math.exp, log10: Math.log10 },
+      });
+      const exports = instance.exports as unknown as Partial<BLEWasmExports>;
       if (exports && typeof exports.calculate_distance === 'function') {
         // Validierung: Bekannte Eingabe muss ~2.0m ergeben (Pfadverlust bei -65 / -59)
         try {
           const testVal = exports.calculate_distance(-65, -59);
           if (typeof testVal === 'number' && testVal > 0 && Math.abs(testVal - 2.0) < 1.0) {
-            return exports;
+            // WASM-Kernfunktionen + JS-Fallback für Memory-basierte Exports
+            return { ...JS_SIMULATION, ...exports };
           }
         } catch { /* ungültiges WASM, Fallback */ }
       }

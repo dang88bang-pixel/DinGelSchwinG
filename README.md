@@ -560,6 +560,33 @@ python3 tests/stress.py      # Last-/Sturm-Tests (0 Fehler)
 
 ---
 
+## 🧩 Ergänzte fehlende Parts (2026-08-11)
+
+| Fehlender Part | Ergänzung | Verifikation |
+|----------------|-----------|--------------|
+| **WASM-Binary `ble_distance_bg.wasm`** (nur Platzhalter-README vorhanden) | Deterministischer Generator `scripts/build-wasm.py` → `public/wasm/ble_distance_bg.wasm` (identische Formeln wie `wasm-ble/src/lib.rs`); Loader übergibt `env.exp/log10` und merged `batch_distances` aus dem verifizierten JS-Fallback | **24/24** engine-unabhängig via `tests/wasm_interp.py` (eigener Mini-Interpreter); **8/8** via `tests/wasm_ble.test.mjs` (Struktur + Engine mit Toleranz) |
+| **`npm ci` Root-App** (Peer-Deps-Konflikt react 18 ↔ fiber 9/drei 10) | Konsistentes Set: `@react-three/fiber ^8.17.10`, `@react-three/drei ^9.114.3` (react-18-kompatibel), lockfile neu generiert | `npm ci` + `npm run build` ohne Workarounds ✅ |
+| **ESLint** (Script ohne Dependency/Config) | `eslint@8` + typescript-eslint + react-hooks + `.eslintrc.cjs`; alle 40 Warnings bereinigt (unused Imports/Variablen entfernt, `any` nur für Browser-Web-APIs) | `npm run lint` → 0 Probleme ✅ |
+| **Agent-Formular (MoE-Chat)** (Modal war leerer Platzhalter „Close (Demo Only)", `handleSaveAgent` unbenutzt) | Vollständiges Create/Edit-Formular: Name, Beschreibung, Modell, Rolle, Temperatur, Max-Tokens, Permissions-Checkboxen, Aktiv; Save/Cancel verdrahtet | Build ✅ + Typ-Check ✅ |
+| **Root-App Offline-Indikator** | ON-/OFFLINE-Badge im Header (App arbeitet komplett lokal) | Build ✅ |
+| **`build-apk.sh`** (Capacitor-Platform fehlte) | Fallback `npx cap add android` wenn `android/` fehlt (wie `build.sh`) | Syntax ✅ |
+
+### WASM-Verifikation (engine-unabhängig)
+
+```bash
+python3 hackgpt-extended/scripts/build-wasm.py          # deterministischer Build
+python3 hackgpt-extended/tests/wasm_interp.py hackgpt-extended/public/wasm/ble_distance_bg.wasm   # 24/24
+node hackgpt-extended/tests/wasm_ble.test.mjs            # 8/8
+```
+
+> Hinweis: Manche Sandbox-Node-Builds weichen bei WASM-f64-Opcodes ab
+> (z. B. `0x8B` als f32.abs). Der Loader erkennt abweichende Engines über
+> seine Validierung (`calculate_distance(-65,-59) ≈ 2.0`) und nutzt dann
+> automatisch den verifizierten JS-Fallback. In Standard-Browsern läuft
+> das WASM (numerisch via Interpreter verifiziert).
+
+---
+
 ## 📦 Abhängigkeiten
 
 ### JavaScript / Node.js

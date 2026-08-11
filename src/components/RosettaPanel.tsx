@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { BrainCircuit, Sparkles, ArrowRightLeft } from 'lucide-react';
+import { BrainCircuit, Sparkles } from 'lucide-react';
 import { RosettaConverter } from '../lib/rosetta/rosettaConverter';
-import { MODEL_AGNES, MODEL_GLM, ROUTE_MAP } from '../config/ai-models';
+import { ROUTE_MAP } from '../config/ai-models';
 
 export default function RosettaPanel() {
   const [route, setRoute] = useState('net-analysis');

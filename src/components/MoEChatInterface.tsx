@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, Lock, AlertCircle, Settings, Plus, Trash2, Send, Copy, CheckCircle } from 'lucide-react';
+import { MessageCircle, Lock, AlertCircle, Plus, Send, CheckCircle } from 'lucide-react';
 
 /**
  * MoE Agent Chat Interface mit System-Critical Permission Guards
@@ -349,6 +349,66 @@ export default function MoEChatInterface() {
   const [tab, setTab] = useState<'chat' | 'agents' | 'permissions'>('chat');
   const [editingAgent, setEditingAgent] = useState<MoEAgent | null>(null);
   const [showAgentForm, setShowAgentForm] = useState(false);
+
+  // Agent-Formular (vollständig implementiert — Create/Edit)
+  const AVAILABLE_MODELS = ['gpt-4-moe', 'claude-moe', 'llama3-moe', 'local-ondevice'];
+  const AGENT_ROLES = ['analyzer', 'executor', 'validator', 'critic'] as const;
+  interface AgentFormState {
+    name: string;
+    description: string;
+    model: string;
+    role: MoEAgent['role'];
+    temperature: number;
+    maxTokens: number;
+    enabled: boolean;
+    permissionIds: string[];
+  }
+  const emptyForm = (): AgentFormState => ({
+    name: '',
+    description: '',
+    model: AVAILABLE_MODELS[0],
+    role: 'analyzer',
+    temperature: 0.5,
+    maxTokens: 2000,
+    enabled: true,
+    permissionIds: [],
+  });
+  const [form, setForm] = useState<AgentFormState>(emptyForm);
+
+  const openCreateAgent = () => {
+    setEditingAgent(null);
+    setForm(emptyForm());
+    setShowAgentForm(true);
+  };
+  const openEditAgent = (agent: MoEAgent) => {
+    setEditingAgent(agent);
+    setForm({
+      name: agent.name,
+      description: agent.description,
+      model: agent.model,
+      role: agent.role,
+      temperature: agent.temperature,
+      maxTokens: agent.maxTokens,
+      enabled: agent.enabled,
+      permissionIds: agent.permissions.map((p) => p.id),
+    });
+    setShowAgentForm(true);
+  };
+  const submitAgentForm = () => {
+    if (!form.name.trim()) return;
+    handleSaveAgent({
+      id: editingAgent?.id ?? `agent-${Date.now()}`,
+      name: form.name.trim(),
+      description: form.description.trim(),
+      model: form.model,
+      role: form.role,
+      permissions: DEFAULT_PERMISSION_RULES.filter((r) => form.permissionIds.includes(r.id)),
+      maxTokens: Math.max(256, Math.min(8192, form.maxTokens)),
+      temperature: Math.max(0, Math.min(2, form.temperature)),
+      enabled: form.enabled,
+    });
+    setShowAgentForm(false);
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -582,10 +642,7 @@ export default function MoEChatInterface() {
           <div className="flex-1 overflow-y-auto p-4 max-w-6xl mx-auto w-full">
             <div className="mb-4">
               <button
-                onClick={() => {
-                  setEditingAgent(null);
-                  setShowAgentForm(!showAgentForm);
-                }}
+                onClick={openCreateAgent}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
               >
                 <Plus className="w-4 h-4" />
@@ -598,10 +655,7 @@ export default function MoEChatInterface() {
                 <AgentCard
                   key={agent.id}
                   agent={agent}
-                  onEdit={() => {
-                    setEditingAgent(agent);
-                    setShowAgentForm(true);
-                  }}
+                  onEdit={() => openEditAgent(agent)}
                   onDelete={handleDeleteAgent}
                 />
               ))}
@@ -609,15 +663,129 @@ export default function MoEChatInterface() {
 
             {showAgentForm && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
-                  <h2 className="text-2xl font-bold mb-4">{editingAgent ? 'Edit Agent' : 'Create New Agent'}</h2>
+                <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                  <h2 className="text-2xl font-bold mb-1">{editingAgent ? 'Edit Agent' : 'Create New Agent'}</h2>
                   <p className="text-sm text-gray-600 mb-4">Configure agent attributes, permissions, and behavior.</p>
-                  <button
-                    onClick={() => setShowAgentForm(false)}
-                    className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition"
-                  >
-                    Close (Demo Only)
-                  </button>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Name *</label>
+                      <input
+                        className="w-full border rounded px-3 py-2 text-sm"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        placeholder="z. B. Network Analyzer"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Beschreibung</label>
+                      <textarea
+                        className="w-full border rounded px-3 py-2 text-sm"
+                        rows={2}
+                        value={form.description}
+                        onChange={(e) => setForm({ ...form, description: e.target.value })}
+                        placeholder="Aufgabe des Agents…"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Modell</label>
+                        <select
+                          className="w-full border rounded px-3 py-2 text-sm"
+                          value={form.model}
+                          onChange={(e) => setForm({ ...form, model: e.target.value })}
+                        >
+                          {AVAILABLE_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Rolle</label>
+                        <select
+                          className="w-full border rounded px-3 py-2 text-sm"
+                          value={form.role}
+                          onChange={(e) => setForm({ ...form, role: e.target.value as MoEAgent['role'] })}
+                        >
+                          {AGENT_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Temperatur: <span className="text-blue-700">{form.temperature.toFixed(1)}</span>
+                        </label>
+                        <input
+                          type="range" min="0" max="2" step="0.1"
+                          className="w-full"
+                          value={form.temperature}
+                          onChange={(e) => setForm({ ...form, temperature: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Max Tokens</label>
+                        <input
+                          type="number" min="256" max="8192" step="256"
+                          className="w-full border rounded px-3 py-2 text-sm"
+                          value={form.maxTokens}
+                          onChange={(e) => setForm({ ...form, maxTokens: Number(e.target.value) || 2000 })}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Permissions</label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                        {DEFAULT_PERMISSION_RULES.map((rule) => (
+                          <label key={rule.id} className="flex items-center gap-2 text-sm border rounded px-2 py-1.5 cursor-pointer hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              checked={form.permissionIds.includes(rule.id)}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  permissionIds: e.target.checked
+                                    ? [...form.permissionIds, rule.id]
+                                    : form.permissionIds.filter((id) => id !== rule.id),
+                                })
+                              }
+                            />
+                            <span className="flex-1">
+                              {rule.name}
+                              {rule.requiresConfirm && <span className="text-[10px] text-red-600 font-bold ml-1">⚠ CONFIRM</span>}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={form.enabled}
+                        onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+                      />
+                      <span className="font-semibold text-gray-700">Agent aktiviert</span>
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-2 mt-6">
+                    <button
+                      onClick={() => setShowAgentForm(false)}
+                      className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition"
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      onClick={submitAgentForm}
+                      disabled={!form.name.trim()}
+                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition disabled:opacity-50"
+                    >
+                      {editingAgent ? 'Änderungen speichern' : 'Agent erstellen'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

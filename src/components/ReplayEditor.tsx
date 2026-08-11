@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Square, Trash2, Music, Volume2 } from 'lucide-react';
+import { Trash2, Music } from 'lucide-react';
 
 export interface SignalPoint {
   t: number; // ms
@@ -33,7 +33,7 @@ export default function ReplayEditor() {
       }]);
     }, 300);
     return () => clearInterval(timer);
-  }, [recording, points.length]);
+  }, [recording, points]);
 
   // Playback timer
   useEffect(() => {

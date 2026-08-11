@@ -2,25 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   MessageCircle,
   Settings,
-  Search,
   Send,
   Plus,
   Trash2,
   Copy,
   CheckCircle,
-  AlertCircle,
   Loader,
-  ExternalLink,
   Database,
-  Code,
   Globe,
   Lock,
   Mail,
   Phone,
   Eye,
   EyeOff,
-  Download,
-  Upload,
 } from 'lucide-react';
 
 /**
