@@ -95,6 +95,15 @@ export default function NetworkDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          {/* Offline-Indikator: Diese App arbeitet komplett lokal (Sensoren/WASM/BLE) —
+              sie funktioniert ohne Internet/Mobilfunk; der Indikator zeigt nur den Status. */}
+          <span
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[10px] font-bold ring-1 ${navigator.onLine ? "bg-emerald-900/50 text-emerald-200 ring-emerald-600/40" : "bg-amber-900/50 text-amber-200 ring-amber-600/40"}`}
+            title={navigator.onLine ? "Online — App arbeitet lokal, keine Cloud nötig" : "Offline — alle Funktionen lokal verfügbar"}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${navigator.onLine ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+            {navigator.onLine ? "ONLINE" : "OFFLINE"}
+          </span>
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
               {m==='ble' && <Bluetooth className="w-3.5 h-3.5" />}{m==='wifi' && <Wifi className="w-3.5 h-3.5" />}{m==='usb' && <Radio className="w-3.5 h-3.5" />}{m.toUpperCase()}

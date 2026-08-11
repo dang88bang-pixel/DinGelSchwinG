@@ -278,6 +278,8 @@ def run_static_inventory():
         "BLE-RSSI (Client)": ["src/infrastructure/ble.ts"],
         "Konfig (Prod)": ["src/config.ts", ".env.example", "docker-compose.yml", "start.sh"],
         "Persistenz": ["server/db.py"],
+        "Offline (PWA)": ["public/sw.js", "public/manifest.webmanifest", "public/icon-192.png", "public/icon-512.png", "src/offline.ts", "src/components/OfflineBanner.tsx"],
+        "Offline (SW-Test)": ["tests/offline_sw.mjs"],
         "Tests": ["tests/unit_prod.py", "tests/suite.py", "tests/chain.py", "tests/stress.py"],
     }
     for label, paths in files.items():
@@ -286,6 +288,26 @@ def run_static_inventory():
 
 
 # ---------------------------------------------------------------------------
+def run_offline_assets():
+    print("── H) Offline-Bausteine (PWA-Assets im Build) ──")
+    import os
+    dist = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "dist")
+    if not os.path.isdir(dist):
+        check("dist-Build vorhanden (für Offline-Check)", False, "npm run build zuerst ausführen")
+        return
+    for f in ("sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"):
+        p = os.path.join(dist, f)
+        check(f"Build enthält {f}", os.path.exists(p) and os.path.getsize(p) > 0, p)
+    index = open(os.path.join(dist, "index.html")).read()
+    check("index.html referenziert manifest", 'manifest.webmanifest' in index, "")
+    bundle = None
+    for f in os.listdir(os.path.join(dist, "assets")):
+        if f.endswith(".js"):
+            bundle = open(os.path.join(dist, "assets", f)).read()
+            break
+    check("Bundle registriert Service Worker", bundle is not None and "serviceWorker.register" in (bundle or ""), "")
+
+
 def main():
     print(f"═══ Live-Funktions-Audit ({datetime.datetime.now().strftime('%H:%M:%S')}) ═══")
     run_auth_rbac()
@@ -295,6 +317,7 @@ def main():
     asyncio.run(run_ws_terminal())
     asyncio.run(run_ws_discovery_status())
     run_static_inventory()
+    run_offline_assets()
     ok = sum(1 for _, o in results if o)
     print(f"═══════ ERGEBNIS: {ok}/{total} Funktionen bereit · {total - ok} Fehler ═══════")
     if ok < total:

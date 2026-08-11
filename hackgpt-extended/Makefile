@@ -37,3 +37,4 @@ reset: ## Löscht die SQLite-Datenbank (Geräte/Pairings/Clients/Audit)
 test: ## Führt den System-Health-Check aus
 	cd server && python3 -c "import db,audit,rights,security,userstore,webauthn,app,pty_bridge,scanner,status; print('Server-Module OK')"
 	cd tests && python3 unit_prod.py
+	node tests/offline_sw.mjs

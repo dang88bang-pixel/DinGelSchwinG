@@ -43,6 +43,8 @@ export interface DiscoveredNode {
   /** USB-C-Dongle: Hersteller-/Produkt-ID (aus uevent), für Interlock-Whitelist. */
   usbVendorId?: number;
   usbProductId?: number;
+  /** Datenquelle: live (Scanner) | cache (letzter bekannter Stand) | demo (Offline-Demo). */
+  source?: "live" | "cache" | "demo";
 }
 
 /** Ressourcen-Klasse eines gebundenen Geräts für die CRUD-Rechte-Prüfung. */

@@ -138,6 +138,8 @@ export const NetworkPanel: React.FC<Props> = ({ token, wsBase, role, nodes, nfcA
                   <div className="font-medium">{n.label}</div>
                   <div className="text-xs text-gray-500">
                     {n.transport} · gesehen vor {((Date.now() - n.lastSeen) / 1000).toFixed(0)} s
+                    {n.source === "cache" && <span className="text-amber-600 font-medium"> · [Cache]</span>}
+                    {n.source === "demo" && <span className="text-amber-600 font-medium"> · [Demo-Daten]</span>}
                     {n.kind === "dongle" && ` · VID 0x${(n.usbVendorId ?? 0).toString(16).padStart(4, "0")}${n.usbProductId ? `:0x${n.usbProductId.toString(16).padStart(4, "0")}` : ""}`}
                     {n.kind === "dongle" && ` · ${n.autoBound ? "✅ eingebunden" : n.autoBindable ? "⏳ Interlock…" : ""}`}
                   </div>

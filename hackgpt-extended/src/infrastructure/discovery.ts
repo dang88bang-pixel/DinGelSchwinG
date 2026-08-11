@@ -13,15 +13,50 @@
  */
 
 import { AppError } from "../domain/errors";
-import { DiscoveredNode } from "../domain/types";
+import { ConnectionType, DiscoveredNode } from "../domain/types";
 import { runSafetyInterlockCheck } from "./deviceAccess";
 import { readDongleRssi } from "./ble";
+import { cacheNodes, loadCachedNodes } from "../offline";
+
+/** Offline-Demo-Nodes (ohne Backend/Internet) — markiert als source:"demo". */
+export const OFFLINE_DEMO_NODES: DiscoveredNode[] = [
+  {
+    id: "demo:dongle", kind: "dongle", label: "USB-C-Dongle (Demo, offline)",
+    transport: ConnectionType.DONGLE_USBC,
+    signal: { rssi: -1, channel: "usb", measuredAt: Date.now() },
+    lastSeen: Date.now(), autoBindable: true, autoBound: false,
+    usbVendorId: 0x2341, usbProductId: 0x0043, source: "demo",
+  },
+  {
+    id: "demo:ble-1", kind: "ble", label: "BLE-Token (Demo, offline)",
+    transport: ConnectionType.BLE,
+    signal: { rssi: -55, channel: "ble", measuredAt: Date.now() },
+    lastSeen: Date.now(), autoBindable: false, source: "demo",
+  },
+  {
+    id: "demo:network-1", kind: "network", label: "Netzwerkgerät (Demo, offline)",
+    transport: ConnectionType.WIFI,
+    signal: { rssi: -62, channel: "mdns", measuredAt: Date.now() },
+    lastSeen: Date.now(), autoBindable: false, source: "demo",
+  },
+];
+
+/** Liefert Offline-Fallback-Nodes: zuerst letzter Cache-Stand, sonst Demo. */
+export function offlineFallbackNodes(): DiscoveredNode[] {
+  const cached = loadCachedNodes<DiscoveredNode>();
+  if (cached && cached.length > 0) {
+    return cached.map((n) => ({ ...n, source: "cache" as const, lastSeen: Date.now() }));
+  }
+  return OFFLINE_DEMO_NODES.map((n) => ({ ...n, lastSeen: Date.now() }));
+}
 
 export interface DiscoveryOptions {
   url: string;
   token: string;
   onNodes: (nodes: DiscoveredNode[]) => void;
   onError?: (e: AppError) => void;
+  /** Wird gerufen, wenn die WS-Verbindung endgültig scheitert (offline). */
+  onOffline?: () => void;
   /** TTL in ms, nach der nicht mehr gesehene Nodes entfernt werden. */
   ttlMs?: number;
   /** true = USB-C-Dongle automatisch nach Interlock einbinden. */
@@ -45,7 +80,9 @@ export class DeviceDiscoveryService {
   constructor(private opts: DiscoveryOptions) {}
 
   private emit() {
-    this.opts.onNodes([...this.nodes.values()].sort((a, b) => a.label.localeCompare(b.label)));
+    const list = [...this.nodes.values()].sort((a, b) => a.label.localeCompare(b.label));
+    cacheNodes(list);
+    this.opts.onNodes(list);
   }
 
   private onEvent(msg: WSDiscoveryEvent) {
@@ -103,6 +140,15 @@ export class DeviceDiscoveryService {
       this.ws = new WebSocket(this.opts.url);
     } catch (e) {
       this.opts.onError?.(new AppError("NETWORK_OFFLINE", "Discovery-WebSocket nicht erreichbar"));
+      if (this.opts.onOffline) {
+        const fallback = offlineFallbackNodes();
+        if (fallback.length > 0) {
+          this.nodes.clear();
+          fallback.forEach((n) => this.nodes.set(n.id, n));
+          this.opts.onOffline();
+          this.emit();
+        }
+      }
       return;
     }
     this.ws.onmessage = (ev) => {
@@ -122,6 +168,15 @@ export class DeviceDiscoveryService {
   private reconnect() {
     if (this.closed || this.retries >= 5) {
       this.opts.onError?.(new AppError("NETWORK_TIMEOUT", "Discovery abgebrochen (max. Retries)"));
+      // Offline: Fallback-Daten aktivieren (Cache/Demo), sobald Verbindung endgültig scheitert
+      if (!this.opts.onOffline) return;
+      const fallback = offlineFallbackNodes();
+      if (fallback.length > 0) {
+        this.nodes.clear();
+        fallback.forEach((n) => this.nodes.set(n.id, n));
+        this.opts.onOffline();
+        this.emit();
+      }
       return;
     }
     const delay = Math.min(500 * 2 ** this.retries, 15_000);

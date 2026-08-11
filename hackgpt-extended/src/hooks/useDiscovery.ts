@@ -21,6 +21,7 @@ export function useDiscovery({ token, wsBase, role, autoBindDongle = true, onCru
   const [nodes, setNodes] = useState<DiscoveredNode[]>([]);
   const [nfcActive, setNfcActive] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
   const svcRef = useRef<DeviceDiscoveryService | null>(null);
   const nfcRef = useRef<NTagTracker | null>(null);
   const crudRef = useRef(onCrud);
@@ -50,6 +51,12 @@ export function useDiscovery({ token, wsBase, role, autoBindDongle = true, onCru
           })),
         ),
       onError: (e) => setMsg(e.message),
+      onOffline: () => {
+        // Backend nicht erreichbar (kein Internet/Mobilfunk/Dienst gestoppt):
+        // Fallback-Nodes (Cache/Demo) sind bereits geladen → offline markieren.
+        setOffline(true);
+        setMsg("Offline-Modus: keine Verbindung zum Discovery-Scanner — Anzeige aus Cache/Demo-Daten.");
+      },
       autoBindDongle,
     });
     svc.connect();
@@ -77,5 +84,5 @@ export function useDiscovery({ token, wsBase, role, autoBindDongle = true, onCru
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, wsBase, autoBindDongle]);
 
-  return { nodes, nfcActive, msg };
+  return { nodes, nfcActive, msg, offline };
 }

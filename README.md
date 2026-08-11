@@ -358,6 +358,38 @@ alles im Audit-Trail. Demo-HMAC-Pfad nur außerhalb von Produktion.
 
 ---
 
+## 9️⃣b Offline-Fähigkeit (ohne Internet/Mobilfunk)
+
+**Ziel: Alle Kernfunktionen stehen auch ohne Mobilfunk/Internet bereit.**
+
+| Szenario | Verhalten |
+|----------|-----------|
+| **Kein Internet, LAN verfügbar** (Feld-Einsatz, lokaler Server) | ✅ Voll funktionsfähig — alle URLs sind same-origin/relativ, keine Cloud-Abhängigkeit. Backends laufen auf dem Service-Laptop/WLAN. |
+| **Komplett offline** (keine Verbindung, Dienste gestoppt) | ✅ App lädt aus dem PWA-Cache (Service Worker), zeigt Offline-Banner und arbeitet mit Cache-/Demo-Daten weiter (siehe unten). |
+| **Root-App (DinGelSchwinG)** | ✅ Hat keine Netzwerk-Abhängigkeit — arbeitet komplett lokal (Sensoren, WASM, Web-Bluetooth, Mocks). Offline-Indikator im Header. |
+
+**Umsetzung (hackgpt-extended):**
+- **PWA:** `public/sw.js` (stale-while-revalidate für statische Assets, network-first für `/api`
+  mit Cache-Fallback, Navigation offline → App-Shell aus Cache), `manifest.webmanifest`,
+  Icons 192/512. Registrierung nur im Produktions-Build (`main.tsx`).
+- **Offline-Erkennung:** `src/offline.ts` (`useOnline`, `probeBackend` mit JSON-Prüfung,
+  `useBackendReachable`) + `OfflineBanner` (Login-Screen und Console).
+- **Cache-/Demo-Fallback:** `useDiscovery`/`discovery.ts` — bei endgültigem WS-Scheitern
+  werden die zuletzt gecachten Nodes (localStorage, 24 h) bzw. Demo-Nodes
+  (`source: "demo"`) geladen; Panels kennzeichnen `[Cache]`/`[Demo-Daten]`.
+- **Ehrliche Einschränkung:** Login/WebAuthn/Terminal-Sessions benötigen die Backends —
+  offline wird der letzte Stand angezeigt, Schreibaktionen sind erst nach
+  Verbindungswiederherstellung möglich (Hinweis im Banner).
+
+**Verifikation:**
+```bash
+node tests/offline_sw.mjs        # SW-Strategie: 7/7 (Precache, Navigation offline, API offline→503, POST passthrough)
+python3 tests/audit_live.py      # enthält Abschnitt H: PWA-Assets im Build (sw.js, manifest, Icons, SW-Registrierung)
+# Offline-Simulation auf HTTP-Ebene: npm run preview (ohne Backends) → App lädt, /api → 404/HTML-Fallback → Offline-Modus
+```
+
+---
+
 ## 🔟 Verifizierte vollständige Aktionskette
 
 **8 Schritte, 0 Fehler:**

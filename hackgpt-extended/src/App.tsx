@@ -6,6 +6,7 @@ import React, { useMemo, useState } from "react";
 import { decodeJwt, ROLE_LABELS, Role, JwtPayload } from "./domain/rbac";
 import { AccessConsole } from "./components/AccessConsole";
 import { DevicePanel } from "./components/DevicePanel";
+import { OfflineBanner } from "./components/OfflineBanner";
 import { API_BASE, WS_BASE } from "./config";
 
 export const App: React.FC = () => {
@@ -36,7 +37,8 @@ export const App: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center gap-3">
+        <div className="w-80"><OfflineBanner /></div>
         <div className="bg-white p-6 rounded shadow-sm w-80 space-y-3">
           <h1 className="text-xl font-bold">HackGPT-CPS Console</h1>
           <input className="w-full border rounded px-3 py-2 text-sm" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" />
@@ -54,7 +56,8 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <header className="flex items-center justify-between mb-6">
+      <OfflineBanner />
+      <header className="flex items-center justify-between mt-4 mb-6">
         <h1 className="text-2xl font-bold">HackGPT-CPS · Service/Developer Console</h1>
         <div className="text-sm text-gray-600">
           {email} · <span className="font-semibold uppercase">{ROLE_LABELS[user.role]}</span> (L{user.role === Role.GUEST ? 0 : user.role === Role.OPERATOR ? 1 : user.role === Role.SERVICE ? 2 : user.role === Role.DEVELOPER ? 3 : user.role === Role.EXPERT ? 4 : 5})
