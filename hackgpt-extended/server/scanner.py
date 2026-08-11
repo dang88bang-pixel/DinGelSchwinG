@@ -179,10 +179,36 @@ def scan_ble() -> list[dict]:
     return out
 
 
+def scan_demo_nodes() -> list[dict]:
+    """Demo-Nodes NUR in Entwicklung/Test (SCAN_DEMO_NODES=1): simuliert einen
+    USB-C-Dongle (VID 0x2341, autoBindable) und ein BLE-Token mit RSSI, damit
+    die Discovery-UI ohne Hardware demonstrierbar ist. Nie in Produktion."""
+    if security.is_production():
+        return []
+    if os.getenv("SCAN_DEMO_NODES", "0") != "1":
+        return []
+    now = _now()
+    return [
+        {
+            "id": "demo:dongle", "kind": "dongle", "label": "USB-C-Dongle (Demo)",
+            "transport": "dongle_usbc",
+            "signal": {"rssi": -1, "channel": "usb", "measuredAt": now},
+            "lastSeen": now, "autoBindable": True, "autoBound": False,
+            "usbVendorId": 0x2341, "usbProductId": 0x0043,
+        },
+        {
+            "id": "demo:ble-1", "kind": "ble", "label": "BLE-Token (Demo)",
+            "transport": "ble",
+            "signal": {"rssi": -55, "channel": "ble", "measuredAt": now},
+            "lastSeen": now, "autoBindable": False,
+        },
+    ]
+
+
 def collect() -> dict:
     """Sammelt Nodes aus allen Quellen, dedupliziert und merged vorhandene."""
     nodes = {}
-    for src in (scan_network_mdns(), scan_ble(), scan_usb_dongles()):
+    for src in (scan_network_mdns(), scan_ble(), scan_usb_dongles(), scan_demo_nodes()):
         for n in src:
             prev = known.get(n["id"], {})
             # RSSI nur überschreiben, wenn neuer Messwert vorhanden ist

@@ -171,7 +171,7 @@ export const NetworkPanel: React.FC<Props> = ({ token, wsBase, role, nodes, nfcA
                 ) : null,
               )}
               {n.kind === "dongle" && n.autoBound && (
-                <button className="px-2 py-0.5 bg-indigo-600 text-white rounded text-xs" onClick={() => onOpenTerminal({ kind: "dongle", connectionType: "dongle_usbc" })}>
+                <button className="px-2 py-0.5 bg-indigo-600 text-white rounded text-xs" onClick={() => onOpenTerminal({ kind: "dongle", connectionType: "dongle_usbc", usbVendorId: n.usbVendorId, usbProductId: n.usbProductId })}>
                   ▶ Terminal
                 </button>
               )}

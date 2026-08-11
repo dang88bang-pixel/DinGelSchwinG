@@ -476,6 +476,20 @@ python3 tests/chain.py      # Exit 0 = grün
   proprietäre RSSI-Charakteristik (`VITE_BLE_RSSI_SERVICE`/`VITE_BLE_RSSI_CHAR`);
   Button „📡 RSSI" im NetworkPanel. NTag/NFC (WebNFC) unverändert clientseitig.
 
+**UI-Klickpfade komplett (2026-08-11):**
+- **Dongle-VID-Durchreichung:** `discoverDevices()` liefert VID/PID (Web-USB/Serial),
+  AccessConsole mappt sie in die Targets, NetworkPanel reicht sie an
+  „▶ Terminal" durch → Interlock-Check im Browser und in der Bridge greift
+  jetzt für jeden UI-Pfad (vorher scheiterte der Klick immer).
+- **Server-Interlock strikt:** Dongle-Sessions ohne gewhitelistete VID
+  (0x2341/0x16C0) werden serverseitig abgelehnt — deckungsgleich mit dem
+  Client-Guard (strict-by-default).
+- **Demo-Modus (nur Entwicklung):** `WEBAUTHN_DEMO_BYPASS=1` + `/api/webauthn/demo-grant`
+  erlauben die UI-Demo ohne FIDO2-Hardware (Client fällt in DEV automatisch
+  darauf zurück, wenn WebAuthn nicht verfügbar; Produktion: 403).
+  `SCAN_DEMO_NODES=1` injiziert Demo-Dongle (VID 0x2341) + BLE-Node mit RSSI
+  in den Scanner, damit die Discovery-UI ohne Hardware demonstrierbar ist.
+
 ### Discovery-Scanner — Verifikation & Verbesserungen
 
 Der Scanner (WS `/api/ws/discovery`, Port 8766) wurde geprüft und gehärtet:

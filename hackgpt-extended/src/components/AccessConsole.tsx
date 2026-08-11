@@ -42,9 +42,21 @@ export const AccessConsole: React.FC<Props> = ({ token, wsBase, user }) => {
     setBusy(true);
     try {
       const found = await discoverDevices(token);
+      // Dongles (L3+, Flash) nur für Developer+ anzeigen; Hardware (L2+) für Service+.
       const mapped: AccessTarget[] = found
-        .filter((d) => (d.kind === "dongle" ? canInteractive : true))
-        .map((d) => (d.kind === "dongle" ? { kind: "dongle", connectionType: ConnectionType.DONGLE_USBC } : { kind: "hardware", connectionType: ConnectionType.SERIAL } as AccessTarget));
+        .filter((d) => (d.kind === "dongle" ? canNetwork : canInteractive))
+        .map((d) => {
+          if (d.kind === "dongle") {
+            // VID/PID durchreichen → Interlock-Check im Browser + Bridge-Whitelist
+            return {
+              kind: "dongle",
+              connectionType: ConnectionType.DONGLE_USBC,
+              usbVendorId: d.usbVendorId,
+              usbProductId: d.usbProductId,
+            } as AccessTarget;
+          }
+          return { kind: "hardware", connectionType: ConnectionType.SERIAL } as AccessTarget;
+        });
       setTargets(mapped);
     } catch (e) {
       const m = toUserMessage(e);

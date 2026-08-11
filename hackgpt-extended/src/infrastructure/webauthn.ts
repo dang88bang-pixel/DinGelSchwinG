@@ -55,9 +55,23 @@ async function fetchJson(path: string, token: string, body?: unknown): Promise<a
 }
 
 /** WebAuthn-Assertion für einen kritischen Scope erstellen und einreichen.
- *  Liefert das einmalige Grant-Token (Server). */
+ *  Liefert das einmalige Grant-Token (Server).
+ *
+ *  Demo-Fallback (nur Entwicklung): Ist WebAuthn im Browser nicht verfügbar
+ *  und der Server im Demo-Modus (WEBAUTHN_DEMO_BYPASS=1), wird über
+ *  /api/webauthn/demo-grant ein Grant geholt — so bleibt die UI-Demo ohne
+ *  FIDO2-Hardware bedienbar. In Produktion existiert dieser Pfad nicht
+ *  (Server antwortet 403, Client zeigt die Fehlermeldung). */
 export async function assertWebAuthn(token: string, scope: string): Promise<string> {
   if (!webAuthnSupported()) {
+    if (import.meta.env.DEV) {
+      try {
+        const res = await fetchJson("/api/webauthn/demo-grant", token, { scope });
+        if (res?.ok && res.token) return res.token as string;
+      } catch {
+        /* Fall durch → klare Fehlermeldung unten */
+      }
+    }
     throw new AppError(
       "AUTH_FAILED",
       "WebAuthn nicht verfügbar — für diese Aktion ist ein FIDO2-Gerät (z. B. YubiKey) und ein unterstützter Browser erforderlich",

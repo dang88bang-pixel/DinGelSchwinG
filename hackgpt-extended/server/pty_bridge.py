@@ -130,15 +130,17 @@ def _require_webauthn_grant(params: dict, kind: str):
 
 
 async def _safety_interlock(target: dict) -> None:
-    """Interlock-Gateway: Dongle muss VID aus der Whitelist haben (0x2341 Arduino, 0x16C0 Teensy)."""
+    """Interlock-Gateway: Dongle MUSS eine gewhitelistete VID haben
+    (0x2341 Arduino, 0x16C0 Teensy) — deckungsgleich mit dem Client-Guard
+    (strict-by-default, auch ohne/ungültige VID wird abgelehnt)."""
     if target.get("kind") == "dongle":
         vid_raw = target.get("vid", "0")
         try:
             vid = int(vid_raw, 0) if str(vid_raw).startswith("0x") else int(vid_raw)
         except ValueError:
             vid = 0
-        if vid and vid not in {0x2341, 0x16C0}:  # Arduino / Teensy (Whitelist)
-            raise TerminalSessionError("DONGLE_MISSING", f"Dongle VID 0x{vid:04X} nicht zugelassen")
+        if vid not in {0x2341, 0x16C0}:  # Arduino / Teensy (Whitelist)
+            raise TerminalSessionError("DONGLE_MISSING", f"Dongle VID nicht zugelassen (Whitelist: 0x2341, 0x16C0)")
     return None
 
 

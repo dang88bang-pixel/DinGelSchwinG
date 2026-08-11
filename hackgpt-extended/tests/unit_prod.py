@@ -271,6 +271,7 @@ def run_pty_bridge():
     check("Interlock: VID 0x2341 ok", asyncio.run(il("0x2341")))
     check("Interlock: VID 0x16c0 ok", asyncio.run(il("0x16c0")))
     check("Interlock: unbekannte VID blockiert", not asyncio.run(il("0x1234")))
+    check("Interlock: Dongle ohne VID blockiert (strict)", not asyncio.run(il("0")))
     check("Interlock: Hardware ohne VID ok", asyncio.run(il("0")) or True)
 
     # WebAuthn-Pflicht für L3+-Aktionen

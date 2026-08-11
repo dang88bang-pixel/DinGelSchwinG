@@ -386,6 +386,32 @@ def webauthn_assert():
     return jsonify({"ok": True, "scope": res["scope"], "token": token})
 
 
+@app.route("/api/webauthn/demo-grant", methods=["POST"])
+@token_required("service")
+def webauthn_demo_grant():
+    """Demo-Grant NUR für Entwicklung/Test (WEBAUTHN_DEMO_BYPASS=1, nie Produktion).
+
+    Ermöglicht die UI-Demo ohne FIDO2-Hardware: der Client bekommt ein
+    einmaliges Grant-Token für einen WebAuthn-Scope, ohne dass eine
+    Assertion erstellt wurde. In Produktion ist dieser Endpunkt inaktiv
+    (security.is_production() → 403).
+    """
+    u, role = _u()
+    if security.is_production():
+        return jsonify({"error": "Demo-Grant ist in Produktion deaktiviert"}), 403
+    if os.getenv("WEBAUTHN_DEMO_BYPASS", "0") != "1":
+        return jsonify({"error": "WEBAUTHN_DEMO_BYPASS=1 erforderlich (nur Entwicklung)"}), 403
+    data = request.get_json(silent=True) or {}
+    scope = data.get("scope", "")
+    if scope not in WEBAUTHN_SCOPES:
+        return jsonify({"error": "ungültiger Scope"}), 400
+    token = webauthn_mod.grant_token(scope)
+    auditlog.log_event("webauthn.demo_grant", tid=auditlog.begin_trace(), step=1, user=u, role=role,
+                       resource="webauthn", action=scope, result="ok",
+                       detail="Demo-Grant (Entwicklung, WEBAUTHN_DEMO_BYPASS)")
+    return jsonify({"ok": True, "scope": scope, "token": token})
+
+
 @app.route("/api/webauthn/register/challenge", methods=["POST"])
 @token_required("service")
 def webauthn_register_challenge():

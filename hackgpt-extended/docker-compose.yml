@@ -57,6 +57,7 @@ services:
       - SCAN_INTERVAL=${SCAN_INTERVAL:-15}
       - NODE_TTL=${NODE_TTL:-90}
       - SCAN_PORT=${SCAN_PORT:-8766}
+      - SCAN_DEMO_NODES=${SCAN_DEMO_NODES:-0}
     # Zugriff auf USB-C-BLE-Dongle + Bluetooth
     devices:
       - "${HOST_TTY_ACM:-/dev/ttyACM0}:/dev/ttyACM0"

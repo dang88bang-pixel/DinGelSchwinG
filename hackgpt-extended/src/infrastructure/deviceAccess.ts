@@ -19,6 +19,9 @@ export interface DiscoveredDevice {
   label: string;
   kind: AccessTarget["kind"];
   connectionType: ConnectionType;
+  /** USB-C-Dongle: VID/PID für den Interlock-Check (aus Web-USB/Serial-Info). */
+  usbVendorId?: number;
+  usbProductId?: number;
 }
 
 /**
@@ -38,6 +41,8 @@ export async function discoverDevices(token: string): Promise<DiscoveredDevice[]
           label: `${d.productName ?? "USB-Gerät"} (VID ${d.vendorId.toString(16)}:${d.productId.toString(16)})`,
           kind: "dongle",
           connectionType: ConnectionType.DONGLE_USBC,
+          usbVendorId: d.vendorId,
+          usbProductId: d.productId,
         });
       }
     } catch (e) {
@@ -51,11 +56,15 @@ export async function discoverDevices(token: string): Promise<DiscoveredDevice[]
       const ports = await navigator.serial.getPorts();
       for (const p of ports) {
         const info = await p.getInfo();
+        const vid = info.usbVendorId ?? 0;
+        const pid = info.usbProductId ?? 0;
         out.push({
-          id: `serial:${info.usbVendorId}:${info.usbProductId}`,
-          label: `Seriell (VID ${(info.usbVendorId ?? 0).toString(16)}:${(info.usbProductId ?? 0).toString(16)})`,
+          id: `serial:${vid}:${pid}`,
+          label: `Seriell (VID ${vid.toString(16)}:${pid.toString(16)})`,
           kind: "hardware",
           connectionType: ConnectionType.SERIAL,
+          usbVendorId: vid || undefined,
+          usbProductId: pid || undefined,
         });
       }
     } catch (e) {
