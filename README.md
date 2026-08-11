@@ -505,7 +505,8 @@ Der Scanner (WS `/api/ws/discovery`, Port 8766) wurde geprüft und gehärtet:
 
 **Test-Suiten (`tests/`):**
 ```bash
-python3 tests/unit_prod.py   # 45 Unit-Tests: security/userstore/webauthn/pty_bridge/scanner
+python3 tests/unit_prod.py   # 46 Unit-Tests: security/userstore/webauthn/pty_bridge/scanner + Idle-Timeout
+python3 tests/audit_live.py  # 81 Live-Funktionstests gegen laufende Dienste (REST+WS, RBAC, WebAuthn)
 python3 tests/suite.py       # 16 Integrationstests (REST + WS über Vite-Proxy)
 python3 tests/chain.py       # 53 Anbindungs-/Attribut-Tests
 python3 tests/stress.py      # Last-/Sturm-Tests (0 Fehler)
@@ -545,4 +546,4 @@ Fragen? Fehler gefunden? Verbessern Sie das Projekt — PRs willkommen!
 
 ---
 
-**Version:** 2.3 | **Status:** Production-Ready | **Last Updated:** 2026-08-11
+**Version:** 2.3 | **Status:** Production-Ready | **Last Updated:** 2026-08-11 (Idle-/Abs-Timeout serverseitig durchgesetzt)

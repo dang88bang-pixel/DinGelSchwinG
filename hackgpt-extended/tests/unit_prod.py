@@ -319,6 +319,45 @@ def run_scanner():
     check("scan_network_mdns liefert Liste (Socket-Hygiene)", isinstance(nodes, list))
 
 
+def run_pty_bridge_idle():
+    """Regression: Idle-Timeout muss OHNE Client-Nachrichten greifen
+    (echte Bridge-Instanz auf ephemerem Port, TERM_IDLE_TIMEOUT=1)."""
+    print("── F) pty_bridge.py (Idle-/Abs-Timeout live) ──")
+    import pty_bridge as pb
+
+    async def _():
+        import websockets as ws_lib
+        os.environ["TERM_IDLE_TIMEOUT"] = "1"
+        os.environ["TERM_ABS_TIMEOUT"] = "30"
+        os.environ["SERIAL_PTY_FALLBACK"] = "1"
+        os.environ["APP_ENV"] = "development"
+        server = await ws_lib.serve(pb.handler, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        import jwt as _jwt, datetime as _dt
+        token = _jwt.encode({"sub": "service@x", "role": "service",
+                             "iat": _dt.datetime.now(_dt.timezone.utc),
+                             "exp": _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(hours=1)},
+                            pb.SECRET_KEY, algorithm="HS256")
+        try:
+            async with ws_lib.connect(f"ws://127.0.0.1:{port}/api/ws/terminal?token={token}&kind=hardware") as w:
+                m = json.loads(await asyncio.wait_for(w.recv(), timeout=6))
+                if m.get("type") != "open":
+                    return False, m
+                # KEINE Nachricht senden → Server muss nach ~1 s schließen
+                m2 = json.loads(await asyncio.wait_for(w.recv(), timeout=8))
+                return m2.get("type") == "close" and m2.get("reason") == "idle_timeout", m2
+        finally:
+            server.close()
+            await server.wait_closed()
+            os.environ.pop("TERM_IDLE_TIMEOUT", None)
+            os.environ.pop("TERM_ABS_TIMEOUT", None)
+            os.environ.pop("SERIAL_PTY_FALLBACK", None)
+            os.environ["APP_ENV"] = "development"
+
+    ok, detail = asyncio.run(_())
+    check("Idle-Timeout greift ohne Client-Input", ok, str(detail))
+
+
 def main():
     print(f"═══ Unit-Tests Produktionsreife ({os.path.basename(__file__)}) ═══")
     tmp = tempfile.mkdtemp(prefix="hgpt-")
@@ -326,6 +365,7 @@ def main():
     run_userstore(tmp)
     run_webauthn(tmp)
     run_pty_bridge()
+    run_pty_bridge_idle()
     run_scanner()
     print(f"═══════ ERGEBNIS: {total - len(fail)}/{total} · {len(fail)} Fehler ═══════")
     if fail:

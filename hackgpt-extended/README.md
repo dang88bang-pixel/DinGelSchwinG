@@ -339,13 +339,22 @@ Geräte, Clients, Pairings und Audit-Trail liegen in `data.db` — Daten überle
 
 ### WebAuthn (FIDO2) für kritische Aktionen
 
-`device.delete`, `pairing.delete`, `client.server`, `client.kick` erfordern eine WebAuthn-Assertion (Challenge/Response + einmaliges Grant-Token).
+`device.delete`, `pairing.delete`, `client.server`, `client.kick`, `user.admin`
+sowie die L3+/L5-Aktionen **`terminal.dongle.flash`**, **`terminal.network.ssh`**
+und **`emergency.override`** erfordern eine WebAuthn-Assertion
+(Challenge/Response + einmaliges Grant-Token).
 
 **Flow:**
 1. `POST /api/webauthn/challenge` → Browser bestätigt via FIDO2-Gerät
-2. `POST /api/webauthn/assert` → `X-WebAuthn-Token` → kritische Aktion
+2. `POST /api/webauthn/assert` → Grant-Token (JWT) → kritische Aktion
+   (REST: Header `X-WebAuthn`; WS Terminal-Bridge: Query `wa_token`)
+3. Registrierung: `POST /api/webauthn/register/challenge` + `/register`
+   (speichert den Public Key des FIDO2-Geräts in der Credential-DB)
 
-**Features:** Replay-Schutz (einmalige Token + Challenge-Nutzung), alles im Audit-Trail. Vollständige FIDO2-Verifikation erfordert eine Credential-DB (im README als Produktions-Hinweis markiert).
+**Features:** Echte FIDO2-Verifikation (ECDSA/P-256 über `authenticatorData ||
+SHA-256(clientDataJSON)`, COSE-Parsing via cbor2), Counter-Replay-Schutz,
+einmalige Grant-Tokens dienstübergreifend über die geteilte SQLite-DB,
+alles im Audit-Trail. Demo-HMAC-Pfad nur außerhalb von Produktion.
 
 ---
 
@@ -496,7 +505,8 @@ Der Scanner (WS `/api/ws/discovery`, Port 8766) wurde geprüft und gehärtet:
 
 **Test-Suiten (`tests/`):**
 ```bash
-python3 tests/unit_prod.py   # 45 Unit-Tests: security/userstore/webauthn/pty_bridge/scanner
+python3 tests/unit_prod.py   # 46 Unit-Tests: security/userstore/webauthn/pty_bridge/scanner + Idle-Timeout
+python3 tests/audit_live.py  # 81 Live-Funktionstests gegen laufende Dienste (REST+WS, RBAC, WebAuthn)
 python3 tests/suite.py       # 16 Integrationstests (REST + WS über Vite-Proxy)
 python3 tests/chain.py       # 53 Anbindungs-/Attribut-Tests
 python3 tests/stress.py      # Last-/Sturm-Tests (0 Fehler)
@@ -536,4 +546,4 @@ Fragen? Fehler gefunden? Verbessern Sie das Projekt — PRs willkommen!
 
 ---
 
-**Version:** 2.3 | **Status:** Production-Ready | **Last Updated:** 2026-08-11
+**Version:** 2.3 | **Status:** Production-Ready | **Last Updated:** 2026-08-11 (Idle-/Abs-Timeout serverseitig durchgesetzt)

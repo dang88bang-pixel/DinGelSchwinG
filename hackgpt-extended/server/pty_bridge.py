@@ -335,10 +335,30 @@ async def _serial_pump(ws: WSProto, session: Session, bridge) -> None:
 
 
 async def _forward(ws: WSProto, session: Session, idle_timeout: int, abs_timeout: int):
-    """Bidirektionales Forwarding Terminal <-> Bridge, mit Idle-/Abs-Timeout."""
+    """Bidirektionales Forwarding Terminal <-> Bridge, mit Idle-/Abs-Timeout.
+
+    WICHTIG: Die Schleife pollt die WS mit 1-s-Timeout, damit Idle- und
+    Absolut-Limit auch OHNE eingehende Client-Nachrichten greifen — sonst
+    würde eine inaktive Session ewig offen bleiben (async-for blockiert).
+    """
     bridge = session.bridge
     start = datetime.datetime.now(datetime.timezone.utc)
-    async for raw in ws:
+    while True:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        # Absolutes Session-Maximum (hartes Limit, unabhängig von Aktivität)
+        if (now - start).total_seconds() > abs_timeout:
+            await ws.send(json.dumps({"type": "close", "reason": "abs_timeout"}))
+            return
+        # Idle-Timeout
+        if idle_timeout and (now - session.last_active).total_seconds() > idle_timeout:
+            await ws.send(json.dumps({"type": "close", "reason": "idle_timeout"}))
+            return
+        try:
+            raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
+        except asyncio.TimeoutError:
+            continue  # weiter pollen → Timeout-Prüfung läuft auch ohne Input
+        except websockets.exceptions.ConnectionClosed:
+            return
         if isinstance(raw, bytes):
             text = raw.decode("utf-8", "replace")
         else:
@@ -359,16 +379,6 @@ async def _forward(ws: WSProto, session: Session, idle_timeout: int, abs_timeout
             await ws.send(json.dumps({"type": "pong"}))
         elif msg.get("type") == "resize":
             pass  # term.size übergeben
-
-        # Absolutes Session-Maximum (hartes Limit, unabhängig von Aktivität)
-        now = datetime.datetime.now(datetime.timezone.utc)
-        if (now - start).total_seconds() > abs_timeout:
-            await ws.send(json.dumps({"type": "close", "reason": "abs_timeout"}))
-            return
-        # Idle-Timeout
-        if idle_timeout and (now - session.last_active).total_seconds() > idle_timeout:
-            await ws.send(json.dumps({"type": "close", "reason": "idle_timeout"}))
-            return
 
 
 def _query(ws: WSProto) -> dict:
@@ -412,14 +422,32 @@ async def handler(ws: WSProto):
 
         if kind == "network":
             session.client, session.chan, pump = await _open_ssh(target)
+            start = datetime.datetime.now(datetime.timezone.utc)
             try:
-                async for raw in ws:
+                # Polling-Loop wie _forward: Idle-/Abs-Timeout greift auch
+                # ohne Client-Nachrichten (SSH-Session kann nicht ewig laufen).
+                while True:
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    if (now - start).total_seconds() > _abs:
+                        await ws.send(json.dumps({"type": "close", "reason": "abs_timeout"}))
+                        break
+                    if idle and (now - session.last_active).total_seconds() > idle:
+                        await ws.send(json.dumps({"type": "close", "reason": "idle_timeout"}))
+                        break
                     try:
-                        msg = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    if msg.get("type") == "input":
-                        await asyncio.get_event_loop().run_in_executor(None, session.chan.send, msg.get("data", ""))
+                        raw = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                    except asyncio.TimeoutError:
+                        raw = None
+                    except websockets.exceptions.ConnectionClosed:
+                        break
+                    if raw is not None:
+                        try:
+                            msg = json.loads(raw)
+                        except json.JSONDecodeError:
+                            msg = None
+                        if msg and msg.get("type") == "input":
+                            session.last_active = datetime.datetime.now(datetime.timezone.utc)
+                            await asyncio.get_event_loop().run_in_executor(None, session.chan.send, msg.get("data", ""))
                     out = await asyncio.get_event_loop().run_in_executor(None, pump)
                     if out:
                         await ws.send(json.dumps({"type": "data", "data": out.decode("utf-8", "replace")}))
