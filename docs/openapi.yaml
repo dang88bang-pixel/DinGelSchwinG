@@ -23,6 +23,7 @@ tags:
   - name: audit
   - name: webauthn
   - name: console
+  - name: ble
 
 servers:
   - url: http://localhost:5000
@@ -429,6 +430,267 @@ paths:
       responses:
         "200": { description: Systeminfo }
 
+  # ------------------------------------------------------------------
+  # BLE Professional Suite (NEXUS-BUILDER)
+  # Kritische Aktionen (mesh delete, Profil anwenden, Fehlersimulation)
+  # erfordern X-WebAuthn-Token (siehe /api/webauthn/*) – wie bei
+  # device.delete/pairing.delete.
+  # ------------------------------------------------------------------
+  /api/ble/scan:
+    post:
+      tags: [ble]
+      summary: BLE-Scan starten/stoppen (kontinuierlich, Klassifizierung)
+      x-rbac: service
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [start, stop] }
+      responses:
+        "200":
+          description: Scan-Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running: { type: boolean }
+                  devices: { type: integer }
+
+  /api/ble/devices:
+    get:
+      tags: [ble]
+      summary: Erkannte BLE-Geräte (gefiltert, klassifiziert)
+      x-rbac: service
+      parameters:
+        - name: class
+          in: query
+          schema: { type: string, enum: [ntag, token, mesh, peripheral] }
+        - name: query
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Geräteliste
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BleDevice" }
+
+  /api/ble/devices/{id}/connect:
+    post:
+      tags: [ble]
+      summary: BLE-Verbindung aufbauen/trennen (max. 20 parallel)
+      x-rbac: service
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [connect, disconnect] }
+      responses:
+        "200": { description: Verbindungsstatus }
+
+  /api/ble/devices/{id}/gatt:
+    get:
+      tags: [ble]
+      summary: GATT-Services/Characteristics/Descriptors eines Geräts
+      x-rbac: service
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      responses:
+        "200":
+          description: GATT-Profil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deviceId: { type: string }
+                  mtu: { type: integer }
+                  services:
+                    type: array
+                    items: { $ref: "#/components/schemas/GattService" }
+
+  /api/ble/devices/{id}/gatt/{uuid}:
+    put:
+      tags: [ble]
+      summary: GATT-Wert schreiben (hex)
+      x-rbac: service
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - name: uuid
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value: { type: string, description: "Hex, z. B. BEEF" }
+      responses:
+        "200": { description: Write-Bestätigung }
+
+  /api/ble/mesh/networks:
+    get:
+      tags: [ble]
+      summary: Mesh-Netzwerke mit Knoten, Rollen, Pub/Sub, TTL
+      x-rbac: service
+      responses:
+        "200":
+          description: Netzwerkliste
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MeshNetwork" }
+    post:
+      tags: [ble]
+      summary: Mesh-Netzwerk erstellen (zentrale NetKey/AppKey-Verwaltung)
+      x-rbac: developer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201": { description: Netzwerk erstellt }
+
+  /api/ble/mesh/networks/{id}/nodes/{deviceId}:
+    post:
+      tags: [ble]
+      summary: Knoten provisionieren (Rolle Relay/Proxy, Unicast-Vergabe)
+      x-rbac: developer
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Provisionierung abgeschlossen }
+
+  /api/ble/mesh/networks/{id}:
+    delete:
+      tags: [ble]
+      summary: "Mesh-Netzwerk löschen (KRITISCH → X-WebAuthn-Token)"
+      x-rbac: developer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/WebAuthnToken"
+      responses:
+        "200": { description: Netzwerk gelöscht }
+
+  /api/ble/profiles:
+    get:
+      tags: [ble]
+      summary: Profil-Cache auflisten
+      x-rbac: service
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BleProfile" }
+    post:
+      tags: [ble]
+      summary: Profil speichern
+      x-rbac: service
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, deviceClass, steps]
+              properties:
+                name: { type: string }
+                deviceClass: { type: string, enum: [ntag, token, mesh, peripheral] }
+                steps:
+                  type: array
+                  items: { $ref: "#/components/schemas/ConfigStep" }
+      responses:
+        "201": { description: Profil gespeichert }
+
+  /api/ble/profiles/{id}/apply:
+    post:
+      tags: [ble]
+      summary: "Profil auf Gerät anwenden (KRITISCH → X-WebAuthn-Token)"
+      x-rbac: developer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/WebAuthnToken"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId]
+              properties:
+                deviceId: { type: string }
+      responses:
+        "200": { description: Konfiguration angewendet }
+
+  /api/ble/tests/{suiteId}/run:
+    post:
+      tags: [ble]
+      summary: Vordefinierte Test-Suite starten (ntag|token|mesh|performance)
+      x-rbac: service
+      parameters:
+        - name: suiteId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Testergebnis }
+
+  /api/ble/simulator:
+    post:
+      tags: [ble]
+      summary: Simulierte BLE-Geräte erzeugen (max. 10)
+      x-rbac: service
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count: { type: integer, maximum: 10 }
+                deviceClass: { type: string, enum: [ntag, token, mesh, peripheral] }
+      responses:
+        "201": { description: Sim-Geräte erstellt }
+
+  /api/ble/audit:
+    get:
+      tags: [ble]
+      summary: BLE-Audit-Log (Export JSON/CSV)
+      x-rbac: operator
+      parameters:
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, csv] }
+      responses:
+        "200": { description: Audit-Einträge }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -477,7 +739,7 @@ components:
         id: { type: string }
         kind:
           type: string
-          enum: [hardware, dongle, ble_token, ntag, network]
+          enum: [hardware, dongle, ble_token, ble_mesh, ble_peripheral, ntag, network]
         label: { type: string }
         online: { type: boolean }
         autoBindable: { type: boolean }
@@ -524,6 +786,88 @@ components:
           description: "Kette: trace.start → auth.login → device.bind …"
         actor_role: { $ref: "#/components/schemas/Role" }
         outcome: { type: string, enum: [ok, denied, error] }
+
+    BleDevice:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        address: { type: string, example: "D8:3A:DD:12:4F:01" }
+        deviceClass: { type: string, enum: [ntag, token, mesh, peripheral] }
+        manufacturer: { type: string }
+        serviceUuids:
+          type: array
+          items: { type: string }
+        rssi: { type: integer }
+        txPower: { type: integer }
+        connectable: { type: boolean }
+        bound: { type: boolean }
+        connected: { type: boolean }
+        battery: { type: integer }
+        provisioned: { type: boolean }
+
+    GattService:
+      type: object
+      properties:
+        uuid: { type: string }
+        name: { type: string }
+        characteristics:
+          type: array
+          items:
+            type: object
+            properties:
+              uuid: { type: string }
+              name: { type: string }
+              properties:
+                type: array
+                items: { type: string, enum: [read, write, notify, indicate] }
+              valueHex: { type: string }
+              notify: { type: boolean }
+
+    MeshNetwork:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        netKey: { type: string, description: "zentral verwaltet, RBAC-geschützt" }
+        appKey: { type: string }
+        ttl: { type: integer }
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              unicast: { type: string, example: "0x0001" }
+              role: { type: string, enum: [relay, proxy, friend, low-power] }
+              rssi: { type: integer }
+              battery: { type: integer }
+              online: { type: boolean }
+              pub: { type: string }
+              sub: { type: string }
+
+    ConfigStep:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [gatt_write, gatt_read, notify_on, mtu, pair, mesh_pub, mesh_sub, mesh_model, ttl, verify]
+        target: { type: string }
+        detail: { type: string }
+        value: { type: string }
+        critical: { type: boolean }
+
+    BleProfile:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        deviceClass: { type: string, enum: [ntag, token, mesh, peripheral] }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/ConfigStep" }
+        createdAt: { type: string, format: date-time }
 
 security:
   - bearerAuth: []

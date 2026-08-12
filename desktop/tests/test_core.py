@@ -12,6 +12,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.agent import Agent  # noqa: E402
+from utils.ble_suite import BleSuite  # noqa: E402
 from utils.config import load_config  # noqa: E402
 from utils.model_backend import (  # noqa: E402
     BackendError, DeterministicBackend, LlamaCppBackend, OllamaBackend,
@@ -253,3 +254,90 @@ class TestConfig(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBleSuite(unittest.TestCase):
+    """BLE Professional Suite – Scan, Klassifizierung, Mesh, Tests, RBAC."""
+
+    def setUp(self) -> None:
+        self.agent = Agent(role="developer", config={"engine": "none"})
+        self.suite = self.agent.ble_suite
+
+    def test_classify(self) -> None:
+        self.assertEqual(self.suite.classify("NTag-Tracker", "NXP", ["0000fea9"]), "ntag")
+        self.assertEqual(self.suite.classify("TempSensor", "Nordic", ["0000180f"]), "token")
+        self.assertEqual(self.suite.classify("Mesh-Relay", "Nordic", ["00001827"]), "mesh")
+        self.assertEqual(self.suite.classify("Tastatur", "Logitech", []), "peripheral")
+
+    def test_scan_start_stop(self) -> None:
+        reply = self.suite.start_scan()
+        self.assertIn("gestartet", reply)
+        self.assertTrue(self.suite.scan_running)
+        reply = self.suite.stop_scan()
+        self.assertIn("gestoppt", reply)
+        self.assertFalse(self.suite.scan_running)
+        self.assertGreaterEqual(len(self.suite.devices), 5)
+
+    def test_connect_limit(self) -> None:
+        for d in self.suite.devices:
+            if d["connectable"] and d["device_class"] == "peripheral":
+                self.suite.connect(d["id"])
+        # Nicht verbindbares Beacon
+        beacon = next(d for d in self.suite.devices if not d["connectable"])
+        reply = self.suite.connect(beacon["id"])
+        self.assertIn("nicht verbindbar", reply)
+
+    def test_rbac_denies_service_actions_for_mesh(self) -> None:
+        suite = BleSuite(role="service")
+        reply = suite.create_mesh("Test")
+        self.assertIn("Zugriff verweigert", reply)
+        self.assertIn("Developer", reply)
+
+    def test_mesh_create_plan_approval(self) -> None:
+        agent = Agent(role="developer", config={"engine": "none"})
+        reply = agent.ask("erstelle ein mesh-netzwerk")
+        self.assertIn("Vorgeschlagener Ablauf", reply)
+        self.assertIsNotNone(agent._pending_plan)
+        self.assertTrue(agent._pending_plan[0].startswith("ble_mesh:"))
+        reply2 = agent.ask("freigeben")
+        self.assertIn("Mesh-Netzwerk", reply2)
+        self.assertIn("provisioniert", reply2.lower())
+
+    def test_configure_plan_approval(self) -> None:
+        agent = Agent(role="service", config={"engine": "none"})
+        reply = agent.ask("konfiguriere den NTag-Tracker-Büro3-01 für die Batterieüberwachung")
+        self.assertIn("Vorgeschlagener Ablauf", reply)
+        self.assertIsNotNone(agent._pending_plan)
+        reply2 = agent.ask("freigeben")
+        self.assertIn("Konfiguration", reply2)
+        self.assertIn("Batterie", reply2)
+
+    def test_mesh_delete_requires_webauthn(self) -> None:
+        agent = Agent(role="developer", config={"engine": "none"})
+        reply = agent.ask("mesh löschen Büro 3")
+        self.assertIn("WebAuthn", reply)
+        self.assertIsNotNone(agent._pending_critical)
+        count_before = len(agent.ble_suite.mesh_networks)
+        reply2 = agent.ask("webauthn bestätigen")
+        self.assertIn("WebAuthn bestätigt", reply2)
+        self.assertIn("gelöscht", reply2)
+        self.assertEqual(len(agent.ble_suite.mesh_networks), count_before - 1)
+
+    def test_ble_audit(self) -> None:
+        self.suite.start_scan()
+        text = self.suite.audit_text()
+        self.assertIn("ble_scan_start", text)
+
+    def test_ble_mode_skills(self) -> None:
+        agent = Agent(role="developer", config={"engine": "none", "agent_mode": "ble"})
+        self.assertEqual(agent.mode, "ble")
+        names = {s.name for s in agent.skills}
+        for required in ("ble_scan", "ble_devices", "ble_mesh_create", "ble_configure",
+                         "ble_test_suite", "ble_simulate", "ble_profile", "ble_audit"):
+            self.assertIn(required, names, f"BLE-Skill {required} fehlt")
+        self.assertIn("BLE", agent.system_instruction)
+
+    def test_test_suite(self) -> None:
+        reply = self.agent.ask("führe die ntag test-suite aus")
+        self.assertIn("NTag", reply)
+        self.assertIn("PASS", reply)

@@ -56,18 +56,39 @@ Push statt Polling; Zyklus `SCAN_INTERVAL`, Stale-Removal nach `NODE_TTL`.
 ```jsonc
 // Voller Zustand nach Connect:
 {"type":"snapshot","nodes":[{
-  "id":"…","kind":"network|dongle|ble_token|ntag|hardware",
+  "id":"…","kind":"network|dongle|ble_token|ntag|ble_mesh|ble_peripheral|hardware",
   "label":"…","lastSeen":"…","signal":{"rssi":-58},
   "usbVendorId":"0x2341","usbProductId":"0x0043",
-  "autoBindable": true                 // Dongle: Client prüft Interlock
+  "autoBindable": true,                // Dongle: Client prüft Interlock
+  // BLE Professional Suite – Zusatzfelder (nur bei kind ble_*):
+  "deviceClass":"ntag|token|mesh|peripheral",  // automatische Klassifizierung
+  "manufacturer":"NXP Semiconductors",
+  "serviceUuids":["0000180a-…","0000fea9-…"],
+  "connectable": true,
+  "battery": 87,
+  "provisioned": false                 // Mesh: bereits provisioniert?
 }]}
 
 // Delta während des Scan-Zyklus:
 {"type":"update","node":{ /* wie oben (auch Label-/RSSI-Änderungen) */ }}
 {"type":"remove","id":"…"}            // stale, kein Geist-Zustand
+
+// BLE Professional Suite – Ereignisse (Agent & GATT/Mesh/Tests):
+{"type":"ble.classified","node":{"id":"…","deviceClass":"ntag"}}
+{"type":"ble.connected","id":"…","parallel":3}         // ≤ 20 parallel
+{"type":"ble.gatt","deviceId":"…","op":"read|write|notify|mtu","uuid":"…"}
+{"type":"ble.mesh","network":"…","op":"create|provision|pubsub|ttl|model|trace"}
+{"type":"ble.test","suite":"suite-ntag","case":"NDEF-Read","status":"pass|fail"}
+{"type":"ble.audit","entry":{"user":"…","action":"gatt_write","detail":"…"}}
 ```
 
 Fehler: `{ "type":"error", "code":"RBAC_DENIED" }` + Close.
+
+> **RBAC (BLE Professional Suite):** `kind ble_*`-Nodes liefert der Scanner ab
+> Rolle `service` (L2); GATT-Schreibzugriffe/Mesh-Operationen erfordern
+> `developer` (L3). Kritische Aktionen (Mesh löschen, Konfiguration
+> überschreiben, Fehlersimulation) werden serverseitig erst nach
+> WebAuthn-Bestätigung ausgeführt (siehe [`ble-professional-suite.md`](./ble-professional-suite.md)).
 
 ---
 

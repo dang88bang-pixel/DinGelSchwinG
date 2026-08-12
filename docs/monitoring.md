@@ -25,12 +25,16 @@ docker compose --env-file deploy/.env \
 
 - **Alerts** (`prometheus/alert-rules.yml`): `BackendDown` (1 min),
   `Http5xxRate` (>2 % über 5 min), `BruteForceLoginAttempts` (429er des
-  Rate-Limiters aus README §11).
+  Rate-Limiters aus README §11) sowie die Gruppe **`nexus-ble`** der
+  BLE Professional Suite (`BleScanStopped`, `BleGattErrorRateHigh`,
+  `BleMeshNodeOffline`, `BleTestFailures`, `BleConnectionsNearLimit`).
 - **Slack-Route** (`alertmanager/alertmanager.yml`): Channel `#nexus-alerts`,
   `SLACK_WEBHOOK_URL` per ENV eingeblendet.
-- **Grafana** auto-provisioned: Datasources (Prometheus + Loki) und das
-  Dashboard **„NEXUS – Übersicht“** (Backend-up, Requests/s, Error-Logs mit
-  `trace_id`-Filter).
+- **Grafana** auto-provisioned: Datasources (Prometheus + Loki) und die
+  Dashboards **„NEXUS – Übersicht“** (Backend-up, Requests/s, Error-Logs mit
+  `trace_id`-Filter) sowie **„NEXUS – BLE Professional Suite“**
+  (`nexus-ble.json`: Scan-Status, Geräte je Klasse, Verbindungen, GATT-Fehlerrate,
+  Mesh-Tracer, BLE-Logs).
 - **Promtail** labelt strukturierte Log-Felder (`trace_id`, `session_id`,
   `level`) — die Audit-/trace-Ketten aus der README werden abfragbar:
   ```logql

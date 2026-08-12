@@ -33,10 +33,39 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 | [`docs/monitoring.md`](docs/monitoring.md) | Mitgelieferter Monitoring-Stack: Prometheus, Loki, Grafana-Dashboard, Slack-Alerting |
 | [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
+| [`docs/ble-professional-suite.md`](docs/ble-professional-suite.md) | **BLE Professional Suite**: Scan/Klassifizierung, GATT-Explorer, Mesh, Test-Suite, Simulator, Profil-Cache, RBAC + WebAuthn, Agent-Workflows (Modus C) |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
 
 Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,
 Offline-Anzeige) — Details in [`public/sw.js`](public/sw.js).
+
+---
+
+## 📡 BLE Professional Suite (KI-gestützte BLE-Erweiterung)
+
+Die **BLE Professional Suite** ist ein nativ integriertes Zusatzmodul für die
+NEXUS-BUILDER-Plattform – produktionsreife BLE-Entwicklungs-, Test- und
+Betriebsumgebung, vollständig über den Chat-Agenten steuerbar (Modus C):
+
+- **Discovery**: kontinuierlicher BLE-Scan mit automatischer Klassifizierung
+  (NTag Smart Tracker / BLE-Token / Mesh-Knoten / Peripherie), RSSI-Verlauf,
+  Filter – Button **„BLE Pro“** im Header öffnet die Suite.
+- **GATT-Explorer**: bis zu 20 parallele Verbindungen, Services/
+  Characteristics/Descriptors, Werte in Hex/Dez/Bin/ASCII, Notifications, MTU.
+- **Mesh**: Netzwerk-Erstellung mit zentralen Schlüsseln, automatische
+  Provisionierung, Pub/Sub, TTL, Modelle, Nachrichten-Tracer, Live-Status.
+- **Tests & Debug**: vordefinierte Suiten (NTag/Token/Mesh/Performance),
+  Makro-Aufzeichnung/-Wiedergabe, Durchsatz/Latenz, Paket-Sniffer,
+  Fehlersimulation.
+- **Simulator & Profil-Cache**: bis zu 10 simulierte Geräte, Workflows als
+  Python-Skripte exportierbar; zentrale Konfigurationsprofile.
+- **Sicherheit**: RBAC (Service L2 / Developer L3) + WebAuthn für kritische
+  Aktionen; jeder Agenten-Schritt im Audit-Log (Nutzer-ID + Zeitstempel).
+
+**Agent-Ablauf:** Vorschlag (Plan) → automatische Prüfung → **„freigeben“** →
+schrittweise Ausführung → Zusammenfassung. Kritische Aktionen zusätzlich mit
+**„webauthn bestätigen“**. Details & Chat-Befehle:
+[`docs/ble-professional-suite.md`](docs/ble-professional-suite.md).
 
 ---
 

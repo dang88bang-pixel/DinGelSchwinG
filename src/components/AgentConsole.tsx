@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, X, Paperclip, Settings } from 'lucide-react';
 import { AgentEngine, AgentMessage } from '../lib/agent/agentEngine';
 import {
-  MODE_LABELS, AgentMode, CHAT_SYSTEM_INSTRUCTION, ADB_SYSTEM_INSTRUCTION,
+  MODE_LABELS, AgentMode, CHAT_SYSTEM_INSTRUCTION, ADB_SYSTEM_INSTRUCTION, BLE_SYSTEM_INSTRUCTION,
 } from '../config/systemInstructions';
 import { MODEL_ID, MODEL_SIZE_MB } from '../lib/agent/transformersBackend';
 
@@ -295,9 +295,11 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
                             ? engine.systemInstruction
                             : m === 'adb'
                               ? ADB_SYSTEM_INSTRUCTION
-                              : m === 'custom'
-                                ? engine.customInstruction || engine.systemInstruction
-                                : CHAT_SYSTEM_INSTRUCTION,
+                              : m === 'ble'
+                                ? BLE_SYSTEM_INSTRUCTION
+                                : m === 'custom'
+                                  ? engine.customInstruction || engine.systemInstruction
+                                  : CHAT_SYSTEM_INSTRUCTION,
                         );
                       }}
                       className={`text-left px-3 py-2.5 rounded-xl border text-xs font-bold transition ${
@@ -331,7 +333,8 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
                 onClick={() => {
                   setInstructionDraft(
                     engine.mode === 'adb' ? ADB_SYSTEM_INSTRUCTION
-                      : engine.mode === 'custom' ? '' : CHAT_SYSTEM_INSTRUCTION,
+                      : engine.mode === 'ble' ? BLE_SYSTEM_INSTRUCTION
+                        : engine.mode === 'custom' ? '' : CHAT_SYSTEM_INSTRUCTION,
                   );
                 }}
                 className="px-3 py-2 rounded-xl text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 transition"

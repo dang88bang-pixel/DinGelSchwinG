@@ -22,6 +22,8 @@ akzeptiert aktuell — strikt-by-default ohne erkannte VID:
 | `0x16c0` | `0x05dc` | Van Ooijen Technische / V-USB-Stacks (z. B. USBasp, DigiSpark) | Prototyping-Dongle |
 | `0x1a86` | `0x7523` | CH340/CH341 USB-Serial | Günstige UART-Dongles (⚠️ erst nach Freigabe in die Whitelist) |
 | `0x0403` | `0x6001` | FTDI FT232 | Industrielle UART-Bridges (⚠️ erst nach Freigabe) |
+| `0x1915` | `0x521F` | Nordic nRF52840 USB-C Dongle | BLE Professional Suite (Scan/GATT/Mesh/Sniffer) |
+| `0x0A12` | `0x0001` | CSR 8510 BLE-Dongle | BLE-Erkennung (klassisch + LE) |
 
 - **Whitelist erweitern:** VID sowohl clientseitig in `runSafetyInterlockCheck()`
   als auch serverseitig in der Bridge pflegen — beide Listen müssen deckungsgleich

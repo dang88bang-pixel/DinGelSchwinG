@@ -6,6 +6,7 @@ Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration:
 - 🔘 **6 frei belegbare Aktionsbuttons** – per Chat belegen (`"Belege Button 3 mit dem Skript network_scan.py"`) oder manuell in den Einstellungen
 - 📡 **Status-Panel** – Geräte, Clients, Workflows, Testverbindungen, Systemlast (Live via WebSocket `/ws/status` + Polling, mit Offline-Mock-Fallback)
 - 🛠️ **Skripte-Galerie** – CRUD + eingebauter Editor, Testen/Ausführen mit Timeout, RBAC (nur `admin` darf löschen)
+- 📡 **BLE Suite** – BLE Professional Suite (Scan & Klassifizierung, GATT, Mesh, Tests, Simulator, Profile, Audit) – Modus C, siehe [`docs/ble-professional-suite.md`](../docs/ble-professional-suite.md)
 - ⚙️ **Einstellungen** – Systeminstruktionen (System-Prompt), Modell-Backend, Button-Belegung
 - 🧠 **Eingebettetes Lightweight-Modell** – Qwen2.5-0.5B-Instruct (GGUF ~400 MB) oder Ollama/OpenAI-kompatibel; ohne LLM läuft eine deterministische Skill-Engine (immer funktionsfähig)
 
@@ -25,10 +26,12 @@ Der Agent arbeitet in **konfigurierbaren Modi** – Wechsel unter
 |---|---|
 | **A: Normaler Chat** | Allgemeine verbindliche Systemanweisung (Anforderungsanalyse, Pflichtprozess, Code-Regeln, Kommunikation) |
 | **B: ADB-Aktion** | ADB-spezialisierte Anweisung (USB/WiFi · Pentesting · Rescue · Backup). Eigene ADB-Skills (`skillz_adb.md`). **Pflicht-Freigabeprozess:** Bei risikobehafteten Aktionen wird zuerst ein Umsetzungsplan vorgelegt – erst nach „freigeben“ wird das vollständige, ausführbare Skript erzeugt (in `data/scripts/adb_*.sh`). |
+| **C: BLE Professional Suite** | BLE-spezialisierte Anweisung (Scan · GATT · Mesh · Tests · Simulator). Eigene BLE-Skills (`skillz_ble.md`). **Pflicht-Freigabeprozess:** Vorschlag → „freigeben“ → schrittweise Ausführung; kritische Aktionen zusätzlich „webauthn bestätigen“. |
 | **Benutzerdefiniert** | Eigene Anweisung frei definierbar |
 
 Dateien: `data/system_instruction_chat.txt`, `data/system_instruction_adb.txt`,
-`data/system_instruction_custom.txt` (wird beim Speichern angelegt), `data/skillz_adb.md`.
+`data/system_instruction_ble.txt`, `data/system_instruction_custom.txt`
+(wird beim Speichern angelegt), `data/skillz_adb.md`, `data/skillz_ble.md`.
 
 Beispiel-Dialog Modus B:
 ```

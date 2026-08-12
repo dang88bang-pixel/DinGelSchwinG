@@ -29,3 +29,52 @@ groups:
         annotations:
           summary: "Rate-Limiter greift (429)"
           description: "Login-Rate-Limiting aktiv – möglicher Brute-Force-Versuch."
+
+  - name: nexus-ble
+    rules:
+      - alert: BleScanStopped
+        expr: ble_scan_running == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "BLE-Scan inaktiv"
+          description: "Der kontinuierliche BLE-Scan läuft seit >5 min nicht (ble_scan_running = 0)."
+
+      - alert: BleGattErrorRateHigh
+        expr: |
+          sum(rate(ble_gatt_errors_total[5m]))
+            / clamp_min(sum(rate(ble_gatt_ops_total[5m])), 1) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Erhöhte GATT-Fehlerrate"
+          description: "Mehr als 5 % der GATT-Operationen schlagen fehl (5-min-Fenster)."
+
+      - alert: BleMeshNodeOffline
+        expr: ble_mesh_nodes_offline > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mesh-Knoten nicht erreichbar"
+          description: "Mindestens ein Mesh-Knoten ist seit >2 min offline – Relay-/Proxy-Pfad prüfen."
+
+      - alert: BleTestFailures
+        expr: increase(ble_test_fail_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "BLE-Testfehler aufgetreten"
+          description: "Automatisierte BLE-Test-Suite meldet Fehlschläge – Regression prüfen."
+
+      - alert: BleConnectionsNearLimit
+        expr: ble_connected_parallel >= 18
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Parallele BLE-Verbindungen am Limit"
+          description: "18+ von 20 parallelen Verbindungen belegt."

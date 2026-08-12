@@ -13,5 +13,20 @@
     "delete": "Delete",
     "edit": "Edit",
     "close": "Close"
+  },
+  "ble": {
+    "suiteTitle": "BLE Professional Suite",
+    "agentWorkflow": "Agent workflow",
+    "approvalHint": "Reply „freigeben“ in the agent chat to start execution.",
+    "scanStart": "Start BLE scan",
+    "scanStop": "Stop scan",
+    "deviceClass": {
+      "ntag": "NTag Smart Tracker",
+      "token": "BLE Token",
+      "mesh": "BLE Mesh node",
+      "peripheral": "BLE peripheral"
+    },
+    "criticalWebAuthn": "Critical action: WebAuthn confirmation required.",
+    "auditExport": "Export audit log"
   }
 }

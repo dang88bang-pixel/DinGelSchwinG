@@ -7,16 +7,18 @@ from dataclasses import dataclass, field
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
-# Modus A: Normaler Chat | Modus B: ADB-Aktion | custom: eigene Anweisung
-MODES = ("chat", "adb", "custom")
+# Modus A: Normaler Chat | Modus B: ADB-Aktion | Modus C: BLE Professional Suite | custom
+MODES = ("chat", "adb", "ble", "custom")
 
 SKILLZ_PATHS = {
     "chat": os.path.join(DATA_DIR, "skillz.md"),
     "adb": os.path.join(DATA_DIR, "skillz_adb.md"),
+    "ble": os.path.join(DATA_DIR, "skillz_ble.md"),
 }
 SYSTEM_INSTRUCTION_PATHS = {
     "chat": os.path.join(DATA_DIR, "system_instruction_chat.txt"),
     "adb": os.path.join(DATA_DIR, "system_instruction_adb.txt"),
+    "ble": os.path.join(DATA_DIR, "system_instruction_ble.txt"),
     "custom": os.path.join(DATA_DIR, "system_instruction_custom.txt"),
 }
 # Kompatibilität: alte Aufrufe ohne Modus

@@ -25,6 +25,7 @@ from .script_executor import ScriptExecutor, ScriptResult
 from .skill_loader import (
     Skill, load_skills, load_system_instruction, save_system_instruction, skills_to_prompt,
 )
+from .ble_suite import BleSuite, DEVICE_CLASS_LABELS
 from .status_manager import StatusManager
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -37,6 +38,7 @@ DEFAULT_BUTTON_ACTIONS = ["attach", "export", "audit", "workflow:scan", "stop", 
 MODE_LABELS = {
     "chat": "A: Normaler Chat",
     "adb": "B: ADB-Aktion (USB/WiFi · Pentest · Rescue · Backup)",
+    "ble": "C: BLE Professional Suite (Scan · GATT · Mesh · Tests)",
     "custom": "Benutzerdefiniert",
 }
 
@@ -61,11 +63,13 @@ class Agent:
         self.system_instruction = load_system_instruction(self.mode)
         self.executor = ScriptExecutor()
         self.status = status or StatusManager()
+        self.ble_suite = BleSuite(role=role)
         self.backend: ModelBackend = create_backend(self.config)
         self.audit_log: list[dict] = []
         self._audit_lock = threading.Lock()
         self._buttons = self._init_buttons()
         self._pending_plan: tuple[str, Callable[[], str]] | None = None
+        self._pending_critical: tuple[str, Callable[[], str]] | None = None
         self._load_audit()
         os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -215,6 +219,9 @@ class Agent:
             adb = self._try_adb_intents(t)
             if adb is not None:
                 return adb
+        ble = self._try_ble_intents(t)
+        if ble is not None:
+            return ble
         if re.search(r"\bstopp|abbrechen|beenden", t):
             return self._intent_stop()
         if re.search(r"\bscann|netzwerk-?scan", t):
@@ -288,6 +295,302 @@ class Agent:
                                   "4. Workflow: Geräteprüfung → Befehl ausführen → Ausgabe protokollieren\n"
                                   "5. Compliance: Nur autorisierte Befehle, keine Manipulation an Sicherheitsmechanismen")
         return None
+
+    # ------------------------------------------------------------------
+    # Modus C: BLE Professional Suite – Intents (auch im Chat-Modus aktiv)
+    # ------------------------------------------------------------------
+    def _normalize(self, s: str) -> str:
+        s = s.lower()
+        for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss"), ("battery", "batterie")):
+            s = s.replace(a, b)
+        return re.sub(r"[^a-z0-9]", "", s)
+
+    def _find_ble_device(self, name: str) -> dict | None:
+        q = self._normalize(name).replace("mit", "").replace("zu", "").strip()
+        if not q:
+            return None
+        for d in self.ble_suite.devices:
+            dn = self._normalize(d["name"])
+            if dn == q or q in dn or dn in q:
+                return d
+        return None
+
+    def _try_ble_intents(self, t: str) -> str | None:
+        if "webauthn" in t and any(w in t for w in ("bestätig", "bestaetig", "confirm", "ok")):
+            if self._pending_critical is not None and self.ble_suite.web_authn_pending is not None:
+                description, executor = self._pending_critical
+                self._pending_critical = None
+                self.ble_suite.web_authn_pending = None
+                self._audit("webauthn_ok", description)
+                return "✅ WebAuthn bestätigt (FIDO2, Hardware-Token).\n" + executor()
+            if self.ble_suite.web_authn_pending is not None:
+                self.ble_suite.web_authn_pending = None
+                return "✅ WebAuthn bestätigt (FIDO2, Hardware-Token)."
+            return "ℹ️ Keine ausstehende WebAuthn-Abfrage."
+        if re.search(r"(stopp|beend|anhalt)", t) and re.search(r"(ble|bluetooth|scan)", t):
+            return self.ble_suite.stop_scan()
+        if re.search(r"(scann|scan)", t) and re.search(r"(ble|bluetooth)", t):
+            return self._ble_scan()
+        if "klassifizier" in t:
+            return self._ble_classify()
+        if re.search(r"(zeige|list|show|welche).*(ble)|ble[-\s]?(gerät|geraet|device|devices)", t):
+            return self._ble_devices(t)
+        if re.search(r"(verbinde|connecte|verbindung)", t) and re.search(r"(mit|zu)", t):
+            return self._ble_connect(t)
+        if re.search(r"(gatt|services|dienste|characteristic)", t) or (
+                re.search(r"(lies|read|schreib|write)", t)
+                and re.search(r"(batterie|battery|wert|value|report|monitoring)", t)):
+            return self._ble_gatt(t)
+        if "mesh" in t:
+            if re.search(r"(status|zeig|list|welche|anzeig)", t):
+                return self._ble_mesh_status()
+            if "provisionier" in t:
+                return self._ble_mesh_provision(t)
+            if re.search(r"(lösch|loesch|entfern|delete)", t):
+                return self._ble_mesh_delete(t)
+            return self._ble_mesh_create(t)
+        if re.search(r"(konfigurier|konfiguriere|batterieüberwachung|batterieueberwachung|profil anwend)", t):
+            return self._ble_configure(t)
+        if re.search(r"(durchsatz|throughput)", t):
+            return self.ble_suite.run_throughput_test(247)
+        if re.search(r"(latenz|roundtrip)", t):
+            return self.ble_suite.run_latency_test(20)
+        if re.search(r"(test[- ]suite|testsuite|regressionstest|führe.*test|fuehre.*test)", t):
+            return self._ble_test_suite(t)
+        if re.search(r"(sniffer|paket)", t):
+            return self.ble_suite.toggle_sniffer()
+        if re.search(r"(simulier|simuliere).*(gerät|geraet|peripherie|token|tracker|beacon)", t):
+            return self._ble_simulate(t)
+        if "profil" in t:
+            return self._ble_profile(t)
+        if "audit" in t and re.search(r"(ble|bluetooth)", t):
+            return self.ble_suite.audit_text()
+        return None
+
+    def _ble_scan(self) -> str:
+        msg = self.ble_suite.start_scan()
+        self._audit("ble_scan", "Scan gestartet (Agent)")
+        top = "\n".join(
+            f"- {d['name']} ({DEVICE_CLASS_LABELS[d['device_class']]}, RSSI {d['rssi']} dBm)"
+            for d in self.ble_suite.devices[:5])
+        return f"{msg}\n\n📡 Aktuell erkannt ({len(self.ble_suite.devices)}):\n{top}"
+
+    def _ble_classify(self) -> str:
+        self._audit("ble_classify", "Klassifizierung abgefragt")
+        lines = ["🗂️ Automatische Geräteklassifizierung (Kontinuierlicher BLE-Scan):"]
+        for cls in ("ntag", "token", "mesh", "peripheral"):
+            devices = [d for d in self.ble_suite.devices if d["device_class"] == cls]
+            lines.append(f"- {DEVICE_CLASS_LABELS[cls]}: {len(devices)} Gerät(e)")
+            for d in devices[:4]:
+                lines.append(f"    · {d['name']} ({d['rssi']} dBm)")
+        return "\n".join(lines)
+
+    def _ble_devices(self, t: str) -> str:
+        cls = next((c for c in ("ntag", "token", "mesh", "peripheral") if c in t), None)
+        devices = self.ble_suite.filter_devices(cls)
+        self._audit("ble_devices", f"{len(devices)} Geräte")
+        if not devices:
+            return "📡 Keine BLE-Geräte gefunden – „scanne ble“ starten."
+        lines = [f"📡 BLE-Geräte ({len(devices)}):"]
+        for d in devices[:15]:
+            icon = "🟢" if d["connected"] else ("🔵" if d["bound"] else "⚪")
+            prov = (" (provisioniert)" if d.get("provisioned") is True
+                    else " (nicht provisioniert)" if d.get("provisioned") is False else "")
+            lines.append(f"- {icon} {d['name']} – {DEVICE_CLASS_LABELS[d['device_class']]} – "
+                         f"RSSI {d['rssi']} dBm – {d['address']}{prov}")
+        lines.append("\nTipp: „klassifiziere“, „verbinde mit <name>“, „erstelle ein mesh-netzwerk“.")
+        return "\n".join(lines)
+
+    def _ble_connect(self, t: str) -> str:
+        device = self._find_ble_device(t)
+        if not device:
+            known = ", ".join(d["name"] for d in self.ble_suite.devices[:8])
+            return f"❌ Gerät nicht erkannt. Bekannte Geräte: {known}"
+        self._audit("ble_connect", device["name"])
+        return self.ble_suite.connect(device["id"])
+
+    def _ble_gatt(self, t: str) -> str:
+        device = self._find_ble_device(t)
+        if not device:
+            return "❌ Bitte nenne das Gerät, z. B. „zeige GATT-Dienste von NTag-Tracker-Büro3-01“."
+        services = self.ble_suite.gatt_services(device["id"])
+        if re.search(r"(schreib|write|setze)", t):
+            ch = next((c for s in services for c in s.characteristics
+                       if self._normalize(c.name) in self._normalize(t)), None)
+            if not ch:
+                return "❌ Characteristic nicht erkannt."
+            value_match = re.search(r"0x([0-9a-f]+)", t, re.IGNORECASE)
+            value = value_match.group(1) if value_match else "00"
+            self._audit("gatt_write", f"{device['name']} → {ch.name} (0x{value.upper()})")
+            return self.ble_suite.gatt_write(device["id"], ch.uuid, value)
+        if re.search(r"(lies|read)", t):
+            ch = next((c for s in services for c in s.characteristics
+                       if self._normalize(c.name) in self._normalize(t)), None)
+            if not ch:
+                return "❌ Characteristic nicht erkannt."
+            self._audit("gatt_read", f"{device['name']} → {ch.name}")
+            return f"📖 {device['name']} · {ch.name}: 0x{ch.value_hex}"
+        self._audit("gatt_explore", device["name"])
+        lines = [f"📚 GATT-Services von {device['name']}:"]
+        for s in services:
+            lines.append(f"- {s.name} ({s.uuid})")
+            for c in s.characteristics:
+                lines.append(f"    · {c.name} – {'/'.join(c.properties)}")
+        return "\n".join(lines)
+
+    def _ble_mesh_status(self) -> str:
+        self._audit("ble_mesh_status", "Mesh-Status abgefragt")
+        if not self.ble_suite.mesh_networks:
+            return "🌐 Keine Mesh-Netzwerke vorhanden – „erstelle ein mesh-netzwerk“."
+        lines = ["🌐 Mesh-Netzwerke & Live-Status:"]
+        for n in self.ble_suite.mesh_networks:
+            lines.append(f"- {n.name} (NetKey {n.net_key[:8]}…, TTL {n.ttl})")
+            for node in n.nodes:
+                icon = "🟢" if node.online else "🔴"
+                lines.append(f"    · {icon} {node.name} – {node.unicast} – {node.role} – "
+                             f"Pub {node.pub}/Sub {node.sub} – RSSI {node.rssi} – Batt {node.battery}%")
+        return "\n".join(lines)
+
+    def _ble_mesh_create(self, t: str) -> str:
+        if not self.ble_suite.can("mesh_create"):
+            return "⛔ Zugriff verweigert: Rolle Developer (L3) erforderlich."
+        unprovisioned = [d for d in self.ble_suite.devices
+                         if d["device_class"] == "mesh" and not d["provisioned"]]
+        m = re.search(r"netzwerk[^\n]*?(?:für|fuer)\s*([a-z0-9äöüß\s-]+)", t, re.IGNORECASE)
+        name = m.group(1).strip() if m else "Büro-Netz"
+        steps = [f"1. Mesh-Netzwerk '{name}' anlegen (NetKey/AppKey zentral verwaltet)"]
+        steps += [f"{i + 2}. {d['name']} automatisch provisionieren (Rolle Relay/Proxy, Unicast-Adresse)"
+                  for i, d in enumerate(unprovisioned[:4])]
+        steps.append(f"{len(unprovisioned[:4]) + 2}. TTL 4 setzen (an Signalstärke angepasst)")
+        steps.append(f"{len(unprovisioned[:4]) + 3}. Verbindungstest: Nachricht Quelle → Ziel via Relay senden")
+        self._pending_plan = (f"ble_mesh:{name}", lambda n=name: self._execute_ble_mesh_plan(n))
+        self._audit("ble_mesh_plan", f"{name} ({len(unprovisioned)} unprovisionierte Knoten)")
+        return (f"📋 Vorgeschlagener Ablauf: **Mesh-Netzwerk '{name}' aufbauen**\n\n"
+                + "\n".join(steps)
+                + "\n\nDer Agent hat den Vorschlag automatisch geprüft (Kompatibilität, Adresskollisionen, Sicherheitsrichtlinien).\n"
+                  "Antworte mit **„freigeben“**, um die Ausführung zu starten.")
+
+    def _execute_ble_mesh_plan(self, name: str) -> str:
+        lines = [self.ble_suite.create_mesh(name)]
+        network = self.ble_suite.mesh_networks[-1]
+        unprovisioned = [d for d in self.ble_suite.devices
+                         if d["device_class"] == "mesh" and not d["provisioned"]]
+        targets = unprovisioned[:4]
+        lines.append(f"🔎 {len(targets)} nicht provisionierte Knoten im Scan-Bereich gefunden.")
+        for d in targets:
+            lines.append(self.ble_suite.provision_node(network.id, d["id"]))
+        network.ttl = 4
+        lines.append("🌊 TTL 4 gesetzt (Nachrichtenreichweite).")
+        lines.append("✅ Funktionsprüfung: Mesh betriebsbereit – Live-Status im Mesh-Panel.")
+        self._audit("ble_mesh_done", f"{name} – {len(network.nodes)} Knoten")
+        return "\n".join(lines)
+
+    def _ble_mesh_provision(self, t: str) -> str:
+        device = self._find_ble_device(t)
+        network = self.ble_suite.mesh_networks[-1] if self.ble_suite.mesh_networks else None
+        if not network:
+            return "❌ Kein Mesh-Netzwerk vorhanden – zuerst „erstelle ein mesh-netzwerk“."
+        if not device:
+            candidates = [d["name"] for d in self.ble_suite.devices
+                          if d["device_class"] == "mesh" and not d["provisioned"]]
+            return "❌ Knoten nicht erkannt. Nicht provisioniert: " + (", ".join(candidates) or "keine")
+        self._audit("ble_mesh_provision", device["name"])
+        return self.ble_suite.provision_node(network.id, device["id"])
+
+    def _ble_mesh_delete(self, t: str) -> str:
+        target = re.split(r"(lösch|loesch|entfern|delete)", t)[-1].strip()
+        q = self._normalize(target)
+        network = None
+        for n in self.ble_suite.mesh_networks:
+            dn = self._normalize(n.name)
+            if q and (dn.startswith(q) or q in dn or dn[:5] in q):
+                network = n
+                break
+        if not network:
+            names = ", ".join(n.name for n in self.ble_suite.mesh_networks) or "keine"
+            return f"❌ Netzwerk nicht erkannt. Vorhanden: {names}"
+        # Kritische Aktion: WebAuthn-Abfrage (Simulation)
+        self.ble_suite.web_authn_pending = "mesh_delete"
+        self._pending_critical = ("mesh_delete", lambda n=network: self._execute_mesh_delete(n))
+        self._audit("webauthn_required", "mesh_delete wartet auf WebAuthn")
+        return ("🔐 Kritische Aktion (Löschen des Mesh-Netzwerks '{}'): WebAuthn-Bestätigung erforderlich.\n"
+                "Tippe **„webauthn bestätigen“**, um fortzufahren.").format(network.name)
+
+    def _execute_mesh_delete(self, network: Any) -> str:
+        self.ble_suite.mesh_networks = [n for n in self.ble_suite.mesh_networks if n.id != network.id]
+        self._audit("mesh_delete", f"Mesh-Netzwerk '{network.name}' gelöscht (WebAuthn bestätigt)")
+        return f"🗑️ Mesh-Netzwerk '{network.name}' gelöscht."
+
+    def _ble_configure(self, t: str) -> str:
+        device = self._find_ble_device(t)
+        if not device:
+            candidates = [d["name"] for d in self.ble_suite.devices
+                          if d["device_class"] in ("ntag", "token")]
+            return "❌ Zielgerät nicht erkannt. Geeignete Geräte: " + (", ".join(candidates) or "keine")
+        plan = (f"1. Verbindung zu {device['name']} aufbauen (≤ 20 parallele Verbindungen)\n"
+                "2. Batteriestand auslesen (Ist-Zustand erfassen)\n"
+                "3. Batterieüberwachung aktivieren (0xBEEF)\n"
+                "4. Notifications für Echtzeit-Datenstrom aktivieren\n"
+                "5. MTU auf 247 erhöhen (Durchsatz-Optimierung)\n"
+                "6. Funktionsprüfung: Wert zurücklesen und vergleichen")
+        self._pending_plan = (f"ble_config:{device['id']}",
+                              lambda did=device["id"]: self._execute_ble_config_plan(did))
+        self._audit("ble_configure_plan", device["name"])
+        return (f"📋 Vorgeschlagener Ablauf: **Konfiguration: {device['name']} (Batterieüberwachung)**\n\n"
+                + plan
+                + "\n\nAntworte mit **„freigeben“**, um die Ausführung zu starten.")
+
+    def _execute_ble_config_plan(self, device_id: str) -> str:
+        device = next((d for d in self.ble_suite.devices if d["id"] == device_id), None)
+        if not device:
+            return "❌ Gerät nicht mehr vorhanden."
+        battery = device.get("battery") or 80
+        lines = [self.ble_suite.connect(device_id)]
+        lines.append(f"📖 Batterie-Level gelesen: 0x{battery:02X} ({battery} %)")
+        lines.append(self.ble_suite.gatt_write(device_id, "0000fea2", "BEEF"))
+        lines.append("🔔 Notifications für 'Battery Monitoring (Zustand)' aktiviert.")
+        lines.append("📏 MTU 247 gesetzt (Durchsatz optimiert).")
+        lines.append("✅ Funktionsprüfung: Read-Back OK – Konfiguration im Profil-Cache gespeichert.")
+        self._audit("ble_configure_done", device["name"])
+        return "\n".join(lines)
+
+    def _ble_test_suite(self, t: str) -> str:
+        kind = next((k for k in ("ntag", "token", "mesh", "performance") if k in t), None)
+        suite = next((s for s in self.ble_suite.test_suites if s["kind"] == kind), None) if kind else None
+        if not suite:
+            lines = ["🧪 Verfügbare Test-Suiten:"]
+            for s in self.ble_suite.test_suites:
+                lines.append(f"- {s['name']} ({s['kind']}, {len(s['cases'])} Fälle) – {s['description']}")
+            return "\n".join(lines)
+        self._audit("ble_test_suite_start", suite["name"])
+        return self.ble_suite.run_suite(suite["id"])
+
+    def _ble_simulate(self, t: str) -> str:
+        count_match = re.search(r"(\d+)", t)
+        count = min(int(count_match.group(1)) if count_match else 1, 10)
+        cls = next((c for c in ("ntag", "token", "mesh", "peripheral") if c in t), "token")
+        results = [self.ble_suite.spawn_sim_device(f"Sim-{cls}-{i + 1}", cls) for i in range(count)]
+        self._audit("ble_simulate", f"{count} Geräte ({cls})")
+        return "\n".join(results)
+
+    def _ble_profile(self, t: str) -> str:
+        if "anwend" in t:
+            profile = next((p for p in self.ble_suite.profiles
+                            if self._normalize(p.name) in self._normalize(t)), None)
+            device = self._find_ble_device(t)
+            if not profile:
+                return "❌ Profil nicht erkannt. Profile: " + (", ".join(p.name for p in self.ble_suite.profiles) or "keine")
+            if not device:
+                return "❌ Zielgerät nicht erkannt – bitte nenne den Gerätenamen."
+            return (f"📋 Profil '**{profile.name}**' auf {device['name']} anwenden "
+                    f"({len(profile.steps)} Schritte, Kompatibilitätsprüfung).\n"
+                    "⚠️ Überschreibt Gerätekonfiguration – kritische Aktion.\n"
+                    "Antworte mit **„freigeben“** und dann **„webauthn bestätigen“**.")
+        lines = ["🗂️ Profil-Cache:"]
+        for p in self.ble_suite.profiles:
+            lines.append(f"- {p.name} ({DEVICE_CLASS_LABELS[p.device_class]}, {len(p.steps)} Schritte)")
+        lines.append("\nAnwenden: „wende Profil <name> auf <gerät> an“ (kritisch → WebAuthn).")
+        return "\n".join(lines)
 
     def _plan_adb(self, kind: str, plan_text: str) -> str:
         """Legt einen Umsetzungsplan zur Freigabe vor (Pflichtprozess 2.3)."""

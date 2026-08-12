@@ -18,6 +18,7 @@ import customtkinter as ctk
 from utils.agent import Agent
 from utils.config import load_config
 from utils.status_manager import StatusManager
+from views.ble import BleSuiteView
 from views.chat import ChatView
 from views.dashboard import DashboardView
 from views.scripts import ScriptsView
@@ -126,6 +127,7 @@ class MainWindow(ctk.CTk):
         for i, (label, key) in enumerate([
             ("📊 Dashboard", "dashboard"),
             ("💬 Chat", "chat"),
+            ("📡 BLE Suite", "ble"),
             ("🛠️ Skripte", "scripts"),
             ("⚙️ Einstellungen", "settings"),
         ]):
@@ -135,9 +137,9 @@ class MainWindow(ctk.CTk):
             btn.grid(row=i, column=0, sticky="ew", padx=8, pady=3)
             self.nav_buttons[key] = btn
         ctk.CTkButton(sidebar, text="📡 Status-Panel öffnen", height=40, corner_radius=10,
-                      command=self._open_status_panel).grid(row=4, column=0, sticky="ew", padx=8, pady=(14, 3))
+                      command=self._open_status_panel).grid(row=5, column=0, sticky="ew", padx=8, pady=(14, 3))
         ctk.CTkLabel(sidebar, text=f"v3.0 · {self.role}", text_color="#475569",
-                     font=ctk.CTkFont(size=11)).grid(row=5, column=0, pady=8)
+                     font=ctk.CTkFont(size=11)).grid(row=6, column=0, pady=8)
 
         # Content
         self.content = ctk.CTkFrame(self, fg_color="#020617", corner_radius=0)
@@ -147,6 +149,7 @@ class MainWindow(ctk.CTk):
 
         self.views: dict[str, ctk.CTkFrame] = {}
         self.views["dashboard"] = DashboardView(self.content, self.status)
+        self.views["ble"] = BleSuiteView(self.content, self.agent.ble_suite, role=self.role)
         self.chat_view = ChatView(self.content, self.agent,
                                   on_open_settings=self._show_settings,
                                   on_open_status=self._open_status_panel)

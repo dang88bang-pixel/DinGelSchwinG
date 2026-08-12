@@ -1,0 +1,93 @@
+{
+  "title": "NEXUS – BLE Professional Suite",
+  "uid": "nexus-ble",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "BLE-Scan aktiv",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        { "expr": "ble_scan_running", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Erkannte BLE-Geräte (je Klasse)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        { "expr": "sum by (class) (ble_devices_total)", "refId": "A", "legendFormat": "{{class}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Parallele Verbindungen (Limit 20)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        { "expr": "ble_connected_parallel", "refId": "A" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Mesh-Knoten offline",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        { "expr": "ble_mesh_nodes_offline", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "GATT-Fehlerrate (5-min-Fenster)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(ble_gatt_errors_total[5m])) / clamp_min(sum(rate(ble_gatt_ops_total[5m])), 1)",
+          "refId": "A",
+          "legendFormat": "Fehlerrate"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Mesh-Nachrichten-Tracer (Fehler kumuliert)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "increase(ble_mesh_traces_errors_total[5m])",
+          "refId": "A",
+          "legendFormat": "Trace-Fehler"
+        },
+        {
+          "expr": "ble_test_fail_total",
+          "refId": "B",
+          "legendFormat": "Test-Fehler"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "BLE-Logs (Loki, Filter ble_*)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        { "expr": "{container=~\".+\"} |~ \"ble_|BLE|mesh\"", "refId": "A" }
+      ]
+    }
+  ]
+}
