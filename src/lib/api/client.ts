@@ -153,6 +153,50 @@ export const api = {
   async snifferClear(): Promise<{ ok: boolean }> {
     return request('/ble/sniffer/clear', { method: 'POST' });
   },
+
+  // Mesh (serverseitiger Zustand, zentrale Schlüssel)
+  async meshList(): Promise<MeshNetworkApi[]> {
+    return request('/ble/mesh/networks');
+  },
+
+  async meshCreate(name: string): Promise<{ ok: boolean; network?: MeshNetworkApi; error?: string }> {
+    return request('/ble/mesh/networks', { method: 'POST', body: JSON.stringify({ name }) });
+  },
+
+  async meshProvision(networkId: string, deviceId: string): Promise<{ ok: boolean; node?: MeshNodeApi; error?: string }> {
+    return request(`/ble/mesh/networks/${encodeURIComponent(networkId)}/provision`, {
+      method: 'POST', body: JSON.stringify({ deviceId }),
+    });
+  },
+
+  async meshPubsub(networkId: string, nodeId: string, pub: string, sub: string): Promise<{ ok: boolean; error?: string }> {
+    return request(`/ble/mesh/networks/${encodeURIComponent(networkId)}/nodes/${encodeURIComponent(nodeId)}/pubsub`, {
+      method: 'PUT', body: JSON.stringify({ pub, sub }),
+    });
+  },
+
+  async meshTtl(networkId: string, ttl: number): Promise<{ ok: boolean; error?: string }> {
+    return request(`/ble/mesh/networks/${encodeURIComponent(networkId)}/ttl`, {
+      method: 'PUT', body: JSON.stringify({ ttl }),
+    });
+  },
+
+  async meshModel(networkId: string, nodeId: string, model: string): Promise<{ ok: boolean; error?: string }> {
+    return request(`/ble/mesh/networks/${encodeURIComponent(networkId)}/nodes/${encodeURIComponent(nodeId)}/model`, {
+      method: 'PUT', body: JSON.stringify({ model }),
+    });
+  },
+
+  async meshDelete(networkId: string): Promise<{ ok: boolean; error?: string }> {
+    return request(`/ble/mesh/networks/${encodeURIComponent(networkId)}`, { method: 'DELETE' });
+  },
+
+  // Fehlersimulation (echte ATT-Fehler am verbundenen Peripheral)
+  async injectFault(deviceId: string, kind: string): Promise<{ ok: boolean; message?: string; error?: string }> {
+    return request(`/ble/devices/${encodeURIComponent(deviceId)}/fault`, {
+      method: 'POST', body: JSON.stringify({ kind }),
+    });
+  },
 };
 
 export interface VirtualPeripheral {
@@ -166,6 +210,30 @@ export interface VirtualPeripheral {
   serviceUuids: string[];
   adDataHex: string;
   uptime_s: number;
+}
+
+export interface MeshNodeApi {
+  id: string;
+  name: string;
+  unicast: string;
+  role: string;
+  rssi: number;
+  battery: number;
+  online: boolean;
+  pub: string;
+  sub: string;
+  ttl: number;
+  models: string[];
+}
+
+export interface MeshNetworkApi {
+  id: string;
+  name: string;
+  netKey: string;
+  appKey: string;
+  ttl: number;
+  nodes: MeshNodeApi[];
+  provisionedAt?: string;
 }
 
 export interface SnifferFrame {

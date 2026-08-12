@@ -99,6 +99,26 @@ class ScannerService:
             except Exception:  # noqa: BLE001 – Adapter fehlt
                 pass
 
+        # 1b) Virtuelle Peripherals (protokollkorrekter Stapel) → als BLE-Nodes
+        try:
+            from .virtual_ble import virtual_ble
+            virtual_ble.start()
+            for ev in virtual_ble.scan_events():
+                fresh[f"ble:{ev['id']}"] = {
+                    "id": f"ble:{ev['id']}",
+                    "kind": {"token": "ble_token", "mesh": "ble_mesh",
+                             "peripheral": "ble_peripheral"}.get(ev["deviceClass"], ev["deviceClass"]),
+                    "label": ev["name"],
+                    "lastSeen": now,
+                    "signal": {"rssi": ev["rssi"]},
+                    "address": ev["address"],
+                    "serviceUuids": ev["serviceUuids"],
+                    "connectable": True,
+                    "virtual": True,
+                }
+        except Exception:  # noqa: BLE001
+            pass
+
         # 2) USB-Dongles (kein Netz-Scan, statisch)
         for d in list_usb_dongles():
             if d["whitelisted"]:

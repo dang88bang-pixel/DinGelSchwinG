@@ -83,3 +83,26 @@
 | Desktop-Tests (46) | ✅ |
 | Mobile `check_project.py` (80 Dart-Dateien) | ✅ |
 | Live: Host (REST/WS/SSH) läuft, `ble_host.backend = virtual` | ✅ |
+
+---
+
+## 4. Ermittelte Alternativen (Runde „alle Parts aktiv“)
+
+Weitere Parts waren nur Store-/UI-gebunden. Ermittelte und umgesetzte
+Alternativen:
+
+| Part (vorher) | Ermittelte Alternative (aktiv) | Nachweis |
+|---|---|---|
+| **Discovery-WS :8766** zeigte ohne bleak 0 Nodes | Scanner bindet `virtual_ble.scan_events()` ein → virtuelle Peripherals werden als echte BLE-Nodes (`ble_token`/`ntag`/`ble_mesh`) gepusht | `host/scanner.py`, Live-Test: Discovery-Snapshot enthält virtuellen Node |
+| **Web-MeshBuilder** nur Browser-Store (flüchtig, keine zentralen Schlüssel) | **Host-Mesh-API** (`/api/ble/mesh/networks*`): serverseitiger persistenter Zustand, zentrale NetKey/AppKey (deterministisch), Provisionierung mit Unicast/Rolle, Pub/Sub-Kollisionsprüfung, TTL, Modelle, Löschen (kritisch → WebAuthn) | `host/ble_service.py` + `api_routes.py`; Web-MeshBuilder routet primär Host (Fallback Store) |
+| **Web-Fehlersimulation** nur Store-Paket | **Host-Fault-API** (`/api/ble/devices/<id>/fault`): echte ATT-Error-Response (0x05 Auth / 0x0A / 0x0E) an verbundenes Peripheral → landet im Sniffer-Capture; `connection_drop` schließt die ATT-Session echt | `virtual_ble.inject_error`, Live-Test: 2× 0x01-Frames im Sniffer |
+| **Web-Test-Suiten** nur Store-Kriterien | Host-Suiten (`/api/ble/tests/<kind>/run`) mit echten Messungen; Store nur Fallback | `TestSuitePanel` |
+| **Desktop-GATT** statische Profile | Für Host-Geräte: echte GATT-Services vom Host (`GET /api/ble/devices/<id>/gatt`, ATT-Discovery) | `desktop/views/ble.py` |
+| **RBAC-Lücke**: mesh_pubsub/ttl/model fehlten in Host-Matrix | `host/rbac.py`: Level 3 ergänzt | 39 Host-Tests |
+| **Race** beim Event-Loop-Start der virtuellen Engine | `virtual_ble.start()` race-frei (Lock + Thread-Alive-Check) | sauberer Host-Start |
+
+**Verifikation:** Web tsc/lint/build ✅ · Host 39 Tests (inkl. Mesh-Lifecycle,
+Fault-ATT-Error, Scanner-Virtuell) ✅ · Desktop 46 Tests ✅ · Mobile 80 ✅ ·
+py_compile ✅ · Live-E2E: Mesh (create/provision/pubsub/ttl/model/delete),
+Fault (echte 0x05-Error-Response + Drop im Sniffer), Discovery-WS (virtueller
+Node als `ble_mesh`) ✅

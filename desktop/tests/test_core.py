@@ -356,7 +356,11 @@ class TestBleSuite(unittest.TestCase):
     def test_test_suite(self) -> None:
         reply = self.agent.ask("führe die ntag test-suite aus")
         self.assertIn("NTag", reply)
-        self.assertIn("PASS", reply)
+        # Echtes Ergebnis: PASS (Gerät verbunden) ODER SKIP mit Grund –
+        # niemals Zufallsergebnisse.
+        self.assertTrue("PASS" in reply or "SKIP" in reply, reply)
+        if "SKIP" in reply:
+            self.assertIn("kein Gerät verbunden", reply)
 
 
 class TestBleSuiteActiveBackend(unittest.TestCase):

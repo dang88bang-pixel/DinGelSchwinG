@@ -9,6 +9,7 @@ from __future__ import annotations
 import customtkinter as ctk
 
 from ..utils.ble_suite import BleSuite, DEVICE_CLASS_LABELS
+from ..utils.ble_suite import GattCharacteristic, GattService
 
 CLASS_COLORS = {
     "ntag": "#a78bfa", "token": "#22d3ee", "mesh": "#fbbf24", "peripheral": "#cbd5e1",
@@ -146,8 +147,34 @@ class BleSuiteView(ctk.CTkFrame):
         if not self._selected_device_id:
             self._log("Bitte zuerst ein Gerät wählen.")
             return
-        services = self.suite.gatt_services(self._selected_device_id)
-        lines = ["📚 GATT-Services:"]
+        # Host-Backend: echte GATT-Services vom Host laden (ATT-Discovery)
+        services = None
+        device = next((d for d in self.suite.devices
+                       if d["id"] == self._selected_device_id), None)
+        if self.suite.backend == "host" and device and device.get("real"):
+            try:
+                from ..utils.api_client import APIClient
+                data = APIClient._safe(
+                    APIClient._request, "GET",
+                    f"/api/ble/devices/{self._selected_device_id}/gatt")
+                if data and data.get("services"):
+                    services = []
+                    for s in data["services"]:
+                        svc = GattService(
+                            s.get("uuid", "?"),
+                            s.get("name", s.get("uuid", "?")[:4].upper()),
+                            [GattCharacteristic(
+                                c.get("uuid", "?"),
+                                c.get("name", c.get("uuid", "?")[:4].upper()),
+                                c.get("properties", []),
+                            ) for c in s.get("characteristics", [])],
+                        )
+                        services.append(svc)
+            except Exception as exc:  # noqa: BLE001
+                self._log(f"Host-GATT fehlgeschlagen: {exc}")
+        if services is None:
+            services = self.suite.gatt_services(self._selected_device_id)
+        lines = ["📚 GATT-Services:" + (" (Host, echte Discovery)" if services is not None else "")]
         for svc in services:
             lines.append(f"- {svc.name} ({svc.uuid})")
             for ch in svc.characteristics:

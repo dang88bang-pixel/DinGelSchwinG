@@ -318,3 +318,89 @@ class TestSshServer(unittest.TestCase):
             client.connect("127.0.0.1", port=2222, username="developer",
                            password="falsch", timeout=6)
         client.close()
+
+
+class TestMeshAndFault(unittest.TestCase):
+    """Serverseitiger Mesh-Zustand + echte ATT-Fehlersimulation."""
+
+    def setUp(self) -> None:
+        from host import ble_service
+        self.host = ble_service.ble_host
+        self.host.backend = "virtual"
+
+    def test_mesh_lifecycle(self) -> None:
+        # Erstellen → Provisionierung → Pub/Sub → TTL → Modell → Löschen
+        created = self.host.mesh_create("Test-Netz", "developer")
+        self.assertTrue(created["ok"])
+        nid = created["network"]["id"]
+        self.assertIn("netKey", created["network"])
+        self.assertEqual(len(created["network"]["netKey"]), 32)
+        # Mesh-Knoten (virtuelles Peripheral) erzeugen + provisionieren
+        dev = self.host.spawn_virtual("Mesh-Knoten-1", "mesh", 2.0)
+        prov = self.host.mesh_provision(nid, dev["id"], "developer")
+        self.assertTrue(prov["ok"], prov)
+        self.assertEqual(prov["node"]["unicast"], "0x0001")
+        # Pub/Sub mit Kollisionsprüfung
+        ok1 = self.host.mesh_pubsub(nid, prov["node"]["id"], "0xC001", "0xC001", "developer")
+        self.assertTrue(ok1["ok"])
+        # TTL
+        ttl = self.host.mesh_ttl(nid, 7, "developer")
+        self.assertTrue(ttl["ok"])
+        self.assertEqual(ttl["message"], "TTL 7")
+        # Modell
+        model = self.host.mesh_model(nid, prov["node"]["id"], "Light Lightness Server", "developer")
+        self.assertTrue(model["ok"])
+        # Liste
+        self.assertEqual(len(self.host.mesh_list()), 1)
+        # Löschen
+        deleted = self.host.mesh_delete(nid, "developer")
+        self.assertTrue(deleted["ok"])
+        self.assertEqual(len(self.host.mesh_list()), 0)
+        self.host.remove_virtual(dev["id"])
+
+    def test_mesh_rbac_service_denied(self) -> None:
+        created = self.host.mesh_create("RBAC", "service")
+        self.assertFalse(created["ok"])
+        self.assertIn("RBAC_DENIED", created["error"])
+
+    def test_inject_fault_real_att_error(self) -> None:
+        dev = self.host.spawn_virtual("Fault-Virt", "token", 3.0)
+        self.host.connect(dev["id"], "developer")
+        res = self.host.inject_fault(dev["id"], "pairing_error", "developer")
+        self.assertTrue(res["ok"], res)
+        self.assertIn("0x05", res["message"])  # ATT_ECODE_AUTHENTICATION
+        # Sniffer muss die Error-Response (0x01) enthalten
+        frames = self.host.sniffer_frames()
+        self.assertTrue(any(f["opcode"] == 0x01 for f in frames),
+                        "ATT-Error-Response fehlt im Capture")
+        # Connection-Drop schließt die Session echt
+        dev2 = self.host.spawn_virtual("Drop-Virt", "token", 3.0)
+        self.host.connect(dev2["id"], "developer")
+        drop = self.host.inject_fault(dev2["id"], "connection_drop", "developer")
+        self.assertTrue(drop["ok"])
+        self.assertNotIn(dev2["id"], [c["id"] for c in self.host.connected()])
+        self.host.remove_virtual(dev["id"])
+        self.host.remove_virtual(dev2["id"])
+
+    def test_fault_rbac(self) -> None:
+        dev = self.host.spawn_virtual("Fault2", "token", 3.0)
+        res = self.host.inject_fault(dev["id"], "timeout", "service")
+        self.assertFalse(res["ok"])
+        self.assertIn("RBAC_DENIED", res["error"])
+        self.host.remove_virtual(dev["id"])
+
+
+class TestScannerVirtual(unittest.TestCase):
+    """Discovery-Scanner pusht virtuelle Peripherals als BLE-Nodes."""
+
+    def test_scan_includes_virtual(self) -> None:
+        from host import scanner
+        from host.virtual_ble import virtual_ble
+        virtual_ble.start()
+        virtual_ble.spawn("Scan-Virt", "token", [], 2.0)
+        scanner.scanner._scan_once()
+        nodes = scanner.scanner.snapshot()
+        self.assertTrue(any(n.get("virtual") for n in nodes),
+                        "Virtuelle Peripherals fehlen im Discovery-Snapshot")
+        kinds = {n["kind"] for n in nodes if n.get("virtual")}
+        self.assertTrue(kinds & {"ble_token", "ntag", "ble_mesh"})

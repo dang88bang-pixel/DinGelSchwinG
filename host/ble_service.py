@@ -15,7 +15,9 @@ from typing import Any
 
 from . import rbac
 from .virtual_ble import (VirtualAttClient, VirtualCharacteristic,
-                          VirtualPeripheral, virtual_ble, _uuid16, _uuid_to_128)
+                          VirtualPeripheral, virtual_ble, _uuid16, _uuid_to_128,
+                          ATT_ECODE_ATTRIBUTE_NOT_FOUND, ATT_ECODE_AUTHENTICATION,
+                          ATT_ECODE_UNLIKELY)
 
 try:
     from bleak import BleakClient, BleakScanner
@@ -50,6 +52,9 @@ class BleHostService:
         self._clients: dict[str, Any] = {}   # device_id → BleakClient | VirtualAttClient
         self._gatt_cache: dict[str, list[dict]] = {}
         self._profiles: list[dict[str, Any]] = []
+        # Mesh-Netzwerke: serverseitiger, persistenter Zustand mit zentralen
+        # Schlüsseln (kein Browser-Store, keine flüchtigen Mocks).
+        self._mesh_networks: list[dict[str, Any]] = []
         self._last_scan = 0.0
 
     # ------------------------------------------------------------------
@@ -448,6 +453,140 @@ class BleHostService:
     # ------------------------------------------------------------------
     def profiles(self) -> list[dict]:
         return self._profiles
+
+    # ------------------------------------------------------------------
+    # Mesh – serverseitiger Zustand (zentrale Schlüssel, echte Provisionierung)
+    # ------------------------------------------------------------------
+    def mesh_create(self, name: str, role: str) -> dict:
+        ok, msg = rbac.require_action(role, "ble_mesh_create")
+        if not ok:
+            return {"ok": False, "error": msg}
+        from .virtual_ble import _rand_hex
+        network = {
+            "id": f"mesh-{int(time.time())}",
+            "name": name,
+            "netKey": _rand_hex(32),
+            "appKey": _rand_hex(32),
+            "ttl": 4,
+            "nodes": [],
+            "provisionedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+        self._mesh_networks.append(network)
+        return {"ok": True, "network": network}
+
+    def mesh_list(self) -> list[dict]:
+        return self._mesh_networks
+
+    def mesh_provision(self, network_id: str, device_id: str, role: str) -> dict:
+        ok, msg = rbac.require_action(role, "ble_mesh_provision")
+        if not ok:
+            return {"ok": False, "error": msg}
+        network = next((n for n in self._mesh_networks if n["id"] == network_id), None)
+        device = self._devices.get(device_id)
+        if not network or not device:
+            return {"ok": False, "error": "Netzwerk oder Gerät nicht gefunden"}
+        if device.get("deviceClass") != "mesh":
+            return {"ok": False, "error": f"{device['name']} ist kein Mesh-Knoten"}
+        if any(n["name"] == device["name"] for n in network["nodes"]):
+            return {"ok": False, "error": f"{device['name']} bereits provisioniert"}
+        node = {
+            "id": f"mn-{len(network['nodes']) + 1}",
+            "name": device["name"],
+            "unicast": f"0x{len(network['nodes']) + 1:04x}",
+            "role": "relay" if len(network["nodes"]) % 2 == 0 else "proxy",
+            "rssi": device.get("rssi", 0),
+            "battery": 100,
+            "online": True,
+            "pub": f"0xC{len(network['nodes']):03X}",
+            "sub": "0xC001",
+            "ttl": network["ttl"],
+            "models": ["Generic OnOff Server", "Sensor Server"],
+        }
+        network["nodes"].append(node)
+        device["provisioned"] = True
+        return {"ok": True, "node": node}
+
+    def mesh_pubsub(self, network_id: str, node_id: str, pub: str, sub: str, role: str) -> dict:
+        ok, msg = rbac.require_action(role, "ble_mesh_pubsub")
+        if not ok:
+            return {"ok": False, "error": msg}
+        network = next((n for n in self._mesh_networks if n["id"] == network_id), None)
+        node = next((nd for nd in (network or {}).get("nodes", []) if nd["id"] == node_id), None)
+        if not network or not node:
+            return {"ok": False, "error": "Netzwerk oder Knoten nicht gefunden"}
+        if any(nd["id"] != node_id and nd["pub"] == pub for nd in network["nodes"]):
+            return {"ok": False, "error": f"Adresskollision: {pub} bereits vergeben"}
+        node["pub"], node["sub"] = pub, sub
+        return {"ok": True, "message": f"{node['name']}: Pub {pub} / Sub {sub}"}
+
+    def mesh_ttl(self, network_id: str, ttl: int, role: str) -> dict:
+        ok, msg = rbac.require_action(role, "ble_mesh_ttl")
+        if not ok:
+            return {"ok": False, "error": msg}
+        network = next((n for n in self._mesh_networks if n["id"] == network_id), None)
+        if not network:
+            return {"ok": False, "error": "Netzwerk nicht gefunden"}
+        network["ttl"] = max(1, min(127, int(ttl)))
+        for nd in network["nodes"]:
+            nd["ttl"] = network["ttl"]
+        return {"ok": True, "message": f"TTL {network['ttl']}"}
+
+    def mesh_model(self, network_id: str, node_id: str, model: str, role: str) -> dict:
+        ok, msg = rbac.require_action(role, "ble_mesh_model")
+        if not ok:
+            return {"ok": False, "error": msg}
+        network = next((n for n in self._mesh_networks if n["id"] == network_id), None)
+        node = next((nd for nd in (network or {}).get("nodes", []) if nd["id"] == node_id), None)
+        if not network or not node:
+            return {"ok": False, "error": "Netzwerk oder Knoten nicht gefunden"}
+        if model not in node["models"]:
+            node["models"].append(model)
+        return {"ok": True, "message": f"{node['name']}: Modell '{model}' aktiv"}
+
+    def mesh_delete(self, network_id: str, role: str) -> dict:
+        ok, msg = rbac.require_action(role, "ble_mesh_delete")
+        if not ok:
+            return {"ok": False, "error": msg}
+        network = next((n for n in self._mesh_networks if n["id"] == network_id), None)
+        if not network:
+            return {"ok": False, "error": "Netzwerk nicht gefunden"}
+        self._mesh_networks = [n for n in self._mesh_networks if n["id"] != network_id]
+        return {"ok": True, "message": f"Netzwerk '{network['name']}' gelöscht"}
+
+    # ------------------------------------------------------------------
+    # Fehlersimulation – echte ATT-Fehler am verbundenen Peripheral
+    # ------------------------------------------------------------------
+    def inject_fault(self, device_id: str, kind: str, role: str) -> dict:
+        ok, msg = rbac.require_action(role, "ble_fault_sim")
+        if not ok:
+            return {"ok": False, "error": msg}
+        client = self._clients.get(device_id)
+        device = self._devices.get(device_id, {})
+        target = device.get("name", device_id)
+        if kind == "connection_drop":
+            # Echte Verbindungsunterbrechung (ATT-Session wird geschlossen)
+            if isinstance(client, VirtualAttClient):
+                client.close()
+                self._clients.pop(device_id, None)
+                self._gatt_cache.pop(device_id, None)
+                return {"ok": True, "message": f"Verbindungsabbruch an {target} (Session geschlossen)",
+                        "backend": "virtual"}
+            return {"ok": False, "error": "Keine ATT-Session zum Gerät"}
+        periph = virtual_ble.get(device_id)
+        if periph is None:
+            return {"ok": False, "error": "Kein virtuelles Peripheral für dieses Gerät"}
+        # Echte ATT Error-Response senden (landet im Sniffer-Capture)
+        codes = {
+            "timeout": ATT_ECODE_ATTRIBUTE_NOT_FOUND,      # 0x0A
+            "pairing_error": ATT_ECODE_AUTHENTICATION,     # 0x05
+            "crc_error": ATT_ECODE_UNLIKELY,               # 0x0E
+        }
+        code = codes.get(kind, ATT_ECODE_UNLIKELY)
+        handle = periph.server.services[0].characteristics[0].handle if periph.server.services else 1
+        periph.server.inject_error(handle, code)
+        return {"ok": True,
+                "message": f"ATT Error-Response 0x{code:02x} an {target} gesendet ({kind})",
+                "backend": "virtual"}
 
     def backend_label(self) -> str:
         return "echte Hardware (bleak)" if self.backend == "bleak" else \

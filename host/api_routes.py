@@ -215,6 +215,80 @@ def ble_sniffer_clear():
 
 
 # ----------------------------------------------------------------------
+# Mesh (serverseitiger Zustand, zentrale Schlüssel) + Fehlersimulation
+# ----------------------------------------------------------------------
+@api.get("/ble/mesh/networks")
+@auth.auth_required
+def ble_mesh_list():
+    return jsonify(ble_service.ble_host.mesh_list())
+
+
+@api.post("/ble/mesh/networks")
+@auth.auth_required
+def ble_mesh_create():
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name") or "Mesh-Netz")
+    res = ble_service.ble_host.mesh_create(name, g.role)
+    audit.audit.log(g.user, g.role, "ble.mesh_create", name)
+    return jsonify(res), 200 if res.get("ok") else 403
+
+
+@api.post("/ble/mesh/networks/<network_id>/provision")
+@auth.auth_required
+def ble_mesh_provision(network_id: str):
+    data = request.get_json(silent=True) or {}
+    device_id = str(data.get("deviceId") or "")
+    res = ble_service.ble_host.mesh_provision(network_id, device_id, g.role)
+    audit.audit.log(g.user, g.role, "ble.mesh_provision", f"{network_id} {device_id}")
+    return jsonify(res), 200 if res.get("ok") else (403 if "RBAC" in str(res.get("error")) else 400)
+
+
+@api.put("/ble/mesh/networks/<network_id>/nodes/<node_id>/pubsub")
+@auth.auth_required
+def ble_mesh_pubsub(network_id: str, node_id: str):
+    data = request.get_json(silent=True) or {}
+    res = ble_service.ble_host.mesh_pubsub(
+        network_id, node_id, str(data.get("pub", "")), str(data.get("sub", "")), g.role)
+    return jsonify(res), 200 if res.get("ok") else 400
+
+
+@api.put("/ble/mesh/networks/<network_id>/ttl")
+@auth.auth_required
+def ble_mesh_ttl(network_id: str):
+    data = request.get_json(silent=True) or {}
+    res = ble_service.ble_host.mesh_ttl(network_id, int(data.get("ttl", 4)), g.role)
+    return jsonify(res), 200 if res.get("ok") else 400
+
+
+@api.put("/ble/mesh/networks/<network_id>/nodes/<node_id>/model")
+@auth.auth_required
+def ble_mesh_model(network_id: str, node_id: str):
+    data = request.get_json(silent=True) or {}
+    res = ble_service.ble_host.mesh_model(
+        network_id, node_id, str(data.get("model", "")), g.role)
+    return jsonify(res), 200 if res.get("ok") else 400
+
+
+@api.delete("/ble/mesh/networks/<network_id>")
+@auth.auth_required
+def ble_mesh_delete(network_id: str):
+    # Kritische Aktion → WebAuthn-Token nötig (require_action-Guard)
+    res = ble_service.ble_host.mesh_delete(network_id, g.role)
+    audit.audit.log(g.user, g.role, "ble.mesh_delete", network_id)
+    return jsonify(res), 200 if res.get("ok") else (428 if "WEBAUTHN" in str(res) else 403)
+
+
+@api.post("/ble/devices/<device_id>/fault")
+@auth.auth_required
+def ble_fault(device_id: str):
+    data = request.get_json(silent=True) or {}
+    kind = str(data.get("kind") or "timeout")
+    res = ble_service.ble_host.inject_fault(device_id, kind, g.role)
+    audit.audit.log(g.user, g.role, "ble.fault_sim", f"{device_id} {kind}")
+    return jsonify(res), 200 if res.get("ok") else (428 if "WEBAUTHN" in str(res) else 400)
+
+
+# ----------------------------------------------------------------------
 # Desktop-Konsole (REST-Vertrag aus openapi.yaml: /api/clients, /api/workflows …)
 # ----------------------------------------------------------------------
 @api.get("/clients")

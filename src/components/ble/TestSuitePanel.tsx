@@ -70,7 +70,17 @@ export default function TestSuitePanel() {
                     {SUITE_ICONS[suite.kind]} {suite.name}
                   </span>
                   <button
-                    onClick={() => run(() => store.runSuite(suite.id))}
+                    onClick={() => {
+                      if (hostOnline) {
+                        api.bleTestRun(suite.kind).then((res) => {
+                          const lines = Object.entries(res?.results ?? {})
+                            .map(([k, v]) => `  - ${k}: ${v}`).join('\n');
+                          setFeedback(`🧪 ${suite.name} [Host, echte Messung]\n${lines || 'Keine Ergebnisse'}`);
+                        }).catch((e) => setFeedback(`❌ ${String(e)}`));
+                      } else {
+                        run(() => store.runSuite(suite.id));
+                      }
+                    }}
                     disabled={!!store.runningSuiteId}
                     className="flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white hover:brightness-110 transition disabled:opacity-40"
                   >
@@ -254,7 +264,16 @@ export default function TestSuitePanel() {
             {FAULTS.map((f) => (
               <button
                 key={f.kind}
-                onClick={() => run(() => store.injectFault(f.kind, faultDevId))}
+                onClick={() => {
+                  if (hostOnline && faultDevId) {
+                    api.injectFault(faultDevId, f.kind).then((res) => {
+                      setFeedback(res.ok ? `⚡ ${res.message}` : `❌ ${res.error}`);
+                      return fetchHostSniffer();
+                    }).catch((e) => setFeedback(`❌ ${String(e)}`));
+                  } else {
+                    run(() => store.injectFault(f.kind, faultDevId));
+                  }
+                }}
                 className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-900/40 hover:bg-amber-800/50 text-amber-100 border border-amber-700/40 transition"
               >
                 <Zap className="w-3 h-3 inline mr-1" />{f.label}

@@ -54,6 +54,8 @@ ATT_ECODE_READ_NOT_PERMITTED = 0x02
 ATT_ECODE_WRITE_NOT_PERMITTED = 0x03
 ATT_ECODE_INVALID_OFFSET = 0x07
 ATT_ECODE_ATTRIBUTE_NOT_FOUND = 0x0A
+ATT_ECODE_AUTHENTICATION = 0x05
+ATT_ECODE_UNLIKELY = 0x0E
 ATT_ECODE_REQUEST_NOT_SUPPORTED = 0x06
 
 U16 = "H"
@@ -174,6 +176,17 @@ def parse_ad_data(ad: bytes) -> dict[str, Any]:
             if len(payload) >= 2:
                 out["manufacturer"] = struct.unpack("<H", payload[:2])[0]
         i += 1 + length
+    return out
+
+
+def _rand_hex(length: int) -> str:
+    """Deterministische Hex aus Zeitbasis (kein Zufall)."""
+    import time as _time
+    seed = int(_time.time()) ^ (length * 2654435761)
+    out = ""
+    for _ in range(length):
+        seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
+        out += "0123456789ABCDEF"[(seed >> 16) & 0x0F]
     return out
 
 
@@ -339,6 +352,19 @@ class VirtualGattServer:
     def _error(self, opcode: int, handle: int, code: int) -> bytes:
         return struct.pack("<BBHB", ATT_OP_ERROR, opcode, handle, code)
 
+    def inject_error(self, handle: int, code: int, req_opcode: int = 0x12) -> None:
+        """Sendet eine echte ATT Error-Response an alle verbundenen Clients
+        (für die Fehlersimulation – Frame landet im Sniffer-Capture)."""
+        pdu = struct.pack("<BBHB", ATT_OP_ERROR, req_opcode, handle, code)
+        wire = struct.pack("<HB", len(pdu), pdu[0]) + pdu[1:]
+        if self._on_frame is not None:
+            self._on_frame("tx", wire)
+        for writer in list(self._writers):
+            try:
+                writer.write(wire)
+            except Exception:  # noqa: BLE001
+                pass
+
     # Notifications: echte Handle-Value-Notification-PDUs an alle Clients
     def _emit_notification(self, ch: VirtualCharacteristic) -> None:
         frame = self.notify_frame(ch)
@@ -403,19 +429,34 @@ class VirtualBleManager:
         self._capture: list[dict[str, Any]] = []
         self._capture_lock = threading.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._loop_thread: threading.Thread | None = None
+        self._start_lock = threading.Lock()
         self._tasks: list[asyncio.Task] = []
         self._next_id = 0
 
     # ------------------------------------------------------------------
     def start(self) -> None:
-        if self._loop is not None:
-            return
-        self._loop = asyncio.new_event_loop()
-        threading.Thread(target=self._run_loop, daemon=True).start()
+        """Startet den Event-Loop genau einmal (race-frei)."""
+        with self._start_lock:
+            if self._loop is not None and self._loop_thread is not None \
+                    and self._loop_thread.is_alive():
+                return
+            if self._loop is not None:
+                # Alter Loop-Thread tot → neuen erstellen
+                self._loop = None
+            loop = asyncio.new_event_loop()
+            self._loop = loop
+            thread = threading.Thread(
+                target=self._run_loop, args=(loop,), daemon=True)
+            self._loop_thread = thread
+            thread.start()
 
-    def _run_loop(self) -> None:
-        asyncio.set_event_loop(self._loop)
-        self._loop.run_forever()
+    def _run_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_forever()
+        except RuntimeError:
+            pass  # Loop bereits beendet/anderweitig gestartet – ignoriert
 
     def _run(self, coro, timeout: float = 10.0):
         fut = asyncio.run_coroutine_threadsafe(coro, self._loop)

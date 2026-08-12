@@ -3,11 +3,12 @@
  * Provisionierung, zentrale Schlüssel, Pub/Sub-Adressen, TTL, Modelle,
  * Nachrichten-Tracer, Live-Status und kritische Aktionen (WebAuthn).
  */
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Network as NetworkIcon, Plus, KeyRound, Radio, Send, Trash2, ShieldCheck, Server, BatteryFull,
 } from 'lucide-react';
 import { useBleStore } from './useBleStore';
+import { api, isHostReachable, MeshNetworkApi } from '../../lib/api/client';
 import { Chip } from './BleCharts';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -28,10 +29,57 @@ export default function MeshBuilder() {
   const [traceTo, setTraceTo] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const network = store.meshNetworks.find((n) => n.id === networkId) ?? null;
   const unprovisioned = store.devices.filter((d) => d.deviceClass === 'mesh' && !d.provisioned);
 
   const run = (fn: () => string) => setFeedback(fn());
+  const [hostOnline, setHostOnline] = useState(false);
+  const [hostMeshes, setHostMeshes] = useState<MeshNetworkApi[]>([]);
+  const network = (hostOnline ? hostMeshes : store.meshNetworks).find((n) => n.id === networkId) ?? null;
+
+  const refreshHost = useCallback(async () => {
+    const ok = await api.ensureHost();
+    setHostOnline(ok);
+    if (ok) {
+      try { setHostMeshes(await api.meshList()); } catch { setHostMeshes([]); }
+    }
+  }, []);
+  useEffect(() => {
+    refreshHost();
+    const timer = window.setInterval(refreshHost, 10000);
+    return () => window.clearInterval(timer);
+  }, [refreshHost]);
+
+  // Host-Routing-Helfer: primär Host-API, Fallback Store
+  const hostCreateMesh = async (name: string) => {
+    const res = await api.meshCreate(name);
+    setFeedback(res.ok ? `🌐 Host-Mesh '${name}' erstellt (zentrale Schlüssel)` : `❌ ${res.error}`);
+    await refreshHost();
+  };
+  const hostProvision = async (networkId: string, deviceId: string) => {
+    const res = await api.meshProvision(networkId, deviceId);
+    setFeedback(res.ok && res.node ? `🔑 ${res.node.name} → ${res.node.unicast} (${res.node.role}) [Host]` : `❌ ${res.error}`);
+    await refreshHost();
+  };
+  const hostPubsub = async (networkId: string, nodeId: string, pub: string, sub: string) => {
+    const res = await api.meshPubsub(networkId, nodeId, pub, sub);
+    setFeedback(res.ok ? `📨 Pub ${pub} / Sub ${sub} [Host]` : `❌ ${res.error}`);
+    await refreshHost();
+  };
+  const hostTtl = async (networkId: string, ttl: number) => {
+    const res = await api.meshTtl(networkId, ttl);
+    setFeedback(res.ok ? `🌊 TTL ${ttl} [Host]` : `❌ ${res.error}`);
+    await refreshHost();
+  };
+  const hostModel = async (networkId: string, nodeId: string, model: string) => {
+    const res = await api.meshModel(networkId, nodeId, model);
+    setFeedback(res.ok ? `🧩 ${model} [Host]` : `❌ ${res.error}`);
+    await refreshHost();
+  };
+  const hostDeleteMesh = async (networkId: string) => {
+    const res = await api.meshDelete(networkId);
+    setFeedback(res.ok ? `🗑️ Netzwerk gelöscht [Host]` : `❌ ${res.error ?? 'WebAuthn nötig'}`);
+    await refreshHost();
+  };
 
   return (
     <div className="grid lg:grid-cols-[320px_1fr] gap-4">
@@ -39,9 +87,12 @@ export default function MeshBuilder() {
       <div className="rounded-2xl border border-white/5 bg-[#060f2a]/60 p-4 h-fit">
         <h4 className="text-xs font-black text-white mb-3 flex items-center gap-2">
           <NetworkIcon className="w-3.5 h-3.5 text-amber-300" /> Mesh-Netzwerke
+          <span className={`ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full border ${hostOnline ? 'text-emerald-300 border-emerald-700/40 bg-emerald-950/40' : 'text-slate-500 border-white/10 bg-white/5'}`}>
+            {hostOnline ? '● Host (zentrale Schlüssel)' : '○ lokal (Fallback)'}
+          </span>
         </h4>
         <div className="space-y-1.5">
-          {store.meshNetworks.map((n) => (
+          {(hostOnline ? hostMeshes : store.meshNetworks).map((n) => (
             <button
               key={n.id}
               onClick={() => setNetworkId(n.id)}
@@ -86,7 +137,7 @@ export default function MeshBuilder() {
 
         {network && (
           <button
-            onClick={() => run(() => store.deleteMesh(network.id))}
+            onClick={() => { if (hostOnline) hostDeleteMesh(network.id); else run(() => store.deleteMesh(network.id)); }}
             className="mt-3 w-full flex items-center justify-center gap-1.5 text-[10px] font-bold px-3 py-2 rounded-lg bg-rose-950/50 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 transition"
           >
             <Trash2 className="w-3 h-3" /> Netzwerk löschen (kritisch · WebAuthn)
@@ -122,7 +173,7 @@ export default function MeshBuilder() {
                     <input
                       type="number" min={1} max={127}
                       value={network.ttl}
-                      onChange={(e) => run(() => store.setMeshTtl(network.id, Number(e.target.value)))}
+                      onChange={(e) => { if (hostOnline) hostTtl(network.id, Number(e.target.value)); else run(() => store.setMeshTtl(network.id, Number(e.target.value))); }}
                       className="w-12 bg-transparent text-amber-200 outline-none"
                     />
                   </span>
@@ -138,7 +189,7 @@ export default function MeshBuilder() {
                   {unprovisioned.map((d) => (
                     <button
                       key={d.id}
-                      onClick={() => run(() => store.provisionNode(network.id, d.id))}
+                      onClick={() => { if (hostOnline) hostProvision(network.id, d.id); else run(() => store.provisionNode(network.id, d.id)); }}
                       className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-amber-900/40 hover:bg-amber-800/50 text-amber-100 border border-amber-700/40 transition"
                     >
                       + {d.name} ({d.rssi} dBm)
@@ -171,7 +222,7 @@ export default function MeshBuilder() {
                         Pub
                         <input
                           value={n.pub}
-                          onChange={(e) => run(() => store.setMeshPubSub(network.id, n.id, e.target.value, n.sub))}
+                          onChange={(e) => { if (hostOnline) hostPubsub(network.id, n.id, e.target.value, n.sub); else run(() => store.setMeshPubSub(network.id, n.id, e.target.value, n.sub)); }}
                           className="flex-1 bg-[#020617] border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-cyan-200 outline-none focus:border-cyan-400/50"
                         />
                       </label>
@@ -179,7 +230,7 @@ export default function MeshBuilder() {
                         Sub
                         <input
                           value={n.sub}
-                          onChange={(e) => run(() => store.setMeshPubSub(network.id, n.id, n.pub, e.target.value))}
+                          onChange={(e) => { if (hostOnline) hostPubsub(network.id, n.id, n.pub, e.target.value); else run(() => store.setMeshPubSub(network.id, n.id, n.pub, e.target.value)); }}
                           className="flex-1 bg-[#020617] border border-white/10 rounded px-2 py-1 text-[10px] font-mono text-cyan-200 outline-none focus:border-cyan-400/50"
                         />
                       </label>
@@ -190,7 +241,7 @@ export default function MeshBuilder() {
                         return (
                           <button
                             key={m}
-                            onClick={() => run(() => store.setMeshModel(network.id, n.id, m))}
+                            onClick={() => { if (hostOnline) hostModel(network.id, n.id, m); else run(() => store.setMeshModel(network.id, n.id, m)); }}
                             className={`text-[9px] font-bold px-2 py-1 rounded-md border transition ${
                               active
                                 ? 'bg-violet-950/50 border-violet-500/40 text-violet-200'
