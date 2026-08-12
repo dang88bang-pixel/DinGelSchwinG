@@ -49,16 +49,23 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Prepare release keystore (if secrets provided)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+           - name: Prepare release keystore (if secrets provided)
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
-          echo "KEYSTORE_PATH=release.keystore" >> "$GITHUB_ENV"
-          echo "KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
-          echo "KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+            echo "KEYSTORE_PATH=release.keystore" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "-> Keystore konfiguriert (Release wird signiert)"
+          else
+            echo "-> Kein Keystore-Secret gesetzt – Release-APK wird mit Debug-Schlüssel signiert."
+          fi
 
       - name: Set app version from tag (if any)
         if: startsWith(github.ref, 'refs/tags/')
