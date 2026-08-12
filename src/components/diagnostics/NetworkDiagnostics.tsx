@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { api } from '../../lib/api/client';
 import { Activity, Zap, Wifi, Server, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
 export interface PingResult {
@@ -77,18 +78,29 @@ export default function NetworkDiagnostics() {
     }
   }, []);
 
-  // iPerf3-style throughput simulation with background service timer
+  // Durchsatzmessung: echte ATT-Performance-Messung über die Host-API
+  // (keine Zufallswerte). Offline → deterministischer SKIP-Hinweis.
   const runIperf = useCallback(async () => {
-    setIperfResult({ target: 'local-mesh', throughputMbps: null, packets: null, status: 'pending' });
+    setIperfResult({ target: 'host-att', throughputMbps: null, packets: null, status: 'pending' });
     try {
-      // Simulate throughput measurement with progressive reporting
-      const packets = 1000 + Math.floor(Math.random() * 500);
-      const mbps = 50 + Math.random() * 200;
-      // Small delay to simulate measurement time
-      await new Promise(r => setTimeout(r, 800));
-      setIperfResult({ target: 'local-mesh', throughputMbps: parseFloat(mbps.toFixed(1)), packets, status: 'ok' });
+      const ok = await api.ensureHost();
+      if (!ok) {
+        setIperfResult({ target: 'host-att', throughputMbps: null, packets: null, status: 'fail', error: 'Host offline – python3 -m host.main' });
+        return;
+      }
+      const res = await api.bleTestRun('performance');
+      const results = (res?.results ?? {}) as Record<string, string>;
+      const throughputLine = Object.values(results).find((v) => v.includes('KB/s')) ?? '';
+      const match = throughputLine.match(/([\d.]+)\s*KB\/s/);
+      if (match) {
+        const kbps = parseFloat(match[1]);
+        setIperfResult({ target: 'host-att (ATT-Stapel)', throughputMbps: parseFloat((kbps / 125).toFixed(1)), packets: 30, status: 'ok' });
+      } else {
+        const skipLine = Object.values(results)[0] ?? '';
+        setIperfResult({ target: 'host-att', throughputMbps: null, packets: null, status: 'fail', error: skipLine || 'Keine Messung möglich' });
+      }
     } catch (e: any) {
-      setIperfResult({ target: 'local-mesh', throughputMbps: null, packets: null, status: 'fail', error: e?.message || 'Durchsatzmessung fehlgeschlagen' });
+      setIperfResult({ target: 'host-att', throughputMbps: null, packets: null, status: 'fail', error: e?.message || 'Durchsatzmessung fehlgeschlagen' });
     }
   }, []);
 
@@ -143,7 +155,11 @@ export default function NetworkDiagnostics() {
           <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-violet-300 uppercase tracking-wide mb-2"><Activity className="w-3 h-3" /> iPerf3 (Durchsatz)</div>
           <div className="text-xs font-mono bg-black/20 rounded-lg p-2.5 text-center">
             <div className="text-2xl font-black text-violet-200 mb-0.5">{iperfResult.throughputMbps ? `${iperfResult.throughputMbps} Mbps` : '--'}</div>
-            <div className="text-[10px] text-slate-400">{iperfResult.packets ? `${iperfResult.packets} Pakete` : 'Warte...'}</div>
+            <div className="text-[10px] text-slate-400">
+              {iperfResult.error
+                ? <span className="text-rose-300">{iperfResult.error}</span>
+                : iperfResult.packets ? `${iperfResult.packets} Pakete (30×244 B, ATT)` : 'Warte...'}
+            </div>
             <div className={`text-[10px] font-bold mt-1 ${iperfResult.status === 'ok' ? 'text-emerald-300' : iperfResult.status === 'fail' ? 'text-rose-300' : 'text-violet-300'}`}>{iperfResult.status === 'ok' ? 'OK' : iperfResult.status === 'fail' ? 'Fehler' : 'Läuft'}</div>
             {iperfResult.error && <div className="text-[10px] text-rose-300 mt-1 truncate">{iperfResult.error}</div>}
           </div>

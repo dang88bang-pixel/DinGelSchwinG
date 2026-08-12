@@ -247,7 +247,8 @@ export default function BleScanner() {
         ))}
         {devices.length === 0 && (
           <div className="md:col-span-2 text-center py-10 text-slate-500 text-xs">
-            Keine Geräte gefunden – Filter anpassen oder Scan starten.
+            Keine Geräte im Store – Filter anpassen, Host-Scan starten (Host-API-Karte oben)
+            oder ein Live-Gerät per Web Bluetooth auswählen.
           </div>
         )}
       </div>

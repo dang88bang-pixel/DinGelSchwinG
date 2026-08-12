@@ -146,6 +146,10 @@ export const api = {
     return request(`/ble/sniffer?limit=${limit}`);
   },
 
+  async bleTestRun(suiteId: string): Promise<{ ok: boolean; results?: Record<string, string> }> {
+    return request(`/ble/tests/${encodeURIComponent(suiteId)}/run`, { method: 'POST' });
+  },
+
   async snifferClear(): Promise<{ ok: boolean }> {
     return request('/ble/sniffer/clear', { method: 'POST' });
   },

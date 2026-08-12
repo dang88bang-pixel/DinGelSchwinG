@@ -235,6 +235,14 @@ export default function GattExplorer() {
           <Plug className="w-3.5 h-3.5 text-emerald-300" /> Verbindungen ({store.connectedCount()}/20 parallel)
         </h4>
         <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+          {candidates.length === 0 && (
+            <div className="text-[10px] font-mono text-slate-500 bg-[#060f2a]/60 border border-white/5 rounded-lg px-3 py-2 leading-relaxed">
+              Keine Geräte im Store.
+              <br />• Discovery-Tab: „BLE-Scan starten“ (Host) oder
+              <br />• Scanner-Tab: „Live-Gerät auswählen“ (Web Bluetooth)
+              <br />– dann erscheinen hier echte Geräte.
+            </div>
+          )}
           {candidates.map((d) => (
             <div
               key={d.id}

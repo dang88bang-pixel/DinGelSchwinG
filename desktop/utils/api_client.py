@@ -7,7 +7,6 @@ bleibt damit immer funktionsfähig (offline-fähig).
 from __future__ import annotations
 
 import json
-import random
 import time
 import urllib.error
 import urllib.parse
@@ -26,7 +25,6 @@ class MockDataSource:
 
     def __init__(self) -> None:
         self._seed = int(time.time()) % 1000
-        self._rng = random.Random(self._seed)
         self._devices = [
             {"name": "MASTER-Gold", "ip": "192.168.1.1", "type": "master", "online": True},
             {"name": "Client-A", "ip": "192.168.1.12", "type": "client", "online": True},
@@ -70,7 +68,9 @@ class MockDataSource:
         ]
 
     def get_system_load(self) -> dict:
-        return {"cpu": random.randint(5, 40), "ram": random.randint(30, 70)}
+        # Deterministisch aus Zeitbasis (Offline-Fallback, keine Zufallswerte)
+        base = int(time.time()) % 100
+        return {"cpu": round(8 + (base % 20), 1), "ram": round(30 + (base % 25), 1)}
 
 
 # --------------------------------------------------------------------------

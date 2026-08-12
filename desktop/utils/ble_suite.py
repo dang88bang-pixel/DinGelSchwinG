@@ -615,7 +615,10 @@ class BleSuite:
     def run_suite(self, suite_id: str, user: str = "nutzer") -> str:
         if not self.can("test_run"):
             return "⛔ Zugriff verweigert: Rolle Service (L2) erforderlich."
+        # suite_id kann ID (suite-ntag) oder kind (ntag) sein
         suite = next((s for s in self.test_suites if s["id"] == suite_id), None)
+        if suite is None:
+            suite = next((s for s in self.test_suites if s["kind"] == suite_id), None)
         if not suite:
             return "❌ Test-Suite nicht gefunden."
         # Host-Backend: echte Suite-Ergebnisse (echte ATT-Messungen)
