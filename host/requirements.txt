@@ -1,0 +1,11 @@
+# BLE Professional Suite – Host-Backend
+# Installation:  pip install -r host/requirements.txt
+flask>=3.0
+websockets>=12.0
+PyJWT>=2.8
+
+# Optional – echte BLE-Hardware (sonst Simulationsmodus):
+bleak>=0.21
+
+# Optional – SSH-Terminal-Sessions (sonst nur lokale PTY):
+# paramiko>=3.0

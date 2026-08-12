@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Radio, Wifi, Bluetooth, ShieldCheck, Cpu, Waves, MapPin, Activity, Menu, Zap, Layers, CircleDot } from 'lucide-react';
+import { Radio, Wifi, Bluetooth, ShieldCheck, Cpu, Waves, MapPin, Activity, Menu, Zap, Layers, CircleDot, TerminalSquare } from 'lucide-react';
 import Scene3D from './Scene3D';
 import PairingPanel, { PairedDevice } from './PairingPanel';
 import NetworkDiagnostics from './diagnostics/NetworkDiagnostics';
@@ -9,6 +9,7 @@ import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
 import AgentConsole from './AgentConsole';
 import BleProfessionalSuite from './ble/BleProfessionalSuite';
+import AccessConsole from './AccessConsole';
 import { useSensors } from '../hooks/useSensors';
 import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
 
@@ -39,6 +40,7 @@ export default function NetworkDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [bleSuiteOpen, setBleSuiteOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -105,6 +107,13 @@ export default function NetworkDashboard() {
             title="BLE Professional Suite öffnen (Scan · GATT · Mesh · Tests · Simulator)"
           >
             <Bluetooth className="w-3.5 h-3.5" /> BLE Pro
+          </button>
+          <button
+            onClick={() => setTerminalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-amber-600 to-orange-700 text-white ring-1 ring-amber-300/40 shadow-xl hover:brightness-110 transition"
+            title="Access Console öffnen – sicheres Terminal (xterm.js + WS-PTY-Bridge)"
+          >
+            <TerminalSquare className="w-3.5 h-3.5" /> Terminal
           </button>
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
@@ -283,6 +292,7 @@ export default function NetworkDashboard() {
           initialRole="developer"
         />
       )}
+      {terminalOpen && <AccessConsole onClose={() => setTerminalOpen(false)} />}
     </div>
   );
 }

@@ -40,3 +40,9 @@ desktop/data/cache/
 desktop/data/models/
 desktop/**/__pycache__/
 desktop/data/system_instruction_custom.txt
+
+# Host-Backend Laufzeitdaten
+host/data/
+host/__pycache__/
+*.pyc
+__pycache__/

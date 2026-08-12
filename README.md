@@ -35,6 +35,7 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
 | [`docs/ble-professional-suite.md`](docs/ble-professional-suite.md) | **BLE Professional Suite**: Scan/Klassifizierung, GATT-Explorer, Mesh, Test-Suite, Simulator, Profil-Cache, RBAC + WebAuthn, Agent-Workflows (Modus C) |
 | [`docs/ble-loesungsweg.md`](docs/ble-loesungsweg.md) | **Lösungsweg „alle Parts aktiv“**: Parts/Attribute-Matrix (Web/Desktop/Mobile), aktivierte Teile, Verifikations-Checks, Push |
+| [`host/README.md`](host/README.md) | **Host-Backend**: REST-API (:5000, JWT/RBAC/WebAuthn), WS-Kanäle Terminal (:8765)/Discovery (:8766)/Status (:8767), Controller (`/api/agent/ask`), Terminal-PTY-Bridge |
 | [`mobile/ble_professional_suite/README.md`](mobile/ble_professional_suite/README.md) | **Native Flutter-App** (Android/iOS): autarke BLE-App mit echten Hardware-Operationen, On-Device-KI-Agent, Mesh via nRF SDK, USB-Dongle (OTG) |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
 
@@ -54,6 +55,14 @@ Betriebsumgebung, vollständig über den Chat-Agenten steuerbar (Modus C):
   Filter – Button **„BLE Pro“** im Header öffnet die Suite. In Browsern mit
   Web-Bluetooth-Support verbindet die Suite **echte Geräte** (Gerätewahl-Dialog,
   Live-RSSI, echtes GATT-Read/Write/Notify); sonst Simulation mit klarem Badge.
+
+**Server-Backend (Host)**: `host/` enthält das echte Backend – Flask-REST-API
+(:5000, JWT + RBAC + WebAuthn-Grants + Prometheus-Metriken, OpenAPI ausgeliefert),
+die WebSocket-Kanäle **Terminal** (:8765, PTY/SSH-Bridge für xterm.js),
+**Discovery** (:8766) und **Live-Status** (:8767) sowie den **Controller**
+(`POST /api/agent/ask`). Button **„Terminal“** im Header öffnet die Access
+Console mit xterm.js-Terminal. Start: `python3 -m host.main` (Details
+[`host/README.md`](host/README.md)).
 - **GATT-Explorer**: bis zu 20 parallele Verbindungen, Services/
   Characteristics/Descriptors, Werte in Hex/Dez/Bin/ASCII, Notifications, MTU.
 - **Mesh**: Netzwerk-Erstellung mit zentralen Schlüsseln, automatische

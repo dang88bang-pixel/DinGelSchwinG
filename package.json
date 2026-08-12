@@ -27,6 +27,7 @@
     "@huggingface/transformers": "3.8.1",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "@xterm/addon-fit": "^0.11.0",
     "html5-qrcode": "^2.3.8",
     "i18next": "^23.16.8",
     "lucide-react": "1.31.0",
@@ -36,7 +37,8 @@
     "react-i18next": "^15.7.4",
     "terser": "^5.49.2",
     "three": "^0.185.1",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "xterm": "^5.3.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^5.7.8",
