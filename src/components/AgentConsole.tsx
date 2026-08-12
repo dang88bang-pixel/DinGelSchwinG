@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, X, Paperclip, Settings } from 'lucide-react';
 import { AgentEngine, AgentMessage } from '../lib/agent/agentEngine';
+import { api } from '../lib/api/client';
 import {
   MODE_LABELS, AgentMode, CHAT_SYSTEM_INSTRUCTION, ADB_SYSTEM_INSTRUCTION, BLE_SYSTEM_INSTRUCTION,
 } from '../config/systemInstructions';
@@ -95,6 +96,16 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [modeDraft, setModeDraft] = useState<AgentMode>(engine.mode);
   const [instructionDraft, setInstructionDraft] = useState(engine.systemInstruction);
+  const [hostOnline, setHostOnline] = useState(false);
+
+  // Host-Controller-Anbindung (POST /api/agent/ask) – aktiv, wenn Host erreichbar
+  useEffect(() => {
+    api.ensureHost().then((ok) => setHostOnline(ok));
+    const timer = window.setInterval(() => {
+      api.ensureHost().then((ok) => setHostOnline(ok));
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const msgId = useRef(1);
@@ -137,14 +148,30 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
     addMessage('user', text);
     setBusy(true);
     try {
-      const reply = await engine.ask(text);
-      addMessage('agent', reply);
+      // Host-Controller bevorzugen (echte BLE-/System-Aktionen via REST :5000),
+      // Fallback auf die lokale Engine, wenn der Host nicht antwortet.
+      let reply: string;
+      let viaHost = false;
+      if (hostOnline) {
+        try {
+          const res = await api.agentAsk(text);
+          reply = res.ok
+            ? res.reply
+            : `⚠️ ${res.reply ?? 'Unbekannter Controller-Fehler'}`;
+          viaHost = true;
+        } catch {
+          reply = await engine.ask(text);
+        }
+      } else {
+        reply = await engine.ask(text);
+      }
+      addMessage('agent', viaHost ? `[Host-Controller]\n${reply}` : reply);
     } catch (e) {
       addMessage('agent', `⚠️ Fehler: ${String(e)}`);
     } finally {
       setBusy(false);
     }
-  }, [input, busy, engine, addMessage]);
+  }, [input, busy, engine, addMessage, hostOnline]);
 
   const actionClick = useCallback(
     async (idx: number) => {
@@ -223,6 +250,17 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
 
         <span className="hidden md:inline px-2 py-1 rounded-full text-[10px] font-black border border-violet-500/40 bg-violet-950/40 text-violet-300">
           {MODE_LABELS[engine.mode]}
+        </span>
+
+        <span
+          className={`px-2 py-1 rounded-full text-[10px] font-bold border ${
+            hostOnline
+              ? 'text-emerald-300 border-emerald-700/40 bg-emerald-950/40'
+              : 'text-slate-500 border-white/10 bg-white/5'
+          }`}
+          title={hostOnline ? 'Host-Controller aktiv (POST /api/agent/ask)' : 'Host offline – lokale Engine aktiv'}
+        >
+          {hostOnline ? '● Host-Controller' : '○ Lokal'}
         </span>
 
         <button

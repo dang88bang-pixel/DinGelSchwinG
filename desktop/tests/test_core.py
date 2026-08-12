@@ -70,8 +70,24 @@ class TestScriptExecutor(unittest.TestCase):
 
 class TestStatusManager(unittest.TestCase):
     def test_mock_fallback(self) -> None:
-        manager = StatusManager(poll_interval=0.5)
-        manager.refresh()
+        # Host-Anbindung für den Test ausblenden → Mock-Fallback wird geprüft
+        import utils.api_client as api_client_mod
+        ac = api_client_mod.APIClient
+        original_online = ac.backend_online
+        originals = {}
+        for name in ("get_devices", "get_clients", "get_workflows",
+                     "get_test_results", "get_system_load"):
+            originals[name] = getattr(ac, name)
+            setattr(ac, name, classmethod(
+                lambda cls, _n=name: getattr(ac.mock, _n)()))
+        ac.backend_online = classmethod(lambda cls: False)
+        try:
+            manager = StatusManager(poll_interval=0.5)
+            manager.refresh()
+        finally:
+            ac.backend_online = original_online
+            for name, fn in originals.items():
+                setattr(ac, name, fn)
         self.assertGreaterEqual(len(manager.devices), 5)
         self.assertGreaterEqual(len(manager.clients), 1)
         self.assertGreaterEqual(manager.connected_devices(), 1)

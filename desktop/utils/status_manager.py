@@ -6,6 +6,7 @@ Observer (UI) nach jedem Update über einen Thread-sicheren Callback.
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 from typing import Any, Callable
@@ -31,6 +32,8 @@ class StatusManager:
         self._lock = threading.Lock()
         self._poll_interval = poll_interval
         self._stop = threading.Event()
+        self._registered = False
+        self.client_name = f"desktop-{os.getpid()}"
 
         self._ws = WSClient(ws_url or "ws://localhost:5000/ws/status",
                             on_message=self._on_ws_message, on_status=self._on_ws_status)
@@ -93,6 +96,13 @@ class StatusManager:
     def refresh(self) -> None:
         """Holt alle Daten (mit Mock-Fallback) und benachrichtigt Observer."""
         self.backend_online = APIClient.backend_online()
+        if self.backend_online:
+            # Desktop-Konsole als Live-Client registrieren (Status-Board :8767)
+            if not self._registered:
+                APIClient.login()
+                APIClient._safe(APIClient._request, "POST", "/api/clients/register",
+                                {"name": self.client_name, "device": "Desktop-Konsole"})
+                self._registered = True
         with self._lock:
             self.devices = APIClient.get_devices()
             self.clients = APIClient.get_clients()

@@ -134,6 +134,21 @@ class TestApi(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn("time,user,role", res.get_data(as_text=True))
 
+    def test_desktop_endpoints(self) -> None:
+        # Desktop-Konsolen-Vertrag (openapi.yaml): clients/workflows/tests/system
+        for path in ("/api/clients", "/api/workflows", "/api/tests", "/api/system",
+                     "/api/devices-status"):
+            res = self.client.get(path, headers=self.headers)
+            self.assertEqual(res.status_code, 200, path)
+
+    def test_client_register(self) -> None:
+        res = self.client.post("/api/clients/register", headers=self.headers,
+                               json={"name": "Desktop-Konsole", "device": "MASTER"})
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json()["online"])
+        clients = self.client.get("/api/clients", headers=self.headers).get_json()
+        self.assertTrue(any(c["name"] == "Desktop-Konsole" for c in clients))
+
 
 class TestController(unittest.TestCase):
     def setUp(self) -> None:

@@ -154,6 +154,73 @@ def ble_profiles():
     return jsonify(ble_service.ble_host.profiles())
 
 
+# ----------------------------------------------------------------------
+# Desktop-Konsole (REST-Vertrag aus openapi.yaml: /api/clients, /api/workflows …)
+# ----------------------------------------------------------------------
+@api.get("/clients")
+@auth.auth_required
+def rest_clients():
+    return jsonify(status.status_board.snapshot_clients())
+
+
+@api.post("/clients/register")
+@auth.auth_required
+def rest_client_register():
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("id") or f"client-{int(time.time())}")
+    status.status_board.register_client(
+        cid,
+        str(data.get("name") or cid),
+        g.role,
+        str(data.get("device") or ""),
+    )
+    return jsonify({"id": cid, "online": True})
+
+
+@api.get("/devices-status")
+@auth.auth_required
+def rest_devices_status():
+    return jsonify(status.status_board.snapshot_devices())
+
+
+@api.get("/workflows")
+@auth.auth_required
+def rest_workflows():
+    return jsonify(status.status_board.snapshot_workflows())
+
+
+@api.get("/tests")
+@auth.auth_required
+def rest_tests():
+    # Testverbindungen: BLE-Suiten liefern Ergebnisse via /api/ble/tests/…
+    return jsonify([])
+
+
+@api.get("/system")
+@auth.auth_required
+def rest_system():
+    return jsonify(_system_load())
+
+
+def _system_load() -> dict:
+    load = {"cpu": None, "ram": None}
+    try:
+        import os
+        load["cpu"] = round(os.getloadavg()[0] * 100 / os.cpu_count() or 1, 1)
+    except (OSError, AttributeError):
+        pass
+    try:
+        with open("/proc/meminfo") as f:
+            lines = dict(l.split(":", 1) for l in f if ":" in l)
+        total = int(lines.get("MemTotal", "0").strip().split()[0])
+        avail = int(lines.get("MemAvailable", "0").strip().split()[0])
+        if total:
+            load["ram"] = round((total - avail) / total * 100, 1)
+    except (OSError, ValueError):
+        pass
+    return load
+
+
 @api.get("/ble/audit")
 @auth.auth_required
 def ble_audit():

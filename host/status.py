@@ -84,6 +84,10 @@ class StatusBoard:
         with self._lock:
             return [dict(d) for d in self._devices.values()]
 
+    def snapshot_workflows(self) -> list[dict]:
+        with self._lock:
+            return [dict(w) for w in self._workflows.values()]
+
     def summary(self) -> str:
         clients = sum(1 for c in self.snapshot_clients() if c["online"])
         return (f"🟢 Clients: {clients}  |  Geräte: {len(self._devices)}  |  "

@@ -11,6 +11,9 @@ import AgentConsole from './AgentConsole';
 import BleProfessionalSuite from './ble/BleProfessionalSuite';
 import AccessConsole from './AccessConsole';
 import { useSensors } from '../hooks/useSensors';
+import { useDiscovery, DiscoveryNode } from '../hooks/useDiscovery';
+import { useStatusBoard, StatusClient } from '../hooks/useStatusBoard';
+import { api, getToken } from '../lib/api/client';
 import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
 
 export interface SceneDevice {
@@ -41,6 +44,20 @@ export default function NetworkDashboard() {
   const [agentOpen, setAgentOpen] = useState(false);
   const [bleSuiteOpen, setBleSuiteOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [hostOnline, setHostOnline] = useState(false);
+
+  // Host-Anbindung: REST + WS-Kanäle (Discovery :8766, Status :8767)
+  useEffect(() => {
+    api.ensureHost().then((ok) => setHostOnline(ok));
+    const timer = window.setInterval(() => {
+      api.ensureHost().then((ok) => setHostOnline(ok));
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const hostToken = getToken();
+  const { nodes: liveNodes, status: discoveryStatus } = useDiscovery(hostToken, hostOnline);
+  const { clients: liveClients, workflows: liveWorkflows, status: statusStatus } = useStatusBoard(hostToken, hostOnline);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -94,6 +111,17 @@ export default function NetworkDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          <span
+            className={`hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-full text-[10px] font-bold border transition ${
+              hostOnline
+                ? 'text-emerald-300 border-emerald-700/40 bg-emerald-950/40'
+                : 'text-slate-400 border-white/10 bg-white/5'
+            }`}
+            title="Host-Backend (:5000) + WS-Kanäle :8765–8767"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${hostOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+            Host {hostOnline ? 'online' : 'offline'} · {liveNodes.length} Nodes · {liveClients.filter(c => c.online).length} Clients
+          </span>
           <button
             onClick={() => setAgentOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-violet-600 to-fuchsia-700 text-white ring-1 ring-violet-300/40 shadow-xl hover:brightness-110 transition"
@@ -258,6 +286,44 @@ export default function NetworkDashboard() {
               </div>
             ) : (
               <div className="text-xs text-slate-500 italic">Wähle ein Gerät aus der 3D-Darstellung oder der Kartenliste.</div>
+            )}
+          </div>
+
+          {/* Host-Live: Discovery-WS + Status-WS (echte Anbindung an :8766/:8767) */}
+          <div className="glass-card p-5 relative overflow-hidden">
+            <h3 className="text-sm font-black text-white mb-3 flex items-center gap-2">
+              <Radio className="w-4 h-4 text-cyan-300" /> Host-Live (WS)
+              <span className={`ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                hostOnline && discoveryStatus === 'open'
+                  ? 'text-emerald-300 border-emerald-700/40 bg-emerald-950/40'
+                  : 'text-slate-500 border-white/10 bg-white/5'
+              }`}>
+                {hostOnline ? 'verbunden' : 'offline'}
+              </span>
+            </h3>
+            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+              {liveNodes.length === 0 && (
+                <div className="text-[11px] text-slate-500 italic">
+                  {hostOnline ? 'Keine Nodes vom Discovery-Kanal…' : 'Host starten: python3 -m host.main'}
+                </div>
+              )}
+              {liveNodes.map((n: DiscoveryNode) => (
+                <div key={n.id} className="flex items-center gap-2 text-[11px] font-mono text-slate-300 bg-[#060f2a]/60 rounded-lg px-2.5 py-1.5 border border-white/5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${n.signal?.rssi !== undefined ? 'bg-emerald-400' : n.kind === 'dongle' ? 'bg-amber-400' : 'bg-cyan-400'}`} />
+                  <span className="text-[9px] uppercase text-slate-500 w-14 shrink-0">{n.kind}</span>
+                  <span className="flex-1 truncate font-bold text-slate-100">{n.label}</span>
+                  {n.signal?.rssi !== undefined && <span className="text-cyan-200">{n.signal.rssi} dBm</span>}
+                </div>
+              ))}
+            </div>
+            {(liveClients.length > 0 || liveWorkflows.length > 0) && (
+              <div className="mt-2 pt-2 border-t border-white/5 text-[10px] font-mono text-slate-500 space-y-0.5">
+                <div>👥 Status: {liveClients.filter((c: StatusClient) => c.online).length} Client(s) online</div>
+                {liveWorkflows.map((w) => (
+                  <div key={w.name}>⚡ {w.name} – {w.progress}% ({w.status})</div>
+                ))}
+                <div className="text-slate-600">Kanal: {discoveryStatus} / {statusStatus}</div>
+              </div>
             )}
           </div>
 

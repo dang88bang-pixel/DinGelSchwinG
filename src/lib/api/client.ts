@@ -26,6 +26,10 @@ export function setAuth(token: string, role: string): void {
   bleSuiteStore.setRole(role as 'service' | 'developer' | 'admin');
 }
 
+export function getToken(): string | null {
+  return _token;
+}
+
 export function getRole(): string {
   return _role;
 }
@@ -67,6 +71,34 @@ export const api = {
     });
     setAuth(body.token, body.role);
     return body;
+  },
+
+  /**
+   * Einmalige Host-Verbindung (idempotent): Health → Login (Service-Demo) →
+   * Token für WS-Kanäle. true, wenn der Host erreichbar ist.
+   */
+  async ensureHost(): Promise<boolean> {
+    if (isHostReachable() && _token) return true;
+    try {
+      const health = await api.health();
+      if (health.status !== 'ok') return false;
+      if (!_token) {
+        await api.login('service', 'svc123');
+      }
+      setHostReachable(true);
+      return true;
+    } catch {
+      setHostReachable(false);
+      return false;
+    }
+  },
+
+  /** Vollständiger Logout (Token verwerfen). */
+  logout(): void {
+    _token = null;
+    _role = 'developer';
+    setHostReachable(false);
+    bleSuiteStore.setRole('developer');
   },
 
   async bleScan(action: 'start' | 'stop', duration = 5): Promise<{ backend: string; devices: unknown[] }> {

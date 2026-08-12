@@ -80,9 +80,10 @@ class APIClient:
     """Kapselt REST-Aufrufe; fällt bei Fehlern auf MockDataSource zurück."""
 
     mock = MockDataSource()
+    _token: str | None = None
 
-    @staticmethod
-    def _request(method: str, path: str, payload: dict | None = None,
+    @classmethod
+    def _request(cls, method: str, path: str, payload: dict | None = None,
                  timeout: float = TIMEOUT) -> Any:
         url = BASE_URL + path
         data = None
@@ -90,21 +91,59 @@ class APIClient:
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
+        if cls._token:
+            headers["Authorization"] = f"Bearer {cls._token}"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (lokales Backend)
             raw = resp.read().decode("utf-8")
             return json.loads(raw) if raw else {}
 
-    @staticmethod
-    def _safe(fn, *args, **kwargs) -> Any:
+    @classmethod
+    def _safe(cls, fn, *args, **kwargs) -> Any:
         try:
             return fn(*args, **kwargs)
         except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
             return None
 
+    # ------------------------------------------------------------------
+    # Auth + Agent-Controller (Host-Anbindung der Desktop-Konsole)
+    # ------------------------------------------------------------------
+    @classmethod
+    def login(cls, username: str = "service", password: str = "svc123") -> str | None:
+        data = cls._safe(cls._request, "POST", "/api/login",
+                         {"email": username, "password": password})
+        if isinstance(data, dict) and data.get("token"):
+            cls._token = str(data["token"])
+            return cls._token
+        return None
+
+    @classmethod
+    def agent_ask(cls, text: str) -> str | None:
+        """Fragt den Host-Controller (POST /api/agent/ask); None bei Fehler."""
+        if not cls._token and not cls.login():
+            return None
+        data = cls._safe(cls._request, "POST", "/api/agent/ask", {"text": text})
+        if isinstance(data, dict) and data.get("ok"):
+            return str(data.get("reply", ""))
+        return None
+
+    @staticmethod
+    def _map_node(node: dict) -> dict:
+        """Host-Node ({id,kind,label,signal…}) → Desktop-Geräteformat."""
+        signal = node.get("signal") or {}
+        return {
+            "name": node.get("label", node.get("id", "?")),
+            "ip": node.get("address") or node.get("mac") or node.get("id", ""),
+            "type": node.get("kind", "other"),
+            "online": True,
+            "rssi": signal.get("rssi"),
+        }
+
     @classmethod
     def get_devices(cls) -> list[dict]:
         data = cls._safe(cls._request, "GET", "/api/devices")
+        if isinstance(data, dict) and isinstance(data.get("nodes"), list):
+            return [cls._map_node(n) for n in data["nodes"]]
         return data if isinstance(data, list) else cls.mock.get_devices()
 
     @classmethod

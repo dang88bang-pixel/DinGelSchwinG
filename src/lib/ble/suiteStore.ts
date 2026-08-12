@@ -326,6 +326,65 @@ export class BleSuiteStore {
   }
 
   // -------------------------------------------------------------------------
+  // Host-API-Import (echte Scan-Ergebnisse vom Host-Backend /api/ble/*)
+  // -------------------------------------------------------------------------
+  importHostDevices(
+    devices: Array<{
+      id: string;
+      name: string;
+      address?: string;
+      rssi?: number;
+      deviceClass?: BleDeviceClass;
+      serviceUuids?: string[];
+    }>,
+    user = 'nutzer',
+  ): number {
+    let added = 0;
+    for (const d of devices) {
+      const deviceClass = (d.deviceClass as BleDeviceClass) ?? this.classify(d.name, '', d.serviceUuids ?? []);
+      const idx = this.devices.findIndex((x) => x.id === d.id || x.address === (d.address ?? ''));
+      if (idx === -1) {
+        this.devices = [
+          ...this.devices,
+          {
+            id: d.id,
+            name: d.name,
+            address: d.address ?? d.id,
+            rssi: d.rssi ?? -70,
+            txPower: -59,
+            deviceClass,
+            manufacturer: undefined,
+            serviceUuids: d.serviceUuids ?? [],
+            connectable: true,
+            bound: false,
+            connected: false,
+            rssiHistory: [d.rssi ?? -70],
+            firstSeen: nowIso(),
+            lastSeen: nowIso(),
+          },
+        ];
+        added += 1;
+      } else {
+        // Bestehendes Gerät aktualisieren (RSSI + Klasse)
+        const existing = this.devices[idx];
+        this.devices = this.devices.map((x, i) =>
+          i === idx ? { ...x, rssi: d.rssi ?? x.rssi, rssiHistory: [...x.rssiHistory.slice(-40), d.rssi ?? x.rssi], deviceClass, lastSeen: nowIso() } : x,
+        );
+        void existing;
+      }
+    }
+    if (added > 0) {
+      this.audit(user, 'ble_host_import', `${added} Geräte vom Host-API importiert (gesamt ${this.devices.length})`);
+      this.notify();
+    }
+    return added;
+  }
+
+  hostStats(): { imported: number } {
+    return { imported: this.devices.filter((d) => d.id.startsWith('ble:') || d.id.startsWith('host-')).length };
+  }
+
+  // -------------------------------------------------------------------------
   // Verbindungen (≤ 20 parallel, 2.2)
   // -------------------------------------------------------------------------
   connect(deviceId: string, user = 'nutzer'): string {

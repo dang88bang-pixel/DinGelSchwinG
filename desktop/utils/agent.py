@@ -56,6 +56,10 @@ class Agent:
                  status: StatusManager | None = None) -> None:
         self.role = role
         self.config = config or load_config()
+        # Host-Controller-Anbindung (POST /api/agent/ask). Standard: aus,
+        # damit Tests/Offline deterministisch bleiben – die Desktop-App
+        # aktiviert sie beim Start (host/main.py → Agent(host_controller=True)).
+        self.host_controller = bool(self.config.get("host_controller", False))
         self.mode = str(self.config.get("agent_mode", "chat"))
         if self.mode not in MODE_LABELS:
             self.mode = "chat"
@@ -180,8 +184,17 @@ class Agent:
         """Verarbeitet eine Nachricht; Ergebnis als Rückgabe und/oder Callback."""
 
         def work() -> str:
-            reply = self._process(user_input)
-            return reply
+            # Host-Controller bevorzugen (echte BLE-/System-Aktionen via REST),
+            # Fallback auf die lokale deterministische Engine.
+            if self.host_controller:
+                try:
+                    host_reply = APIClient.agent_ask(user_input)
+                    if host_reply is not None:
+                        self._audit("host_controller", f"ask({user_input[:60]})")
+                        return f"[Host-Controller]\n{host_reply}"
+                except Exception:  # noqa: BLE001
+                    pass
+            return self._process(user_input)
 
         if callback is None:
             return work()

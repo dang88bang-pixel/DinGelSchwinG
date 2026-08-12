@@ -91,6 +91,10 @@ class MainWindow(ctk.CTk):
 
         self.config_data = load_config()
         self.config_data["role"] = role
+        # Host-Anbindung aktivieren (REST :5000 + WS) – Agent nutzt den
+        # Host-Controller, Status bezieht Live-Daten; fällt offline auf
+        # die lokale Engine/Mock-Daten zurück.
+        self.config_data["host_controller"] = True
         self.status = StatusManager(
             ws_url=self.config_data.get("ws_url", "ws://localhost:5000/ws/status"),
             poll_interval=float(self.config_data.get("poll_interval", 10.0)),

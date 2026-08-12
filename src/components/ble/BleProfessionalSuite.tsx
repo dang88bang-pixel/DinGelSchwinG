@@ -19,8 +19,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   X, Bluetooth, Cpu, LayoutDashboard, Radar, ListTree, Network, FlaskConical,
   Boxes, Archive, ScrollText, ShieldCheck, KeyRound, Bot, ChevronRight, CheckCircle2, AlertTriangle,
+  Server, Loader2,
 } from 'lucide-react';
 import { useBleStore } from './useBleStore';
+import { api } from '../../lib/api/client';
 import BleScanner from './BleScanner';
 import GattExplorer from './GattExplorer';
 import MeshBuilder from './MeshBuilder';
@@ -29,7 +31,7 @@ import PeripheralSimulator from './PeripheralSimulator';
 import ProfilesPanel from './ProfilesPanel';
 import BleAuditPanel from './BleAuditPanel';
 import { StatCard, Chip } from './BleCharts';
-import { BleRole } from '../../lib/ble/types';
+import { BleDeviceClass, BleRole } from '../../lib/ble/types';
 
 type TabKey = 'overview' | 'scanner' | 'gatt' | 'mesh' | 'tests' | 'simulator' | 'profiles' | 'audit';
 
@@ -95,6 +97,89 @@ function AgentWorkflowFeed() {
   );
 }
 
+function HostApiCard() {
+  const store = useBleStore();
+  const [hostOnline, setHostOnline] = useState(false);
+  const [backend, setBackend] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [lastMsg, setLastMsg] = useState<string | null>(null);
+
+  const connect = async () => {
+    const ok = await api.ensureHost();
+    setHostOnline(ok);
+    if (ok) {
+      const health = await api.health();
+      setBackend(health.backend);
+    }
+  };
+
+  const hostScan = async () => {
+    setBusy(true);
+    setLastMsg(null);
+    try {
+      const ok = await api.ensureHost();
+      if (!ok) {
+        setLastMsg('❌ Host nicht erreichbar – Start: python3 -m host.main');
+        return;
+      }
+      const res = await api.bleScan('start', 4);
+      const devices = res.devices as Array<{ id: string; name: string; rssi?: number; deviceClass?: string }>;
+      const added = store.importHostDevices(devices.map((d) => ({
+        id: d.id,
+        name: d.name,
+        rssi: d.rssi,
+        deviceClass: d.deviceClass as BleDeviceClass,
+      })));
+      setBackend(res.backend);
+      setLastMsg(`✅ Host-Scan (${res.backend}): ${devices.length} Geräte, ${added} neu importiert`);
+    } catch (e) {
+      setLastMsg(`❌ ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-white/5 bg-[#060f2a]/60 p-4">
+      <h4 className="text-xs font-black text-white mb-3 flex items-center gap-2">
+        <Server className="w-3.5 h-3.5 text-cyan-300" /> Host-API (REST :5000)
+        <span className={`ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+          hostOnline ? 'text-emerald-300 border-emerald-700/40 bg-emerald-950/40' : 'text-slate-500 border-white/10 bg-white/5'
+        }`}>
+          {hostOnline ? `online · ${backend ?? '…'}` : 'offline'}
+        </span>
+      </h4>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={hostScan}
+          disabled={busy}
+          className="flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-2 rounded-lg bg-gradient-to-br from-cyan-600 to-blue-700 text-white hover:brightness-110 transition disabled:opacity-40"
+        >
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radar className="w-3 h-3" />}
+          Host-Scan & importieren
+        </button>
+        <button
+          onClick={connect}
+          className="text-[11px] font-bold px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 transition"
+        >
+          Host verbinden
+        </button>
+        <span className="text-[10px] font-mono text-slate-500 ml-auto">
+          importiert: {store.hostStats().imported} Geräte
+        </span>
+      </div>
+      {lastMsg && (
+        <div className="mt-2 text-[10px] font-mono text-cyan-200 bg-cyan-950/30 border border-cyan-800/30 rounded-lg px-3 py-2">
+          {lastMsg}
+        </div>
+      )}
+      <div className="mt-2 text-[9px] font-mono text-slate-600">
+        Echter Host-BLE-Scan (bleak) über /api/ble/scan · Ergebnisse fließen in diese Suite
+      </div>
+    </div>
+  );
+}
+
 function OverviewTab() {
   const store = useBleStore();
   const stats = store.stats();
@@ -127,6 +212,8 @@ function OverviewTab() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
+        <HostApiCard />
+
         <div className="rounded-2xl border border-white/5 bg-[#060f2a]/60 p-4">
           <h4 className="text-xs font-black text-white mb-3 flex items-center gap-2">
             <Cpu className="w-3.5 h-3.5 text-violet-300" /> Hardware-Status
