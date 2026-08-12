@@ -23,12 +23,20 @@ dist-ssr
 *.sln
 *.sw?
 
-# Android
-android/
+# Android build outputs (Quellcode unter android/ ist versioniert)
 .gradle/
 build/
 *.apk
 *.aab
 
-# Capacitor
+# Capacitor (generierte Caches)
 capacitor/
+.gui-venv/
+
+# Desktop-Konsole: Laufzeit-Dateien (nicht versionieren)
+desktop/data/config.json
+desktop/data/audit*.json
+desktop/data/cache/
+desktop/data/models/
+desktop/**/__pycache__/
+desktop/data/system_instruction_custom.txt

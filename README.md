@@ -5,6 +5,23 @@ Berechtigungserweiterung (Rollen Service L2 / Developer L3) plus gesichertes Ter
 
 ---
 
+## 🤖 Agent Console v3.0 (Chat-zentrierte Steuerung)
+
+Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
+
+- **Web-App (dieses Projekt, → APK):** Button **„🤖 Agent“** im Header öffnet die Agent Console –
+  Chat mit 6 frei belegbaren Aktionsbuttons (per Chat: *„Belege Button 3 mit dem Skript network_scan.py“*),
+  Audit-Log, Export, Cache, Status-Bar (Geräte/Clients/Workflows).
+  - **Eingebettetes Lightweight-Modell (optional):** Button **„🧠 Modell“** lädt
+    [Qwen2.5-0.5B-Instruct](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
+    (~400 MB, q4) via transformers.js direkt im Browser/WebView – der Agent antwortet dann frei.
+    Ohne Modell läuft die deterministische Skill-Engine (offline, sofort).
+- **Desktop-Konsole (Python/CustomTkinter):** siehe [`desktop/README.md`](desktop/README.md) –
+  gleiche Engine, zusätzlich Skripte-Galerie, Live-Status-Panel (WebSocket + Mock-Fallback)
+  und lokales GGUF-Modell via llama.cpp/Ollama.
+
+---
+
 ## 📋 Inhaltsverzeichnis
 
 - [1️⃣ Kontext-Analyse](#1️⃣-kontext-analyse)

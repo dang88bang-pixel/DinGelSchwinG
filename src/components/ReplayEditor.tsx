@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Square, Trash2, Music, Volume2 } from 'lucide-react';
+import { Trash2, Music } from 'lucide-react';
 
 export interface SignalPoint {
   t: number; // ms
@@ -24,16 +24,18 @@ export default function ReplayEditor() {
   useEffect(() => {
     if (!recording) return;
     const timer = setInterval(() => {
-      const t = points.length ? Math.max(...points.map(p => p.t)) + 300 : 0;
-      setPoints(prev => [...prev, {
-        t,
-        freqMHz: 2400 + Math.random() * 100,
-        rssi: -80 + Math.random() * 40,
-        amp: 0.2 + Math.random() * 0.8,
-      }]);
+      setPoints(prev => {
+        const t = prev.length ? Math.max(...prev.map(p => p.t)) + 300 : 0;
+        return [...prev, {
+          t,
+          freqMHz: 2400 + Math.random() * 100,
+          rssi: -80 + Math.random() * 40,
+          amp: 0.2 + Math.random() * 0.8,
+        }];
+      });
     }, 300);
     return () => clearInterval(timer);
-  }, [recording, points.length]);
+  }, [recording]);
 
   // Playback timer
   useEffect(() => {
