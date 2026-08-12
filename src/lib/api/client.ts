@@ -109,7 +109,7 @@ export const api = {
     return request('/ble/devices');
   },
 
-  async bleConnect(deviceId: string, action: 'connect' | 'disconnect' = 'connect') {
+  async bleConnect(deviceId: string, action: 'connect' | 'disconnect' = 'connect'): Promise<{ ok: boolean; message?: string; error?: string }> {
     return request(`/ble/devices/${encodeURIComponent(deviceId)}/connect`, {
       method: 'POST',
       body: JSON.stringify({ action }),
@@ -127,4 +127,47 @@ export const api = {
   async webauthnAssert(challenge: string): Promise<{ ok: boolean; token: string }> {
     return request('/webauthn/assert', { method: 'POST', body: JSON.stringify({ challenge }) });
   },
+
+  // Virtuelle Peripherals (echte GATT-Server auf dem Host)
+  async virtualList(): Promise<VirtualPeripheral[]> {
+    return request('/ble/virtual');
+  },
+
+  async virtualSpawn(name: string, deviceClass: string, distanceM = 3): Promise<VirtualPeripheral> {
+    return request('/ble/virtual', { method: 'POST', body: JSON.stringify({ name, deviceClass, distanceM }) });
+  },
+
+  async virtualRemove(deviceId: string): Promise<{ ok: boolean }> {
+    return request(`/ble/virtual/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+  },
+
+  // Sniffer – echte ATT-Frames vom Host
+  async snifferFrames(limit = 40): Promise<SnifferFrame[]> {
+    return request(`/ble/sniffer?limit=${limit}`);
+  },
+
+  async snifferClear(): Promise<{ ok: boolean }> {
+    return request('/ble/sniffer/clear', { method: 'POST' });
+  },
 };
+
+export interface VirtualPeripheral {
+  id: string;
+  name: string;
+  port: number;
+  rssi: number;
+  tx_power: number;
+  distance_m: number;
+  battery: number;
+  serviceUuids: string[];
+  adDataHex: string;
+  uptime_s: number;
+}
+
+export interface SnifferFrame {
+  time: string;
+  deviceId: string;
+  dir: 'rx' | 'tx';
+  opcode: number;
+  hex: string;
+}

@@ -127,6 +127,19 @@ class APIClient:
             return str(data.get("reply", ""))
         return None
 
+    @classmethod
+    def read_gatt(cls, device_id: str, uuid: str) -> dict | None:
+        """Echtes GATT-Read über die Host-API (ATT-Transaktion)."""
+        return cls._safe(cls._request, "GET",
+                         f"/api/ble/devices/{device_id}/gatt/{uuid}/read")
+
+    @classmethod
+    def write_gatt(cls, device_id: str, uuid: str, value_hex: str) -> dict | None:
+        """Echtes GATT-Write über die Host-API (ATT-Transaktion)."""
+        return cls._safe(cls._request, "PUT",
+                         f"/api/ble/devices/{device_id}/gatt/{uuid}",
+                         {"value": value_hex})
+
     @staticmethod
     def _map_node(node: dict) -> dict:
         """Host-Node ({id,kind,label,signal…}) → Desktop-Geräteformat."""

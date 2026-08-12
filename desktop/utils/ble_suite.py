@@ -203,9 +203,21 @@ class BleSuite:
         self._lock = threading.Lock()
         self._uid = 1000
         self._clients: dict[str, Any] = {}  # device_id → BleakClient (echte HW)
-        # Backend: "bleak" (echte Hardware) oder "sim" (Offline-Fallback)
-        self.backend = "bleak" if BLEAK_AVAILABLE else "sim"
+        # Backend: "bleak" (echte Hardware) → "host" (Host-API: protokollkorrekter
+        # ATT-Stapel oder bleak des Hosts) → "sim" (Offline-Fallback)
+        self.backend = "bleak" if BLEAK_AVAILABLE else self._detect_host()
         self._init_devices()
+
+    @staticmethod
+    def _detect_host() -> str:
+        """Echter Host-Backend-Detect: Host-API erreichbar + Login möglich."""
+        try:
+            from .api_client import APIClient
+            if APIClient.backend_online() and APIClient.login():
+                return "host"
+        except Exception:  # noqa: BLE001
+            pass
+        return "sim"
 
     # ------------------------------------------------------------------
     def _init_devices(self) -> None:
@@ -249,21 +261,60 @@ class BleSuite:
         if self.scan_running:
             return "BLE-Scan läuft bereits."
         self.scan_running = True
-        mode = "bleak (echte Hardware)" if self.backend == "bleak" else "Simulation (kein Adapter)"
+        mode = {
+            "bleak": "bleak (echte Hardware)",
+            "host": "Host-API (protokollkorrekter ATT-Stapel)",
+            "sim": "Offline-Fallback",
+        }.get(self.backend, self.backend)
         self._audit(user, "ble_scan_start", f"Kontinuierlicher BLE-Scan gestartet ({mode})")
         self._scan_timer = threading.Thread(target=self._scan_loop, daemon=True)
         self._scan_timer.start()
         return f"✅ BLE-Scan gestartet ({mode})."
+
+    def _host_scan(self) -> bool:
+        """Echter Scan über die Host-API (virtuelle Peripherals/bleak des Hosts)."""
+        try:
+            from .api_client import APIClient
+            if not APIClient.backend_online():
+                return False
+            data = APIClient._safe(APIClient._request, "POST", "/api/ble/scan",
+                                   {"action": "start", "duration": 3})
+            devices = data.get("devices", []) if isinstance(data, dict) else []
+            if devices:
+                with self._lock:
+                    self.devices = []
+                    for i, d in enumerate(devices):
+                        self.devices.append({
+                            "id": d.get("id", f"host-{i}"),
+                            "name": d.get("name", "Unbekannt"),
+                            "address": d.get("address", d.get("id", "")),
+                            "rssi": d.get("rssi", -70),
+                            "tx_power": d.get("tx_power", -59),
+                            "device_class": d.get("deviceClass", "peripheral"),
+                            "manufacturer": "",
+                            "service_uuids": d.get("serviceUuids", []),
+                            "connectable": True, "bound": False,
+                            "connected": False, "battery": None,
+                            "provisioned": None, "rssi_history": [d.get("rssi", -70)],
+                            "real": True,
+                        })
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     def _scan_loop(self) -> None:
         while self.scan_running:
             if self.backend == "bleak":
                 ok = self._scan_real_once()
                 if not ok:
-                    # Adapter nicht verfügbar → explizit auf Simulation wechseln
-                    self.backend = "sim"
+                    # Adapter nicht verfügbar → Host-API probieren, sonst sim
+                    self.backend = "host" if self._host_scan() else "sim"
                     self._audit(self.role, "ble_scan_fallback",
-                                "Kein BLE-Adapter gefunden – Simulationsmodus aktiv")
+                                f"Backend-Wechsel: {self.backend}")
+            elif self.backend == "host":
+                if not self._host_scan():
+                    self.backend = "sim"
+                    self._audit(self.role, "ble_scan_fallback", "Host nicht erreichbar – sim")
             else:
                 with self._lock:
                     for d in self.devices:
@@ -347,6 +398,22 @@ class BleSuite:
             return f"❌ Maximal {MAX_CONNECTIONS} parallele Verbindungen."
         if not self.can("connect"):
             return "⛔ Zugriff verweigert: Rolle Service (L2) erforderlich."
+        # Host-Backend: echte ATT-Session über die Host-API
+        if self.backend == "host" and device.get("real"):
+            try:
+                from .api_client import APIClient
+                data = APIClient._safe(
+                    APIClient._request, "POST",
+                    f"/api/ble/devices/{device_id}/connect", {"action": "connect"})
+                if data and data.get("ok"):
+                    device["connected"] = True
+                    self.connected_ids.append(device_id)
+                    self._audit(user, "ble_connect",
+                                f"{device['name']} verbunden (Host-API, ATT)")
+                    return f"🔗 {device['name']} verbunden (Host-API: {data.get('message', 'ok')})."
+                return f"❌ Host-Verbindung fehlgeschlagen: {data}"
+            except Exception as exc:  # noqa: BLE001
+                return f"❌ Host-Verbindung fehlgeschlagen: {exc}"
         # Echte Hardware (bleak): Verbindung tatsächlich aufbauen
         if device.get("real") and BLEAK_AVAILABLE and BleakClient is not None:
             try:
@@ -391,7 +458,7 @@ class BleSuite:
             ]),
             GattService("0000180f", "Battery Service", [
                 GattCharacteristic("00002a19", "Battery Level", ["read", "notify"],
-                                   f"{device['battery'] if device else 80:02X}"),
+                                   f"{(device.get('battery') or 80) if device else 80:02X}"),
             ]),
         ]
         if device and device["device_class"] == "ntag":
@@ -414,6 +481,18 @@ class BleSuite:
         if not device:
             return "❌ Gerät nicht gefunden."
         clean = "".join(c for c in value_hex if c in "0123456789abcdefABCDEF") or "00"
+        # Host-Backend: echter ATT-Write über die Host-API
+        if self.backend == "host" and device.get("real"):
+            try:
+                from .api_client import APIClient
+                data = APIClient.write_gatt(device_id, uuid, clean)
+                if data and data.get("ok"):
+                    self._audit(user, "gatt_write",
+                                f"{device['name']} → 0x{clean.upper()} (Host-API)")
+                    return f"✍️ {device['name']}: 0x{clean.upper()} geschrieben (Host-API)."
+                return f"❌ Host-GATT-Write fehlgeschlagen: {data}"
+            except Exception as exc:  # noqa: BLE001
+                return f"❌ Host-GATT-Write fehlgeschlagen: {exc}"
         # Echte Hardware: an das verbundene BleakClient schreiben
         client = self._clients.get(device_id)
         if client is not None:
@@ -434,6 +513,18 @@ class BleSuite:
             return "⛔ Zugriff verweigert: Rolle Service (L2) erforderlich."
         client = self._clients.get(device_id)
         device = next((d for d in self.devices if d["id"] == device_id), None)
+        if self.backend == "host" and device and device.get("real"):
+            try:
+                from .api_client import APIClient
+                data = APIClient.read_gatt(device_id, uuid)
+                if data and data.get("ok"):
+                    self._audit(user, "gatt_read",
+                                f"{device['name']} → {uuid} = 0x{data.get('value', '')} (Host-API)")
+                    return (f"📖 {device['name']} · {uuid}\n"
+                            f"Hex: {data.get('hex', '?')} (Host-API, echte ATT-Transaktion)")
+                return f"❌ Host-GATT-Read fehlgeschlagen: {data}"
+            except Exception as exc:  # noqa: BLE001
+                return f"❌ Host-GATT-Read fehlgeschlagen: {exc}"
         if client is None or device is None:
             return "❌ Gerät nicht (echt) verbunden – zuerst verbinden."
         try:

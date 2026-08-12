@@ -14,8 +14,50 @@ BLE Professional Suite:
 ## Start
 
 ```bash
-pip install -r host/requirements.txt        # flask, websockets, PyJWT (+ optional bleak)
+pip install -r host/requirements.txt        # flask, websockets, PyJWT, paramiko (+ optional bleak)
 python3 -m host.main
+```
+
+Beim Start werden automatisch gestartet:
+
+| Dienst | Zweck |
+|---|---|
+| **BLE-Backend** | bleak (echte Hardware) ODER `host/virtual_ble.py` – protokollkorrekter ATT/GATT-Stapel über TCP (echte AD-Bytes, deterministisches RSSI, echter Frame-Capture). **Keine Zufallswerte.** |
+| **SSH-Server** (`:2222`) | echter userspace-SSH-Server (paramiko) – Passwort-Auth gegen Demo-User; Terminal-Bridge `kind=network` |
+| **REST** `:5000` + **WS** `:8765–8767` | API, Terminal-Bridge, Discovery, Status |
+
+## Virtuelle Peripherals (echte GATT-Server)
+
+```bash
+# Erzeugen (echter ATT-Server über TCP)
+curl -X POST http://localhost:5000/api/ble/virtual \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"NTag-Virt","deviceClass":"ntag","distanceM":2.0}'
+
+# Scan (echte AD-Bytes geparst + Path-Loss-RSSI)
+curl -X POST http://localhost:5000/api/ble/scan -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"action":"start"}'
+
+# Verbinden + GATT lesen/schreiben (echte ATT-Transaktionen)
+curl -X POST http://localhost:5000/api/ble/devices/virt-001/connect \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"action":"connect"}'
+curl http://localhost:5000/api/ble/devices/virt-001/gatt/0000fea2-0000-1000-8000-00805f9b34fb/read \
+  -H "Authorization: Bearer $TOKEN"
+
+# Sniffer: echte ATT-Frames
+curl http://localhost:5000/api/ble/sniffer -H "Authorization: Bearer $TOKEN"
+
+# Test-Suiten mit echten Messungen
+curl -X POST http://localhost:5000/api/ble/tests/performance/run \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## SSH-Terminal
+
+```bash
+# Terminal-Bridge mit echtem SSH (lokaler Demo-SSH-Server :2222)
+# Web: Access Console → Ziel 'network' → localhost:2222:developer:dev123
+wscat -c "ws://localhost:8765?token=$TOKEN&kind=network&target=localhost:2222:developer:dev123"
 ```
 
 ## API-Kurzreferenz

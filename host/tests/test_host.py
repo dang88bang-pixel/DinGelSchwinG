@@ -218,3 +218,98 @@ class TestTerminalSession(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVirtualBle(unittest.TestCase):
+    """Protokollkorrekte Emulation: echter ATT/GATT über TCP, keine Zufälle."""
+
+    def setUp(self) -> None:
+        from host import ble_service
+        self.host = ble_service.ble_host
+        self.host.backend = "virtual"  # Determinismus erzwingen
+
+    def test_spawn_scan_connect_gatt(self) -> None:
+        # Virtuelles Peripheral erzeugen (echter GATT-Server)
+        dev = self.host.spawn_virtual("Test-Virt", "token", 3.0)
+        self.assertTrue(dev["real"])
+        self.assertIn("virt-", dev["id"])
+        # Scan liefert geparste AD-Bytes + deterministisches RSSI
+        scan = self.host.scan(1)
+        self.assertEqual(scan["backend"], "virtual")
+        found = next((d for d in scan["devices"] if d["id"] == dev["id"]), None)
+        self.assertIsNotNone(found)
+        self.assertLess(found["rssi"], 0)  # Path-Loss-Modell
+        # Echte ATT-Session
+        res = self.host.connect(dev["id"], "developer")
+        self.assertTrue(res["ok"], res)
+        self.assertIn("ATT", res["message"])
+        # GATT-Discovery + echter Read
+        services = self.host.gatt_services(dev["id"])
+        self.assertGreaterEqual(len(services), 1)
+        chars = [c for s in services for c in s["characteristics"]]
+        rch = next(c for c in chars if "read" in c["properties"])
+        rd = self.host.gatt_read(dev["id"], rch["uuid"], "developer")
+        self.assertTrue(rd["ok"], rd)
+        self.assertEqual(rd["backend"], "virtual")
+        # Write-Roundtrip (echte ATT-Transaktion)
+        wch = next(c for c in chars if "write" in c["properties"])
+        wr = self.host.gatt_write(dev["id"], wch["uuid"], "BEEF", "developer")
+        self.assertTrue(wr["ok"], wr)
+        self.host.disconnect(dev["id"], "developer")
+        self.host.remove_virtual(dev["id"])
+
+    def test_sniffer_captures_real_frames(self) -> None:
+        dev = self.host.spawn_virtual("Sniff-Virt", "ntag", 2.0)
+        self.host.connect(dev["id"], "developer")
+        frames = self.host.sniffer_frames()
+        self.assertGreaterEqual(len(frames), 4)
+        opcodes = {f["opcode"] for f in frames}
+        self.assertTrue(opcodes & {0x02, 0x03, 0x10, 0x11, 0x12, 0x13},
+                        f"erwartete ATT-Opcodes, bekam {sorted(opcodes)}")
+        self.host.disconnect(dev["id"], "developer")
+        self.host.remove_virtual(dev["id"])
+
+    def test_test_suite_real_measurements(self) -> None:
+        dev = self.host.spawn_virtual("Suite-Virt", "token", 3.0)
+        self.host.connect(dev["id"], "developer")
+        res = self.host.run_suite("token", "developer")
+        self.assertTrue(res["ok"])
+        results = res["results"]
+        self.assertIn("PASS", str(results["GATT-Read"]))
+        self.assertIn("PASS", str(results["Write-Roundtrip"]))
+        perf = self.host.run_suite("performance", "developer")
+        self.assertTrue(perf["ok"])
+        self.assertIn("KB/s", str(perf["results"].get("Durchsatz (30×244 B)", "")))
+        self.host.disconnect(dev["id"], "developer")
+        self.host.remove_virtual(dev["id"])
+
+    def test_backend_label_no_fake(self) -> None:
+        label = self.host.backend_label()
+        self.assertIn("kein Zufall", label)
+
+
+class TestSshServer(unittest.TestCase):
+    """Echter userspace-SSH-Server (paramiko)."""
+
+    def test_exec_and_shell(self) -> None:
+        from host.ssh_server import ssh_server
+        ssh_server.start()
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect("127.0.0.1", port=2222, username="developer",
+                       password="dev123", timeout=8)
+        _in, out, _err = client.exec_command("echo SSH-TEST-UNIT", timeout=10)
+        self.assertIn("SSH-TEST-UNIT", out.read().decode())
+        client.close()
+
+    def test_wrong_password(self) -> None:
+        from host.ssh_server import ssh_server
+        ssh_server.start()
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        with self.assertRaises(Exception):
+            client.connect("127.0.0.1", port=2222, username="developer",
+                           password="falsch", timeout=6)
+        client.close()

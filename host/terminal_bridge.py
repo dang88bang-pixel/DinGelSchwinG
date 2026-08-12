@@ -84,8 +84,16 @@ class TerminalSession:
         return True, ""
 
     def _open_ssh(self) -> tuple[bool, str]:
-        """SSH-Session via paramiko (optional) oder OpenSSH-Client."""
-        host, _, port = self.target.partition(":")
+        """Echte SSH-Session via paramiko.
+
+        Ziel-Format: "host:port:user:passwort" (lokaler Demo-SSH-Server
+        host/ssh_server.py) oder "host:port" mit Key-/Default-Auth.
+        """
+        parts = self.target.split(":")
+        host = parts[0]
+        port = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 22
+        username = parts[2] if len(parts) > 2 and parts[2] else self.target_user
+        password = parts[3] if len(parts) > 3 else None
         try:
             import paramiko  # type: ignore
         except ImportError:
@@ -94,12 +102,20 @@ class TerminalSession:
         self._ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             key_path = os.path.expanduser("~/.ssh/id_rsa")
-            self._ssh.connect(
-                host, port=int(port or 22),
-                username=self.target_user,
-                key_filename=key_path if os.path.isfile(key_path) else None,
-                timeout=10,
-            )
+            connect_kwargs = {
+                "hostname": host,
+                "port": port,
+                "username": username,
+                "timeout": 10,
+                "allow_agent": True,
+            }
+            if password:
+                connect_kwargs["password"] = password
+                connect_kwargs["look_for_keys"] = False
+            else:
+                connect_kwargs["key_filename"] = (
+                    key_path if os.path.isfile(key_path) else None)
+            self._ssh.connect(**connect_kwargs)
         except Exception as exc:  # noqa: BLE001
             return False, f"{FEHLERCODE_GENERIC}: SSH-Verbindung fehlgeschlagen: {exc}"
         self._ssh_chan = self._ssh.get_transport().open_session()

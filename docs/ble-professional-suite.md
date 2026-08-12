@@ -208,18 +208,23 @@ schlägt bei Abweichungen Maßnahmen vor.
 
 ## 8. Produktiver Betrieb (Roadmap)
 
-### 8.0 Aktive Hardware statt Simulation
+### 8.0 Aktive Hardware & protokollkorrekte Emulation (keine Mocks)
 
-- **Web-App:** Die Suite nutzt ab sofort die **Web-Bluetooth-API** für echte
-  Hardware (Chromium/Edge auf Windows/macOS/Android, HTTPS): Gerätewahl-Dialog,
-  GATT-Connect, Live-RSSI, echtes GATT-Read/Write/Notify im GATT-Explorer
-  („Live-Modus“). Ohne Web-Bluetooth-fähigen Browser bleibt der SuiteStore als
-  klar gekennzeichneter Offline-Fallback aktiv (`src/lib/ble/webBluetooth.ts`).
-- **Desktop-Konsole:** Echter BLE-Scan/Verbindung/GATT über **bleak**
-  (`pip install bleak`); ohne Adapter wechselt der Store explizit in den
-  Simulationsmodus (`desktop/utils/ble_suite.py`).
-- **Mobile-App:** bereits vollständig hardware-basiert (flutter_blue_plus,
-  nRF Mesh SDK, local_auth).
+| Ebene | Aktiv-Betrieb | Ohne Hardware (Alternative statt Simulation) |
+|---|---|---|
+| **Web-App** | **Web-Bluetooth-API** (Chromium/Edge, HTTPS): Gerätewahl-Dialog, GATT-Connect, Live-RSSI, echtes GATT-Read/Write/Notify | Host-API (`/api/ble/*`): protokollkorrekter ATT-Stapel des Hosts |
+| **Desktop-Konsole** | **bleak** (echte Hardware) | Backend `host`: echte ATT-Operationen über die Host-API (`desktop/utils/ble_suite.py`) |
+| **Host** | **bleak** (echte Hardware) | **`host/virtual_ble.py`**: echter BLE-Stapel im Userspace – ATT/GATT-PDUs (Bluetooth Core Spec Vol. 3 Part F) über TCP, echte AD-Bytes, deterministisches Path-Loss-RSSI, realer Frame-Capture (Sniffer), echte Durchsatz-/Latenz-Messungen. **Keine Zufallswerte.** |
+| **Terminal** | Lokale PTY (real) + **echter SSH-Server** (`host/ssh_server.py`, paramiko-Userspace, :2222) | – |
+| **Mobile-App** | flutter_blue_plus, nRF Mesh SDK, local_auth (echte Hardware) | – |
+
+Damit sind alle Funktionen (Scan, Verbindung, GATT, Notifications, Test-Suiten,
+Sniffer, Peripherals, Terminal) in jeder Umgebung aktiv – ohne Mocks:
+- **Sniffer** zeigt echte ATT-PDUs (Opcodes 0x02/0x03/0x08/0x0c/0x10/0x12/0x1b …)
+  aus dem realen Frame-Capture.
+- **Test-Suiten** messen real (z. B. Durchsatz @ MTU 247 → KB/s, Latenz → ms)
+  oder melden SKIP mit Grund – nie Zufallsergebnisse.
+- **Peripherals** sind echte GATT-Server (ATT über TCP) auf dem Host.
 
 ### 8.1 Native Flutter-App (Feldtests, Android/iOS)
 

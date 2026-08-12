@@ -130,6 +130,14 @@ def ble_gatt(device_id: str):
     })
 
 
+@api.get("/ble/devices/<device_id>/gatt/<uuid>/read")
+@auth.auth_required
+def ble_gatt_read(device_id: str, uuid: str):
+    res = ble_service.ble_host.gatt_read(device_id, uuid, g.role)
+    audit.audit.log(g.user, g.role, "ble.gatt_read", f"{device_id} {uuid}")
+    return jsonify(res), 200 if res.get("ok") else 400
+
+
 @api.put("/ble/devices/<device_id>/gatt/<uuid>")
 @auth.auth_required
 def ble_gatt_write(device_id: str, uuid: str):
@@ -152,6 +160,58 @@ def ble_test_run(suite_id: str):
 @auth.auth_required
 def ble_profiles():
     return jsonify(ble_service.ble_host.profiles())
+
+
+# ----------------------------------------------------------------------
+# Virtuelle Peripherals (echte GATT-Server) + Sniffer (echter Frame-Capture)
+# ----------------------------------------------------------------------
+@api.get("/ble/virtual")
+@auth.auth_required
+def ble_virtual_list():
+    ok, msg = rbac.require_action(g.role, "ble_simulate")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    return jsonify(ble_service.ble_host.list_virtual())
+
+
+@api.post("/ble/virtual")
+@auth.auth_required
+def ble_virtual_spawn():
+    ok, msg = rbac.require_action(g.role, "ble_simulate")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name") or "Virt-Device")
+    device_class = str(data.get("deviceClass") or "token")
+    distance = float(data.get("distanceM", 3.0))
+    device = ble_service.ble_host.spawn_virtual(name, device_class, distance)
+    audit.audit.log(g.user, g.role, "ble.virtual_spawn",
+                    f"{name} ({device_class}) – echter ATT-GATT-Server")
+    return jsonify(device), 201
+
+
+@api.delete("/ble/virtual/<device_id>")
+@auth.auth_required
+def ble_virtual_remove(device_id: str):
+    removed = ble_service.ble_host.remove_virtual(device_id)
+    return jsonify({"ok": removed}), 200 if removed else 404
+
+
+@api.get("/ble/sniffer")
+@auth.auth_required
+def ble_sniffer():
+    ok, msg = rbac.require_action(g.role, "ble_sniffer")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    limit = int(request.args.get("limit", 60))
+    return jsonify(ble_service.ble_host.sniffer_frames(limit))
+
+
+@api.post("/ble/sniffer/clear")
+@auth.auth_required
+def ble_sniffer_clear():
+    ble_service.ble_host.clear_sniffer()
+    return jsonify({"ok": True})
 
 
 # ----------------------------------------------------------------------

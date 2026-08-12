@@ -13,7 +13,7 @@ import time
 
 from flask import Flask
 
-from . import audit, config, scanner, status
+from . import audit, ble_service, config, scanner, ssh_server, status, virtual_ble
 from .api_routes import api
 from .terminal_bridge import (FEHLERCODE_DONGLE, FEHLERCODE_RBAC,
                               TerminalSession)
@@ -213,11 +213,14 @@ def start_ws_servers() -> None:
 def main() -> None:
     audit.audit.log("system", "system", "host.start", "Host-Backend startet")
     scanner.scanner.start()
+    virtual_ble.virtual_ble.start()          # protokollkorrekter BLE-Stapel
+    ssh_server.ssh_server.start()            # echter userspace-SSH-Server :2222
     start_ws_servers()
     app = create_app()
     print(f"NEXUS-BLE-Host: REST :{config.REST_PORT} | WS Terminal "
           f":{config.WS_TERMINAL_PORT} | Discovery :{config.WS_DISCOVERY_PORT} "
-          f"| Status :{config.WS_STATUS_PORT}")
+          f"| Status :{config.WS_STATUS_PORT} | SSH :2222 | "
+          f"BLE-Backend: {ble_service.ble_host.backend_label()}")
     app.run(host=config.REST_HOST, port=config.REST_PORT, threaded=True)
 
 
