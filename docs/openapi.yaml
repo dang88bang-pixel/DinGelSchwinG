@@ -1,0 +1,529 @@
+openapi: 3.0.3
+info:
+  title: DinGelSchwinG / NEXUS-BUILDER Backend-API
+  version: "2.2"
+  description: |
+    REST-Oberfläche des Server-Backends (Architektur gemäß README v2.2).
+    Zusätzlich existieren WebSocket-Kanäle (Terminal, Discovery, Live-Status),
+    dokumentiert in [api-websockets.md](./api-websockets.md).
+
+    **Rollenhierarchie:** `guest(0) < operator(1) < service(2) < developer(3)
+    < expert(4) < emergency(5)` — jede Operation trägt die Mindestrolle als
+    `x-rbac`. Durchsetzung ausschließlich serverseitig.
+
+    Kritische Aktionen (`device.delete`, `pairing.delete`, `client.server`,
+    `client.kick`) verlangen zusätzlich eine WebAuthn-Assertion
+    (`X-WebAuthn-Token`, siehe `/api/webauthn/*`).
+
+tags:
+  - name: auth
+  - name: devices
+  - name: pairings
+  - name: clients
+  - name: audit
+  - name: webauthn
+  - name: console
+
+servers:
+  - url: http://localhost:5000
+    description: Entwicklung (direkt)
+  - url: https://yourdomain.com
+    description: Produktion (via NGINX-Reverse-Proxy, /api)
+
+paths:
+  /api/health:
+    get:
+      tags: [auth]
+      summary: Health-Check (Proxy/Monitoring)
+      x-rbac: guest
+      responses:
+        "200":
+          description: Dienst lebt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+        "405": { $ref: "#/components/responses/JsonError" }
+
+  /api/login:
+    post:
+      tags: [auth]
+      summary: Login → JWT ausstellen
+      x-rbac: guest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: JWT (Claims sub/role/iat/exp)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  role: { $ref: "#/components/schemas/Role" }
+        "400": { $ref: "#/components/responses/JsonError" }
+        "401": { $ref: "#/components/responses/JsonError" }
+        "429": { $ref: "#/components/responses/JsonError" }
+
+  /api/devices:
+    get:
+      tags: [devices]
+      summary: Geräte auflisten (rechtegefiltert, inkl. permissions)
+      x-rbac: operator
+      responses:
+        "200":
+          description: Geräteliste
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Device" }
+        "401": { $ref: "#/components/responses/JsonError" }
+        "403": { $ref: "#/components/responses/JsonError" }
+    post:
+      tags: [devices]
+      summary: Gerät binden (write; BLE/NTag/Netzwerk ab developer)
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, kind]
+              properties:
+                id: { type: string }
+                kind:
+                  type: string
+                  enum: [hardware, dongle, ble_token, ntag, network]
+                label: { type: string }
+      responses:
+        "201":
+          description: Gebunden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Device" }
+        "400": { $ref: "#/components/responses/JsonError" }
+        "403": { $ref: "#/components/responses/JsonError" }
+
+  /api/devices/{id}:
+    patch:
+      tags: [devices]
+      summary: Gerät ändern (Label)
+      x-rbac: service
+      parameters: [{ $ref: "#/components/parameters/DeviceId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string }
+      responses:
+        "200":
+          description: Aktualisiert
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Device" }
+        "404": { $ref: "#/components/responses/JsonError" }
+    delete:
+      tags: [devices]
+      summary: Gerät löschen/unbinden (⚠️ WebAuthn-Pflicht)
+      x-rbac: service
+      parameters:
+        - { $ref: "#/components/parameters/DeviceId" }
+        - { $ref: "#/components/parameters/WebAuthnToken" }
+      responses:
+        "204": { description: Gelöscht }
+        "403": { $ref: "#/components/responses/JsonError" }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/pairings:
+    get:
+      tags: [pairings]
+      summary: Pairings auflisten
+      x-rbac: operator
+      responses:
+        "200":
+          description: Pairing-Liste
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Pairing" }
+    post:
+      tags: [pairings]
+      summary: Pairing erstellen (write auf alle Mitglieds-Ressourcen nötig)
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, deviceIds]
+              properties:
+                name: { type: string }
+                deviceIds:
+                  type: array
+                  items: { type: string }
+                  minItems: 1
+      responses:
+        "201":
+          description: Erstellt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Pairing" }
+        "400": { $ref: "#/components/responses/JsonError" }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/pairings/{pid}:
+    delete:
+      tags: [pairings]
+      summary: Pairing löschen (⚠️ WebAuthn-Pflicht)
+      x-rbac: service
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: "#/components/parameters/WebAuthnToken" }
+      responses:
+        "204": { description: Gelöscht }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/pairings/{pid}/devices:
+    post:
+      tags: [pairings]
+      summary: Gerät zum Pairing hinzufügen
+      x-rbac: service
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId]
+              properties:
+                deviceId: { type: string }
+      responses:
+        "200": { description: Hinzugefügt }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/pairings/{pid}/devices/{id}:
+    delete:
+      tags: [pairings]
+      summary: Gerät aus Pairing entfernen
+      x-rbac: service
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: "#/components/parameters/DeviceId" }
+      responses:
+        "200": { description: Entfernt }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/pairings/{pid}/sync:
+    post:
+      tags: [pairings]
+      summary: Sync auslösen (idempotent via Zeitstempel)
+      x-rbac: service
+      parameters:
+        - name: pid
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Sync-Ergebnis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  synced: { type: boolean }
+                  ts: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/clients:
+    get:
+      tags: [clients]
+      summary: Clients auflisten
+      x-rbac: operator
+      responses:
+        "200":
+          description: Client-Liste
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Client" }
+
+  /api/clients/{id}:
+    delete:
+      tags: [clients]
+      summary: Client abmelden / kick (⚠️ WebAuthn-Pflicht)
+      x-rbac: service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: "#/components/parameters/WebAuthnToken" }
+      responses:
+        "204": { description: Abgemeldet }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/clients/register:
+    post:
+      tags: [clients]
+      summary: Client registrieren + Heartbeat (REST-Registry)
+      x-rbac: operator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId]
+              properties:
+                clientId: { type: string }
+                device: { type: string }
+      responses:
+        "200": { description: Registriert }
+
+  /api/clients/{id}/server:
+    patch:
+      tags: [clients]
+      summary: Client als Server markieren (⚠️ WebAuthn-Pflicht)
+      x-rbac: service
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: "#/components/parameters/WebAuthnToken" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode: { type: string, enum: [client, server] }
+      responses:
+        "200": { description: Gesetzt }
+        "404": { $ref: "#/components/responses/JsonError" }
+
+  /api/audit:
+    get:
+      tags: [audit]
+      summary: Audit-Trail abfragen (trace-Ketten)
+      x-rbac: service
+      parameters:
+        - name: trace_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Audit-Einträge (Append-only, mit trace_id + step)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditEntry" }
+
+  /api/webauthn/challenge:
+    post:
+      tags: [webauthn]
+      summary: FIDO2-Challenge anfordern
+      x-rbac: service
+      responses:
+        "200":
+          description: Challenge für Kritische Aktion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge: { type: string }
+                  rpId: { type: string }
+
+  /api/webauthn/assert:
+    post:
+      tags: [webauthn]
+      summary: Assertion prüfen → einmaliges X-WebAuthn-Token
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credentialId: { type: string }
+                clientDataJSON: { type: string }
+                authenticatorData: { type: string }
+                signature: { type: string }
+      responses:
+        "200":
+          description: Einmal-Grant (Replay-geschützt)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  grant: { type: string }
+
+  /api/devices-status:
+    get:
+      tags: [console]
+      summary: (Desktop-Konsole) Geräte-Statusübersicht
+      x-rbac: operator
+      responses:
+        "200":
+          description: Statusliste (Mock-Fähig, Desktop-App nutzt localhost:5000)
+
+  /api/workflows:
+    get:
+      tags: [console]
+      summary: (Desktop-Konsole) Workflows auflisten
+      x-rbac: operator
+      responses:
+        "200": { description: Workflow-Liste }
+
+  /api/tests:
+    get:
+      tags: [console]
+      summary: (Desktop-Konsole) Testverbindungen auflisten
+      x-rbac: operator
+      responses:
+        "200": { description: Testliste }
+
+  /api/system:
+    get:
+      tags: [console]
+      summary: (Desktop-Konsole) Systemlast/Systeminfo
+      x-rbac: operator
+      responses:
+        "200": { description: Systeminfo }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    DeviceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    WebAuthnToken:
+      name: X-WebAuthn-Token
+      in: header
+      required: true
+      description: Einmal-Grant aus /api/webauthn/assert (Replay-geschützt)
+      schema: { type: string }
+
+  responses:
+    JsonError:
+      description: Strukturierter Fehler (keine Interna)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Role:
+      type: string
+      enum: [guest, operator, service, developer, expert, emergency]
+
+    Error:
+      type: object
+      properties:
+        type: { type: string, example: error }
+        code:
+          type: string
+          example: RBAC_DENIED
+          description: u. a. RBAC_DENIED, DONGLE_MISSING, TERMINAL_SESSION_TIMEOUT
+        message: { type: string }
+
+    Device:
+      type: object
+      properties:
+        id: { type: string }
+        kind:
+          type: string
+          enum: [hardware, dongle, ble_token, ntag, network]
+        label: { type: string }
+        online: { type: boolean }
+        autoBindable: { type: boolean }
+        usbVendorId: { type: string, example: "0x2341" }
+        usbProductId: { type: string }
+        signal:
+          type: object
+          properties:
+            rssi: { type: integer }
+        permissions:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string, enum: [read, write, update, delete] }
+
+    Pairing:
+      type: object
+      properties:
+        pid: { type: string }
+        name: { type: string }
+        deviceIds:
+          type: array
+          items: { type: string }
+        lastSync: { type: string, format: date-time }
+
+    Client:
+      type: object
+      properties:
+        id: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        device: { type: string }
+        mode: { type: string, enum: [client, server] }
+        online: { type: boolean }
+        lastSeen: { type: string, format: date-time }
+
+    AuditEntry:
+      type: object
+      properties:
+        ts: { type: string, format: date-time }
+        trace_id: { type: string }
+        step:
+          type: string
+          example: device.bind
+          description: "Kette: trace.start → auth.login → device.bind …"
+        actor_role: { $ref: "#/components/schemas/Role" }
+        outcome: { type: string, enum: [ok, denied, error] }
+
+security:
+  - bearerAuth: []

@@ -22,6 +22,24 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 
 ---
 
+## 📚 Ergänzende Dokumentation
+
+| Dokument | Inhalt |
+|---|---|
+| [`docs/hardware-setup.md`](docs/hardware-setup.md) | Produktives Hardware-Setup: USB-C-Dongles (VID/PID-Whitelist, udev), PTY-Bridge ohne `cat`-Stub (seriell/socat/SSH), SSH-Key-Handling, BLE-Scan an Linux-Hosts |
+| [`docs/production-backend.md`](docs/production-backend.md) | Produktionshärtung: PostgreSQL via SQLAlchemy, Passwort-Hashes (argon2), WebAuthn-Credential-DB, LDAP & OAuth2/OIDC |
+| [`docs/openapi.yaml`](docs/openapi.yaml) | OpenAPI 3.0-Spezifikation der REST-API (inkl. `x-rbac`-Mindestrollen je Endpunkt) |
+| [`docs/api-websockets.md`](docs/api-websockets.md) | WebSocket-Protokolle: Terminal (:8765), Discovery (:8766), Live-Status (:8767), Desktop-Konsole |
+| [`docs/monitoring.md`](docs/monitoring.md) | Mitgelieferter Monitoring-Stack: Prometheus, Loki, Grafana-Dashboard, Slack-Alerting |
+| [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
+| [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
+| [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
+
+Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,
+Offline-Anzeige) — Details in [`public/sw.js`](public/sw.js).
+
+---
+
 ## 📋 Inhaltsverzeichnis
 
 - [1️⃣ Kontext-Analyse](#1️⃣-kontext-analyse)
