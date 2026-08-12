@@ -48,8 +48,7 @@ jobs:
 
       - name: Sync Capacitor
         run: npx cap sync android
-
-           - name: Prepare release keystore (if secrets provided)
+      - name: Prepare release keystore (if secrets provided)
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
