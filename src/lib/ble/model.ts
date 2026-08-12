@@ -1,49 +1,20 @@
 /**
- * Mock-Katalog der BLE Professional Suite – Simulation ohne echte Hardware.
+ * Datenmodelle der BLE Professional Suite (keine Simulations-Geräte).
  *
- * Die Daten bilden die Geräteklassen (NTag Smart Tracker, BLE-Token,
- * Mesh-Knoten, Peripherie), GATT-Profile, Test-Suiten und Konfigurationsprofile
- * ab, die der produktive Scanner/GATT-Dienst später über WS :8766 liefert.
- * Die Klassifizierungs-Heuristik lebt in `src/lib/ble/suiteStore.ts`.
+ * Enthält nur statische Definitionen, die keine erfundenen Geräte darstellen:
+ * - UUID-Bibliothek für GATT-Beschriftungen
+ * - buildGattProfile(): Standard-GATT-Profil-Aufbau (Basis-UUIDs, Service-Schemata)
+ * - Standard-Konfigurationsprofile und Test-Suite-Definitionen (Abläufe, keine Ergebnisse)
+ * - Dongle-Identität (nRF52840 – echtes Produkt)
+ *
+ * Die Geräteliste selbst enthält KEINE Mock-Geräte mehr – sie wird über den
+ * Host-Import (/api/ble/*), Web Bluetooth oder die protokollkorrekte Emulation
+ * (host/virtual_ble.py) gefüllt.
  */
 import {
-  BleDeviceClass, BleProfile, GattProfile, MeshNetwork, TestSuite,
-} from '../lib/ble/types';
+  BleDeviceClass, BleProfile, GattProfile, TestSuite,
+} from './types';
 
-export interface BleCatalogEntry {
-  name: string;
-  address: string;
-  rssi: number;
-  txPower: number;
-  manufacturer: string;
-  serviceUuids: string[];
-  deviceClass: BleDeviceClass;
-  connectable: boolean;
-  battery?: number;
-  provisioned?: boolean;
-}
-
-export const BLE_CATALOG: BleCatalogEntry[] = [
-  // 1. NTag Smart Tracker (NFC/BLE-Kombigeräte)
-  { name: 'NTag-Tracker-Büro3-01', address: 'D8:3A:DD:12:4F:01', rssi: -58, txPower: -59, manufacturer: 'NXP Semiconductors', serviceUuids: ['0000180a-0000-1000-8000-00805f9b34fb', '0000fea9-0000-1000-8000-00805f9b34fb'], deviceClass: 'ntag', connectable: true, battery: 87 },
-  { name: 'NTag-Tracker-Lager-07', address: 'D8:3A:DD:77:0B:2C', rssi: -71, txPower: -59, manufacturer: 'NXP Semiconductors', serviceUuids: ['0000180a-0000-1000-8000-00805f9b34fb', '0000fea9-0000-1000-8000-00805f9b34fb'], deviceClass: 'ntag', connectable: true, battery: 64 },
-  { name: 'NTag-Tracker-Pool-12', address: 'D8:3A:DD:9E:21:88', rssi: -83, txPower: -59, manufacturer: 'NXP Semiconductors', serviceUuids: ['0000180a-0000-1000-8000-00805f9b34fb'], deviceClass: 'ntag', connectable: true, battery: 41 },
-  // 2. BLE-Token (Beacons, Sensoren, Aktoren)
-  { name: 'TempSensor-Eingang', address: 'A4:C1:38:5E:0A:11', rssi: -63, txPower: -64, manufacturer: 'Nordic Semiconductor', serviceUuids: ['0000180f-0000-1000-8000-00805f9b34fb'], deviceClass: 'token', connectable: true, battery: 92 },
-  { name: 'Beacon-White-Light', address: 'F0:08:D1:3B:44:9A', rssi: -77, txPower: -59, manufacturer: 'Silicon Labs', serviceUuids: ['0000feaa-0000-1000-8000-00805f9b34fb'], deviceClass: 'token', connectable: false },
-  { name: 'Ventilaktor-Modul-3', address: 'C4:7C:8D:2F:60:05', rssi: -69, txPower: -59, manufacturer: 'Texas Instruments', serviceUuids: ['0000180f-0000-1000-8000-00805f9b34fb', '00001812-0000-1000-8000-00805f9b34fb'], deviceClass: 'token', connectable: true, battery: 78 },
-  // 3. BLE Mesh-Knoten (provisioniert / nicht provisioniert)
-  { name: 'Mesh-Relay-Raum1', address: 'CC:78:AB:10:22:01', rssi: -54, txPower: -59, manufacturer: 'Nordic Semiconductor', serviceUuids: ['00001827-0000-1000-8000-00805f9b34fb'], deviceClass: 'mesh', connectable: true, battery: 96, provisioned: true },
-  { name: 'Mesh-Proxy-Gang', address: 'CC:78:AB:10:22:0F', rssi: -61, txPower: -59, manufacturer: 'Nordic Semiconductor', serviceUuids: ['00001827-0000-1000-8000-00805f9b34fb'], deviceClass: 'mesh', connectable: true, battery: 71, provisioned: true },
-  { name: 'Mesh-Roh-Knoten-01', address: 'E8:F1:B0:41:9D:3C', rssi: -66, txPower: -59, manufacturer: 'Espressif', serviceUuids: ['00001827-0000-1000-8000-00805f9b34fb'], deviceClass: 'mesh', connectable: true, battery: 55, provisioned: false },
-  { name: 'Mesh-Roh-Knoten-02', address: 'E8:F1:B0:41:9D:4E', rssi: -72, txPower: -59, manufacturer: 'Espressif', serviceUuids: ['00001827-0000-1000-8000-00805f9b34fb'], deviceClass: 'mesh', connectable: true, battery: 49, provisioned: false },
-  // 4. Allgemeine BLE-Peripherie
-  { name: 'SmartWatch-User1', address: '70:8E:EE:2A:1B:C4', rssi: -79, txPower: -59, manufacturer: 'Garmin', serviceUuids: ['0000180d-0000-1000-8000-00805f9b34fb', '0000180f-0000-1000-8000-00805f9b34fb'], deviceClass: 'peripheral', connectable: true, battery: 33 },
-  { name: 'Tastatur-KB-02', address: '98:D3:31:FB:54:62', rssi: -84, txPower: -59, manufacturer: 'Logitech', serviceUuids: ['00001812-0000-1000-8000-00805f9b34fb'], deviceClass: 'peripheral', connectable: true },
-  { name: 'Fitnessband-GruppeB', address: '50:65:83:1C:AA:77', rssi: -88, txPower: -59, manufacturer: 'Xiaomi', serviceUuids: ['0000180f-0000-1000-8000-00805f9b34fb', '0000181a-0000-1000-8000-00805f9b34fb'], deviceClass: 'peripheral', connectable: true, battery: 58 },
-];
-
-/** UUID-Bibliothek für GATT-Beschriftungen. */
 export const UUID_NAMES: Record<string, string> = {
   '00001800-0000-1000-8000-00805f9b34fb': 'Generic Access',
   '00001801-0000-1000-8000-00805f9b34fb': 'Generic Attribute',
@@ -56,14 +27,6 @@ export const UUID_NAMES: Record<string, string> = {
   '0000feaa-0000-1000-8000-00805f9b34fb': 'Eddystone Config Service',
   '00001827-0000-1000-8000-00805f9b34fb': 'Mesh Provisioning Service',
 };
-
-function svc(uuid: string): string {
-  return UUID_NAMES[uuid] ?? uuid.slice(4, 8).toUpperCase() + '-Service';
-}
-
-function chrc(uuid: string, _name: string): string {
-  return uuid;
-}
 
 /** GATT-Profile je Geräteklasse (deterministisch aufgebaut). */
 export function buildGattProfile(deviceId: string, deviceClass: BleDeviceClass, battery?: number): GattProfile {
@@ -216,21 +179,6 @@ export function buildGattProfile(deviceId: string, deviceClass: BleDeviceClass, 
   return { deviceId, mtu: 23, services };
 }
 
-export const MOCK_MESH_NETWORKS: MeshNetwork[] = [
-  {
-    id: 'mesh-prod-buero3',
-    name: 'Büro 3 – Beleuchtung',
-    netKey: '7dd6de8e1a4d2e5f...',
-    appKey: '9c1f3abf2406d7e8...',
-    ttl: 4,
-    nodes: [
-      { id: 'mn-1', name: 'Mesh-Relay-Raum1', unicast: '0x0001', role: 'relay', rssi: -54, battery: 96, online: true, pub: '0xC001', sub: '0xC001', ttl: 4, models: ['Generic OnOff Server', 'Sensor Server'] },
-      { id: 'mn-2', name: 'Mesh-Proxy-Gang', unicast: '0x0002', role: 'proxy', rssi: -61, battery: 71, online: true, pub: '0xC002', sub: '0xC001', ttl: 4, models: ['Generic OnOff Client', 'Config Client'] },
-    ],
-    provisionedAt: '2026-07-30T10:12:00Z',
-  },
-];
-
 export const MOCK_PROFILES: BleProfile[] = [
   {
     id: 'prof-ntag-batt',
@@ -316,4 +264,3 @@ export const MOCK_DONGLE = {
 };
 
 /** UUID → Kurzname für GATT-Ausgabe (Wert-Anzeigen). */
-export { svc, chrc };

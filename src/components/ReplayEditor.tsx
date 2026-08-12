@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Trash2, Music } from 'lucide-react';
+import { Trash2, Music, RadioTower } from 'lucide-react';
+import { useLiveBle } from '../hooks/useLiveBle';
+import { useDiscovery } from '../hooks/useDiscovery';
+import { getToken } from '../lib/api/client';
 
 export interface SignalPoint {
   t: number; // ms
@@ -11,31 +14,32 @@ export interface SignalPoint {
 export default function ReplayEditor() {
   const [recording, setRecording] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [points, setPoints] = useState<SignalPoint[]>([
-    { t: 0, freqMHz: 2412, rssi: -48, amp: 0.8 },
-    { t: 200, freqMHz: 2437, rssi: -55, amp: 0.65 },
-    { t: 400, freqMHz: 2462, rssi: -70, amp: 0.3 },
-  ]);
+  // Start leer – echte Signalpunkte kommen aus Live-Datenquellen (Host/WebBT).
+  const [points, setPoints] = useState<SignalPoint[]>([]);
+  const { device: liveDevice } = useLiveBle();
+  const hostToken = getToken();
+  const { nodes: hostNodes } = useDiscovery(hostToken, true);
+  const [sourceLabel, setSourceLabel] = useState('keine Quelle');
   const [editedPoints, setEditedPoints] = useState<SignalPoint[]>([]);
   const [playHead, setPlayHead] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Background recording service: adds points every 300ms when recording
+  // Aufnahme: echte Live-Signalwerte (Web-Bluetooth-RSSI bevorzugt, sonst
+  // Host-Discovery-RSSI). Keine Zufallswerte.
   useEffect(() => {
     if (!recording) return;
     const timer = setInterval(() => {
       setPoints(prev => {
         const t = prev.length ? Math.max(...prev.map(p => p.t)) + 300 : 0;
-        return [...prev, {
-          t,
-          freqMHz: 2400 + Math.random() * 100,
-          rssi: -80 + Math.random() * 40,
-          amp: 0.2 + Math.random() * 0.8,
-        }];
+        const rssi = liveDevice?.rssi ?? hostNodes[0]?.signal?.rssi ?? null;
+        if (rssi === null || rssi === undefined) return prev; // keine Quelle → keine Fake-Daten
+        const freqMHz = liveDevice ? 2402 + (prev.length % 40) : 2412;
+        setSourceLabel(liveDevice ? `Web Bluetooth: ${liveDevice.name}` : hostNodes[0]?.label ?? 'Host-Discovery');
+        return [...prev, { t, freqMHz, rssi, amp: Math.max(0.2, 0.8 - (rssi + 90) / 50) }];
       });
     }, 300);
     return () => clearInterval(timer);
-  }, [recording]);
+  }, [recording, liveDevice, hostNodes]);
 
   // Playback timer
   useEffect(() => {
@@ -78,7 +82,11 @@ export default function ReplayEditor() {
     <div className="glass-card p-5 relative overflow-hidden ring-gradient">
       <div className="absolute -top-10 -right-10 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-black text-white flex items-center gap-2"><Music className="w-4 h-4 text-pink-300" /> Replay Editor</h3>
+        <h3 className="text-sm font-black text-white flex items-center gap-2"><Music className="w-4 h-4 text-pink-300" /> Replay Editor
+          <span className="ml-1 flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border border-cyan-700/40 bg-cyan-950/40 text-cyan-300">
+            <RadioTower className="w-3 h-3" /> Live: {sourceLabel}
+          </span>
+        </h3>
         <div className="flex gap-2">
           <button onClick={() => setRecording(!recording)} className={`text-xs font-extrabold px-2.5 py-1 rounded-lg shadow transition ${recording ? 'bg-rose-600 text-white' : 'bg-amber-600 text-white hover:bg-amber-500'}`}>
             {recording ? '● Aufnahme' : '● Aufnehmen'}

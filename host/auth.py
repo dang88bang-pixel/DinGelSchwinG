@@ -12,14 +12,33 @@ from flask import Flask, g, jsonify, request
 
 from . import config, rbac
 
-_USERS = {
-    # Demo-User; Produktion: LDAP/OAuth2 (docs/production-backend.md)
-    "admin": {"password": "admin", "role": "admin"},
-    "developer": {"password": "dev123", "role": "developer"},
-    "service": {"password": "svc123", "role": "service"},
-}
+def _load_users() -> dict[str, dict[str, str]]:
+    """Aktive Zugänge aus Umgebungsvariablen (keine hartkodierten Demo-Zugänge).
 
-# Demo-WebAuthn: Challenge → Assertion-Grant (einmalig gültig)
+    NEXUS_USER_<NAME>="<passwort>:<rolle>" – z. B.
+      NEXUS_USER_admin="starkes-passwort:admin"
+      NEXUS_USER_developer="dev-passwort:developer"
+      NEXUS_USER_service="service-passwort:service"
+    Ohne Konfiguration: keine Zugänge (Login gesperrt) – klar protokolliert.
+    """
+    import os
+
+    users: dict[str, dict[str, str]] = {}
+    prefix = "NEXUS_USER_"
+    for key, value in os.environ.items():
+        if not key.startswith(prefix):
+            continue
+        name = key[len(prefix):].lower()
+        if ":" in value:
+            password, role = value.split(":", 1)
+            users[name] = {"password": password, "role": role.strip()}
+    return users
+
+
+_USERS = _load_users()
+
+# WebAuthn: Challenge → Assertion-Grant (einmalig gültig, echte FIDO2-Anbindung
+# über docs/production-backend.md – hier als lokal verifizierter Grant-Flow).
 _webauthn_grants: dict[str, str] = {}  # challenge -> role
 
 
@@ -35,6 +54,9 @@ def _create_token(user: str, role: str) -> str:
 
 
 def login(username: str, password: str) -> dict[str, Any] | None:
+    if not _USERS:
+        return {"token": None, "role": None, "error":
+                "Keine Zugänge konfiguriert – NEXUS_USER_<name>=<passwort>:<rolle> setzen"}
     user = _USERS.get(username)
     if not user or not hmac.compare_digest(user["password"], password):
         return None

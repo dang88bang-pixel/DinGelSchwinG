@@ -30,14 +30,9 @@ export default function NetworkDashboard() {
   const sensors = useSensors();
   const [mode, setMode] = useState<'ble' | 'wifi' | 'usb'>('ble');
   const [wasmModule, setWasmModule] = useState<BLEWasmExports | null>(null);
-  const [devices, setDevices] = useState<SceneDevice[]>([
-    { id: 'master-1', name: 'MASTER-Gold', x: 0, y: 0, z: 0, type: 'master', rssi: -42, txPower: -59 },
-    { id: 'client-1', name: 'Client-A', x: 1.8, y: 0.9, z: 0.7, type: 'client', rssi: -62, txPower: -59 },
-    { id: 'client-2', name: 'Client-B', x: -2.1, y: 0.6, z: 1.4, type: 'client', rssi: -68, txPower: -59 },
-    { id: 'target-1', name: 'Target-X', x: -1.4, y: 0.4, z: -2.2, type: 'target', rssi: -74, txPower: -59 },
-    { id: 'other-1', name: 'WiFi-AP-01', x: 3.2, y: 0.3, z: -1.0, type: 'other', rssi: -81, txPower: -55 },
-    { id: 'other-2', name: 'BLE-Beacon-3', x: 0.6, y: 1.2, z: -2.5, type: 'other', rssi: -76, txPower: -59 },
-  ]);
+  // KEINE Mock-Geräte: Die Szene startet leer und wird aus der echten
+  // Host-Discovery (WS :8766) bzw. dem SuiteStore-Import gefüllt.
+  const [devices, setDevices] = useState<SceneDevice[]>([]);
   const [boundClients, setBoundClients] = useState<PairedDevice[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -57,6 +52,25 @@ export default function NetworkDashboard() {
 
   const hostToken = getToken();
   const { nodes: liveNodes, status: discoveryStatus } = useDiscovery(hostToken, hostOnline);
+
+  // Echte Discovery-Nodes → 3D-Szene (keine erfundenen Geräte)
+  useEffect(() => {
+    if (!hostOnline) return;
+    const scene = liveNodes
+      .filter((n) => n.kind !== 'dongle')
+      .map((n, i) => ({
+        id: n.id,
+        name: n.label || n.id,
+        x: (i % 5) * 1.6 - 3.2,
+        y: 0.4 + (i % 3) * 0.3,
+        z: ((i * 7) % 5) - 2.5,
+        type: (n.kind === 'ntag' || n.kind === 'ble_token' ? 'client'
+          : n.kind === 'ble_mesh' ? 'target' : 'other') as SceneDevice['type'],
+        rssi: n.signal?.rssi ?? -70,
+        txPower: -59,
+      }));
+    if (scene.length > 0) setDevices(scene);
+  }, [liveNodes, hostOnline]);
   const { clients: liveClients, workflows: liveWorkflows, status: statusStatus } = useStatusBoard(hostToken, hostOnline);
 
   useEffect(() => {
@@ -85,9 +99,10 @@ export default function NetworkDashboard() {
 
   const handleBind = useCallback((device: PairedDevice) => {
     setBoundClients(prev => [...prev, device]);
+    // Deterministische Position (Raster statt Zufall)
     setDevices(prev => [
       ...prev,
-      { id: device.id, name: device.name, x: 1.5 + Math.random() * 2, y: 0.5 + Math.random() * 1, z: Math.random() * 2 - 1, type: 'client', rssi: device.rssi, txPower: -59 },
+      { id: device.id, name: device.name, x: 1.2 + (prev.length % 4) * 0.8, y: 0.5 + (prev.length % 2) * 0.4, z: -0.8 + (prev.length % 3) * 0.6, type: 'client', rssi: device.rssi, txPower: -59 },
     ]);
   }, []);
 

@@ -12,7 +12,7 @@ import {
   ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, BLE_SYSTEM_INSTRUCTION, CHAT_SYSTEM_INSTRUCTION,
   MODE_LABELS,
 } from '../../config/systemInstructions';
-import { MOCK_DEVICES } from '../../mocks/devices.mock';
+import { getLiveDevices, liveBoundCount } from './liveDevices';
 import { TransformersBackend } from './transformersBackend';
 import { bleSuiteStore } from '../ble/suiteStore';
 import { BleDevice, BleDeviceClass, BleRole, ConfigStep, DEVICE_CLASS_LABELS, FaultKind } from '../ble/types';
@@ -209,7 +209,7 @@ export class AgentEngine {
   async tryLLM(text: string): Promise<string> {
     const context =
       `Aktueller Kontext:\n- Rolle: ${this.role}\n` +
-      `- Geräte: ${MOCK_DEVICES.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ')}\n` +
+      `- Geräte: ${getLiveDevices().map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ') || '(keine – Host/Scan verbinden)'}\n` +
       `- Aktive Workflows: ${this.activeWorkflows().length}\n${skillsToPrompt(this.skills)}`;
     try {
       const raw = await this.backend.generate(this.systemInstruction + '\n\n' + context, text);
@@ -880,9 +880,13 @@ export class AgentEngine {
   }
 
   intentDevices(): string {
-    this.audit('show_devices', `${MOCK_DEVICES.length} Geräte`);
-    const lines = [`📡 Gefundene Geräte: ${MOCK_DEVICES.length}`];
-    for (const d of MOCK_DEVICES) {
+    const devices = getLiveDevices();
+    this.audit('show_devices', `${devices.length} Geräte`);
+    if (!devices.length) {
+      return '📡 Keine Live-Geräte – Host verbinden (BLE-Scan) oder Web-Bluetooth-Gerät wählen.';
+    }
+    const lines = [`📡 Gefundene Geräte: ${devices.length}`];
+    for (const d of devices) {
       const icon = d.bound ? '🟢' : d.type === 'target' ? '🔴' : '🟡';
       lines.push(`- ${icon} ${d.name} (${d.id}, RSSI ${d.rssi} dBm)`);
     }
@@ -1038,7 +1042,7 @@ export class AgentEngine {
   // Status-Bar
   // ------------------------------------------------------------------
   summary(): string {
-    const devices = MOCK_DEVICES.filter((d) => d.bound).length;
+    const devices = liveBoundCount();
     const wf = this.activeWorkflows().length;
     const state = wf > 0 ? 'BUSY' : 'IDLE';
     return `🟢 Geräte: ${devices}  |  👥 Clients: 2  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;

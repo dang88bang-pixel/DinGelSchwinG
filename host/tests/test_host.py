@@ -10,6 +10,11 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Aktive Test-Zugänge konfigurieren (auth liest NEXUS_USER_* aus ENV)
+os.environ.setdefault("NEXUS_USER_admin", "admin:admin")
+os.environ.setdefault("NEXUS_USER_developer", "dev123:developer")
+os.environ.setdefault("NEXUS_USER_service", "svc123:service")
+
 from host import auth, config, rbac  # noqa: E402
 from host.api_routes import api  # noqa: E402
 from host.controller import Controller  # noqa: E402

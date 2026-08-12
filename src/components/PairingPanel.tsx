@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { QrCode, Bluetooth, Waves, Wifi, ShieldCheck, Smartphone, Zap } from 'lucide-react';
+import { bleSuiteStore } from '../lib/ble/suiteStore';
 
 export interface PairedDevice {
   id: string;
@@ -67,19 +68,31 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
     }, 300);
   }, [onBind, scanningQR]);
 
+  // Echte Bindung: Geräte aus dem SuiteStore (Host-Import / Web-Bluetooth /
+  // protokollkorrekte Emulation). Keine erfundenen Clients.
   const bindMethod = (method: 'ble' | 'nfc' | 'wifi') => {
     setPairingMethod(method);
-    setStatusMsg(method === 'ble' ? 'BLE-Scan läuft — Geräte suchen' : method === 'nfc' ? 'NFC-Token lesen — bitte halten' : 'WiFi-AP erkennen — Verbindungsaufbau');
-    setTimeout(() => {
-      onBind({
-        id: 'bound-' + Date.now(),
-        name: method === 'ble' ? 'BLE-Client-' + Math.floor(Math.random()*100) : method === 'nfc' ? 'NFC-Token-' + Math.floor(Math.random()*100) : 'WiFi-Node-' + Math.floor(Math.random()*100),
-        method,
-        rssi: -62 + Math.floor(Math.random() * 20),
-        boundAt: new Date().toISOString(),
-      });
-      setStatusMsg('Kopplung erfolgreich — Gerät gebunden');
-    }, 1200);
+    const candidates = bleSuiteStore.devices.filter(
+      (d) => method === 'ble' ? d.connectable : true,
+    );
+    if (candidates.length === 0) {
+      setStatusMsg(
+        method === 'ble'
+          ? 'Keine echten BLE-Geräte im Store – BLE-Scan starten (Host/Web Bluetooth)'
+          : `Keine Geräte für ${method.toUpperCase()} – Scan im BLE-Pro-Tab starten`,
+      );
+      return;
+    }
+    const device = candidates[0];
+    bleSuiteStore.connect(device.id); // echte Verbindung über den SuiteStore
+    onBind({
+      id: device.id,
+      name: device.name,
+      method,
+      rssi: device.rssi,
+      boundAt: new Date().toISOString(),
+    });
+    setStatusMsg(`Gebunden: ${device.name} (${device.address}) – echt`);
   };
 
   return (
