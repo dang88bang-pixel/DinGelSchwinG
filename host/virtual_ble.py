@@ -525,7 +525,7 @@ class VirtualBleManager:
             out.append({
                 "id": p.id,
                 "name": parsed["name"] or p.name,
-                "address": f"AA:BB:CC:DD:00:{p.id[-2:].upper()}",
+                "address": f"02:00:00:00:{p.id[-2:].upper()}:{(p.id[-1:].upper() or '0')}",
                 "rssi": p.rssi(),
                 "tx_power": p.tx_power,
                 "deviceClass": _class_for_uuids(parsed["uuids"]),

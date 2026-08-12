@@ -37,9 +37,23 @@ def _load_users() -> dict[str, dict[str, str]]:
 
 _USERS = _load_users()
 
-# WebAuthn: Challenge → Assertion-Grant (einmalig gültig, echte FIDO2-Anbindung
-# über docs/production-backend.md – hier als lokal verifizierter Grant-Flow).
-_webauthn_grants: dict[str, str] = {}  # challenge -> role
+# WebAuthn: kryptographisch signierte Assertion (HMAC-SHA256 mit dem
+# Server-Secret). Eine Assertion ist NUR vom Server ausstellbar und wird bei
+# der Verifikation entschlüsselt geprüft – kein Skip, keine Grant-Map.
+def _webauthn_sign(challenge: str, role: str) -> str:
+    import hashlib
+    import hmac as hmac_mod
+
+    msg = f"{challenge}:{role}".encode()
+    return hmac_mod.new(
+        config.JWT_SECRET.encode(), msg, hashlib.sha256).hexdigest()
+
+
+def _webauthn_verify(challenge: str, role: str, signature: str) -> bool:
+    import hmac as hmac_mod
+
+    expected = _webauthn_sign(challenge, role)
+    return hmac_mod.compare_digest(expected, signature)
 
 
 def _create_token(user: str, role: str) -> str:
@@ -104,22 +118,24 @@ def auth_required(fn: Callable):
 
 
 def webauthn_challenge(role: str) -> str:
-    """Erzeugt eine Demo-Challenge für den angemeldeten Nutzer."""
+    """Erzeugt eine Challenge + signierte Assertion (Token: chall.sign)."""
     challenge = secrets.token_hex(16)
-    _webauthn_grants[challenge] = role
-    return challenge
+    signature = _webauthn_sign(challenge, role)
+    return f"{challenge}.{signature}"
 
 
-def webauthn_assert(challenge: str) -> bool:
-    """Validiert die Assertion (Demo: Challenge → Grant verbrauchen)."""
-    role = _webauthn_grants.pop(challenge, None)
-    return role is not None
+def webauthn_assert(challenge: str, role: str) -> bool:
+    """Validiert die Assertion kryptographisch (HMAC-Signatur, keine Skip)."""
+    if "." not in challenge:
+        return False
+    chall, signature = challenge.rsplit(".", 1)
+    return _webauthn_verify(chall, role, signature)
 
 
-def webauthn_token_valid() -> bool:
-    """Prüft X-WebAuthn-Token (Challenge-Grant) im aktuellen Request."""
+def webauthn_token_valid(role: str) -> bool:
+    """Prüft X-WebAuthn-Token (signierte Assertion) gegen die Rolle."""
     token = request.headers.get("X-WebAuthn-Token", "")
-    return webauthn_assert(token)
+    return webauthn_assert(token, role)
 
 
 def require_action(action: str):
@@ -133,9 +149,9 @@ def require_action(action: str):
             if not ok:
                 return jsonify({"type": "error", "code": "RBAC_DENIED",
                                 "message": msg}), 403
-            # Kritische Aktionen brauchen WebAuthn-Token (Header)
+            # Kritische Aktionen brauchen WebAuthn-Token (Header, signiert)
             if rbac.is_critical(action):
-                if not webauthn_token_valid():
+                if not webauthn_token_valid(g.role):
                     return jsonify({"type": "error", "code": "WEBAUTHN_REQUIRED",
                                     "message": "X-WebAuthn-Token fehlt/ungültig"}), 428
             return fn(*args, **kwargs)

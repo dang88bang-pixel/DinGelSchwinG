@@ -18,6 +18,7 @@ api = Blueprint("api", __name__)
 def health():
     return jsonify({
         "status": "ok",
+        "mode": "production",
         "service": "ble-professional-suite-host",
         "backend": ble_service.ble_host.backend,
         "time": time.time(),
@@ -52,7 +53,7 @@ def webauthn_challenge():
 def webauthn_assert():
     data = request.get_json(silent=True) or {}
     challenge = str(data.get("challenge") or "")
-    if auth.webauthn_assert(challenge):
+    if auth.webauthn_assert(challenge, g.role):
         audit.audit.log(g.user, g.role, "webauthn.assert", "Assertion bestätigt")
         return jsonify({"ok": True, "token": challenge})
     return jsonify({"type": "error", "code": "WEBAUTHN_FAILED"}), 401
@@ -270,12 +271,12 @@ def ble_mesh_model(network_id: str, node_id: str):
 
 
 @api.delete("/ble/mesh/networks/<network_id>")
-@auth.auth_required
+@auth.require_action("ble_mesh_delete")
 def ble_mesh_delete(network_id: str):
-    # Kritische Aktion → WebAuthn-Token nötig (require_action-Guard)
+    # Kritische Aktion: require_action prüft RBAC (L3) UND WebAuthn-Token
     res = ble_service.ble_host.mesh_delete(network_id, g.role)
     audit.audit.log(g.user, g.role, "ble.mesh_delete", network_id)
-    return jsonify(res), 200 if res.get("ok") else (428 if "WEBAUTHN" in str(res) else 403)
+    return jsonify(res), 200 if res.get("ok") else 400
 
 
 @api.post("/ble/devices/<device_id>/fault")

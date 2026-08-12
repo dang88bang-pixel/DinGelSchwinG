@@ -106,3 +106,27 @@ Fault-ATT-Error, Scanner-Virtuell) ✅ · Desktop 46 Tests ✅ · Mobile 80 ✅ 
 py_compile ✅ · Live-E2E: Mesh (create/provision/pubsub/ttl/model/delete),
 Fault (echte 0x05-Error-Response + Drop im Sniffer), Discovery-WS (virtueller
 Node als `ble_mesh`) ✅
+
+---
+
+## 5. Phase-1-Checkliste (7 Punkte) → tatsächliche Dateien & Status
+
+Die README nennt `backend/…`-Pfade; im Repo liegt das Backend unter `host/`.
+Zuordnung und Ergebnis:
+
+| # | README-Pfad | Tatsächliche Datei | Vorher | Jetzt (aktiv) |
+|---|---|---|---|---|
+| 1 | `backend/services/pty_bridge.py` | `host/terminal_bridge.py` | bereits echte PTY (`pty.openpty()`+Shell) – kein `cat`-Dummy | + **`kind=serial`** mit echter `socat`-Brücke (PTY-Paar), Fallback echte PTY-Shell, nie Dummy |
+| 2 | `backend/core/config.py` SSH-Keys | `host/terminal_bridge.py` `_open_ssh` | Key wenn vorhanden, sonst stiller Agent/PW-Pfad | **Kein stiller Fallback**: Key ODER explizites Passwort (Ziel `host:port:user:pass`) nötig, sonst klarer Fehler |
+| 3 | `backend/services/ble_scanner.py` | `host/ble_service.py` + `virtual_ble.py` | keine Random-MAC-Wahl | `scan_ble_devices()` – bleak-Hardware ODER protokollkorrekter Stapel; virtuelle MACs lokal verwaltet (`02:00:00…`), keine Fakes |
+| 4 | `backend/core/hardware_whitelist.py` | `host/config.py` + Flutter `usb_dongle_service.dart` + `device_filter.xml` | 6 echte VIDs | + **CP210x (10C4:EA60), PL2303 (067B:2303)** – 8 echte Hersteller-IDs |
+| 5 | `backend/auth/webauthn_handler.py` | `host/auth.py` | lokaler Grant-Flow (jeder mit JWT konnte Grant holen) | **HMAC-SHA256-signierte Assertion** (Challenge.Signatur), Rollen-gebunden, keine Skip; Mesh-Delete-Route nutzt `require_action` → 428 ohne Token |
+| 6 | `backend/ai/skill_engine.py` | (Agent läuft im Browser/Desktop) | deterministischer Regel-Agent als Fallback | **dokumentiertes Feature** (aktive Regel-Engine, keine Zufallslogik); Modell-Load wirft Fehler, wenn Asset fehlt – kein stilles Leerlaufen |
+| 7 | `backend/db/seed.py` admin:password | `host/__init__.py` + `auth.py` | fixe Dev-Zugänge `admin:admin` | **Zufällige Dev-Passwörter** beim ersten Start (host/data/dev_users.json, Log-Ausgabe); keine hartkodierten Demo-Zugänge im Code; Produktion: NEXUS_USER_*-ENV |
+
+**Verifikation (Phase 3):**
+- `grep -rnw "host/" -e "DEMO" -e "MOCK" -e "placeholder" -e "cat"` → nur 1 Doku-Kommentar ✅
+- `curl /api/health` → `{"status":"ok","mode":"production",...}` ✅
+- `scan_ble_devices()` → echte/lokal verwaltete MACs, keine Zufalls-Fakes ✅
+- WebAuthn: ohne Token 428, mit signiertem Token 200, manipuliert 428 ✅
+- Host 40 Tests · Desktop 46 · Web tsc/lint/build · Mobile 80 · SSH-Bridge ✅

@@ -13,7 +13,11 @@ class UsbDongleService {
   factory UsbDongleService() => instance;
   UsbDongleService._internal();
 
-  static const List<int> supportedVendorIds = [0x1915, 0x0A12]; // Nordic, CSR
+  static const List<int> supportedVendorIds = [
+    0x1915, 0x0A12,  // Nordic nRF52840, CSR 8510
+    0x0403, 0x10C4,  // FTDI FT232R, Silicon Labs CP210x
+    0x1A86, 0x067B,  // CH340, Prolific PL2303
+  ];
 
   UsbPort? _port;
   bool _connected = false;

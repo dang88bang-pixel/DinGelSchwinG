@@ -608,4 +608,11 @@ def _props(mask: int) -> list[str]:
     return out
 
 
+def scan_ble_devices(duration: float = 5.0) -> list[str]:
+    """Echter BLE-Scan (bleak-Hardware) ODER protokollkorrekte Emulation.
+    Liefert echte MAC-Adressen – niemals zufällige Fake-MACs."""
+    result = ble_host.scan(duration)
+    return [d.get("address", "") for d in result.get("devices", []) if d.get("address")]
+
+
 ble_host = BleHostService()

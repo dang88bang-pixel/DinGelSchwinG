@@ -52,9 +52,12 @@ class TestAuth(unittest.TestCase):
         self.assertEqual(payload["role"], "service")
 
     def test_webauthn_flow(self) -> None:
+        # Signierte Assertion: nur mit korrekter Rolle gültig, kein Skip
         challenge = auth.webauthn_challenge("developer")
-        self.assertTrue(auth.webauthn_assert(challenge))
-        self.assertFalse(auth.webauthn_assert(challenge))  # Einmal-Grant
+        self.assertTrue(auth.webauthn_assert(challenge, "developer"))
+        self.assertFalse(auth.webauthn_assert(challenge, "service"))  # Rolle prüft
+        self.assertFalse(auth.webauthn_assert("manipuliert.fake", "developer"))
+        self.assertFalse(auth.webauthn_assert("kein-punkt", "developer"))
 
 
 class TestApi(unittest.TestCase):
@@ -123,6 +126,28 @@ class TestApi(unittest.TestCase):
                                json={"challenge": challenge})
         self.assertEqual(ass.status_code, 200)
         self.assertTrue(ass.get_json()["ok"])
+
+    def test_mesh_delete_requires_webauthn_token(self) -> None:
+        """Kritische Aktion: Mesh-Delete ohne WebAuthn-Token → 428."""
+        from host import ble_service
+        ble_service.ble_host.backend = "virtual"
+        created = ble_service.ble_host.mesh_create("WAuthn-Test", "developer")
+        nid = created["network"]["id"]
+        res = self.client.delete(f"/api/ble/mesh/networks/{nid}",
+                                 headers=self.headers)
+        self.assertEqual(res.status_code, 428, res.get_json())
+        self.assertEqual(res.get_json()["code"], "WEBAUTHN_REQUIRED")
+        ch = self.client.post("/api/webauthn/challenge", headers=self.headers)
+        challenge = ch.get_json()["challenge"]
+        ass = self.client.post("/api/webauthn/assert", headers=self.headers,
+                               json={"challenge": challenge})
+        self.assertEqual(ass.status_code, 200)
+        token = ass.get_json()["token"]
+        res2 = self.client.delete(
+            f"/api/ble/mesh/networks/{nid}",
+            headers={**self.headers, "X-WebAuthn-Token": token})
+        self.assertEqual(res2.status_code, 200, res2.get_json())
+        self.assertTrue(res2.get_json()["ok"])
 
     def test_metrics(self) -> None:
         res = self.client.get("/api/metrics", headers=self.headers)

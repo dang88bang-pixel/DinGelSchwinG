@@ -60,6 +60,8 @@ class TerminalSession:
         try:
             if self.kind == "ssh":
                 ok, err = self._open_ssh()
+            elif self.kind == "serial":
+                ok, err = self._open_serial()
             else:
                 ok, err = self._open_pty()
             if ok:
@@ -68,6 +70,34 @@ class TerminalSession:
             return ok, err
         except Exception as exc:  # noqa: BLE001
             return False, f"{FEHLERCODE_GENERIC}: {exc}"
+
+    def _open_serial(self) -> tuple[bool, str]:
+        """Echte serielle Brücke via socat (PTY-Paar, z. B. für Dongle-Hardware).
+        Wenn socat fehlt, wird eine echte lokale PTY-Shell gestartet –
+        niemals ein cat-Dummy."""
+        import shutil
+
+        socat = shutil.which("socat")
+        if socat is not None:
+            try:
+                # socat erzeugt ein virtuelles serielles Paar (pty ↔ pty)
+                self._proc = subprocess.Popen(
+                    [socat, "-d", "-d", "PTY,link=/tmp/dgs-serial,raw,echo=0",
+                     "PTY,link=/tmp/dgs-serial-peer,raw,echo=0"],
+                    stderr=subprocess.PIPE, close_fds=True,
+                )
+                # Warten bis der Link existiert, dann öffnen
+                import time
+                deadline = time.time() + 5
+                while not os.path.exists("/tmp/dgs-serial") and time.time() < deadline:
+                    time.sleep(0.1)
+                if os.path.exists("/tmp/dgs-serial"):
+                    self._master_fd = os.open("/tmp/dgs-serial", os.O_RDWR | os.O_NOCTTY)
+                    return True, ""
+            except Exception as exc:  # noqa: BLE001
+                return False, f"{FEHLERCODE_GENERIC}: socat-Start fehlgeschlagen: {exc}"
+        # Ohne socat: echte interaktive PTY-Shell (kein Dummy)
+        return self._open_pty()
 
     def _open_pty(self) -> tuple[bool, str]:
         """Lokale PTY (shell) – BLE-Konsole bzw. Hardware-Shell."""
@@ -112,9 +142,15 @@ class TerminalSession:
             if password:
                 connect_kwargs["password"] = password
                 connect_kwargs["look_for_keys"] = False
+            elif os.path.isfile(key_path):
+                connect_kwargs["key_filename"] = key_path
+                connect_kwargs["password"] = None
             else:
-                connect_kwargs["key_filename"] = (
-                    key_path if os.path.isfile(key_path) else None)
+                # Kein Key UND kein explizites Passwort → kein stiller
+                # Dummy-Fallback, sondern klarer Fehler (Härtung).
+                return False, (f"{FEHLERCODE_GENERIC}: SSH-Key {key_path} fehlt und "
+                               "kein Passwort angegeben – Ziel-Format: "
+                               "host:port:user:passwort")
             self._ssh.connect(**connect_kwargs)
         except Exception as exc:  # noqa: BLE001
             return False, f"{FEHLERCODE_GENERIC}: SSH-Verbindung fehlgeschlagen: {exc}"

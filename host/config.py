@@ -33,7 +33,8 @@ TERMINAL_IDLE_TIMEOUT_S = int(os.environ.get("NEXUS_TERM_IDLE", "600"))
 TERMINAL_ABS_TIMEOUT_S = int(os.environ.get("NEXUS_TERM_ABS", "3600"))
 
 # Dongle-Whitelist (VID)
-DONGLE_WHITELIST = [0x1915, 0x0A12, 0x2341, 0x16C0, 0x1A86, 0x0403]
+DONGLE_WHITELIST = [0x1915, 0x0A12, 0x2341, 0x16C0, 0x1A86, 0x0403,
+                  0x10C4, 0x067B]  # + Silicon Labs CP210x, Prolific PL2303
 
 # Audit
 AUDIT_PATH = os.path.join(DATA_DIR, "audit.json")
