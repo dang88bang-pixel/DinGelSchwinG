@@ -27,10 +27,12 @@
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "html5-qrcode": "^2.3.8",
+    "i18next": "^23.16.8",
     "lucide-react": "1.31.0",
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-i18next": "^15.7.4",
     "terser": "^5.49.2",
     "three": "^0.185.1",
     "typescript": "^5.0.0"
