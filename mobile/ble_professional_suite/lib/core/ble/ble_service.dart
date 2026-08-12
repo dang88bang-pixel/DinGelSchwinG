@@ -31,6 +31,8 @@ class BLEService {
 
   bool get isScanning => _isScanning;
   int get connectedCount => _connectedDevices.length;
+  /// Anzahl der im aktuellen Scan erfassten Geräte.
+  int get scannedDevicesCount => _scannedDevices.length;
   List<BluetoothDevice> get connectedDevices => _connectedDevices.values.toList();
 
   Future<void> initialize() async {

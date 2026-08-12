@@ -18,7 +18,7 @@ class LightTheme {
           foregroundColor: Color(0xFF0F172A),
           elevation: 0,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 1,
           color: Colors.white,
           shape: RoundedRectangleBorder(

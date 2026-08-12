@@ -1,20 +1,41 @@
 // lib/features/agent/agent_controller.dart
 // Agent-Controller: sendet Nachrichten, führt Aktions-Buttons aus.
+// RBAC: Aktionen prüfen die Rolle des Nutzers (Service L2 / Developer L3).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/agent/agent_service.dart';
 import '../../core/ble/ble_service.dart';
 import '../../core/ble/mesh_service.dart';
 import '../../core/utils/logger.dart';
+import '../settings/settings_controller.dart';
 
 class AgentController {
   const AgentController();
 
   Future<void> sendMessage(String text) => AgentService.instance.processUserMessage(text);
 
+  /// RBAC-Guard: kritische Aktionen benötigen Developer (L3)+.
+  static bool _allowed(String role, String action) {
+    if (role == 'admin' || role == 'developer') return true;
+    // Service (L2): Mesh- und Fehlersimulations-Aktionen gesperrt
+    if (action.startsWith('mesh_')) return false;
+    if (action == 'fault_sim' || action == 'sniffer') return false;
+    return true;
+  }
+
   /// Führt einen vom Agenten vorgeschlagenen Aktions-Button aus.
-  Future<String> executeAction(ActionButton button) async {
+  Future<String> executeAction(
+    ActionButton button, {
+    required String role,
+  }) async {
     final params = button.parameters ?? const <String, dynamic>{};
-    Logger.instance.info('Aktions-Button: ${button.action} $params');
+
+    if (!_allowed(role, button.action)) {
+      return '⛔ Zugriff verweigert: Aktion "'
+          '${button.action}" erfordert Rolle Developer (L3) – '
+          'aktuell: ${role.toUpperCase()} (Service L2).';
+    }
+    Logger.instance.info('Aktions-Button: ${button.action} $params '
+        '(Rolle: $role)');
 
     switch (button.action) {
       case 'start_scan':
@@ -64,3 +85,8 @@ class AgentController {
 
 final agentControllerProvider =
     Provider<AgentController>((ref) => const AgentController());
+
+/// Rolle des angemeldeten Nutzers für RBAC-Prüfungen (aus Settings).
+final agentRoleProvider = Provider<String>(
+  (ref) => ref.watch(settingsControllerProvider.select((s) => s.role)),
+);

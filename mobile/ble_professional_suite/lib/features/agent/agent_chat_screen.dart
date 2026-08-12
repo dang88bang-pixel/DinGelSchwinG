@@ -28,7 +28,10 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen> {
 
   Future<void> _executeAction(ActionButton button) async {
     setState(() => _busy = true);
-    final result = await ref.read(agentControllerProvider).executeAction(button);
+    // RBAC: Rolle des angemeldeten Nutzers an den Controller durchreichen.
+    final role = ref.read(agentRoleProvider);
+    final result =
+        await ref.read(agentControllerProvider).executeAction(button, role: role);
     await ref
         .read(agentServiceProvider)
         .processUserMessage('[Aktion ausgeführt] $result');

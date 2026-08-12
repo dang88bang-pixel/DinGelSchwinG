@@ -3,7 +3,10 @@
 // Fallback. Intent-Erkennung → Antwort + Aktions-Buttons. Kein Cloud-Backend.
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../ble/ble_service.dart';
+import '../ble/mesh_service.dart';
 import '../utils/logger.dart';
+import 'agent_prompt.dart';
 import 'intent_parser.dart';
 import 'models/tiny_llama.dart';
 
@@ -54,8 +57,18 @@ class AgentService {
 
     if (_modelReady && _model != null) {
       try {
-        // KI-generierte Antwort
-        response = await _model!.generateResponse(userMessage);
+        // KI-generierte Antwort mit Systemanweisung + Live-Kontext
+        // (BLE-Geräte/Verbindungen/Mesh-Netzwerke – aktiv verdrahtet).
+        final context = AgentPrompt.buildContext(
+          role: 'local',
+          devices: BLEService.instance.scannedDevicesCount,
+          connected: BLEService.instance.connectedCount,
+          meshNetworks: MeshService.instance.activeNetwork != null ? 1 : 0,
+        );
+        response = await _model!.generateResponse(
+          userMessage,
+          system: '${AgentPrompt.systemInstruction}\n\n$context',
+        );
         actions = _extractActions(response);
       } catch (e) {
         Logger.instance.error('KI-Antwort fehlgeschlagen – Fallback', error: e);

@@ -1,9 +1,9 @@
 // lib/app/app.dart
-// App-Wrapper: hält die App-Konfiguration (z. B. GlobalKey für Navigation)
-// zentral. main.dart rendert `BLEProfessionalSuite` direkt mit eigener
-// Theme-Konfiguration.
+// App-Wrapper (auch für Widget-Tests): Theme + Router + Home aktiv.
 import 'package:flutter/material.dart';
 import '../main_screen.dart';
+import 'app_router.dart';
+import 'theme.dart';
 
 class BLEProfessionalSuiteApp extends StatelessWidget {
   const BLEProfessionalSuiteApp({super.key});
@@ -18,17 +18,9 @@ class BLEProfessionalSuiteApp extends StatelessWidget {
       title: 'BLE Professional Suite',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0066FF)),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0066FF),
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      onGenerateRoute: AppRouter.onGenerateRoute,
       home: const MainScreen(),
     );
   }

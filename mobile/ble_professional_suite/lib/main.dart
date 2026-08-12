@@ -1,9 +1,10 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'app/app.dart';
+import 'app/app_router.dart';
+import 'app/theme.dart';
 import 'core/utils/permission_helper.dart';
-import 'core/ble/ble_service.dart';
+import 'providers/provider_initializer.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,8 +12,9 @@ Future<void> main() async {
   // Berechtigungen anfordern (BLE, Standort, USB)
   await PermissionHelper.requestAllPermissions();
 
-  // BLE-Service initialisieren (echte Hardware)
-  await BLEService.instance.initialize();
+  // ALLE Kernservices initialisieren (BLE, Mesh, Peripheral, Agent, DB) –
+  // robust: ein fehlschlagender Service blockiert den App-Start nicht.
+  await ProviderInitializer.initializeAll();
 
   runApp(const ProviderScope(child: BLEProfessionalSuite()));
 }
@@ -24,20 +26,10 @@ class BLEProfessionalSuite extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'BLE Professional Suite',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0066FF),
-          brightness: Brightness.light,
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0066FF),
-          brightness: Brightness.dark,
-        ),
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      // Routen aktivieren: /gatt, /mesh/node, /profiles, /profiles/editor, /settings
+      onGenerateRoute: AppRouter.onGenerateRoute,
       home: const MainScreen(),
       debugShowCheckedModeBanner: false,
     );

@@ -34,6 +34,7 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 | [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
 | [`docs/ble-professional-suite.md`](docs/ble-professional-suite.md) | **BLE Professional Suite**: Scan/Klassifizierung, GATT-Explorer, Mesh, Test-Suite, Simulator, Profil-Cache, RBAC + WebAuthn, Agent-Workflows (Modus C) |
+| [`docs/ble-loesungsweg.md`](docs/ble-loesungsweg.md) | **Lösungsweg „alle Parts aktiv“**: Parts/Attribute-Matrix (Web/Desktop/Mobile), aktivierte Teile, Verifikations-Checks, Push |
 | [`mobile/ble_professional_suite/README.md`](mobile/ble_professional_suite/README.md) | **Native Flutter-App** (Android/iOS): autarke BLE-App mit echten Hardware-Operationen, On-Device-KI-Agent, Mesh via nRF SDK, USB-Dongle (OTG) |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
 

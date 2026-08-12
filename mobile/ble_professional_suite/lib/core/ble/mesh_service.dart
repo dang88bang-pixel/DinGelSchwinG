@@ -17,12 +17,18 @@ class MeshService {
   final _networkController = StreamController<MeshNetwork>.broadcast();
   final _nodeController = StreamController<List<ProvisionedNode>>.broadcast();
   final _heartbeatController = StreamController<ProvisionedNode>.broadcast();
+  final _unprovisionedController =
+      StreamController<List<UnprovisionedDevice>>.broadcast();
 
   Stream<MeshNetwork> get networkUpdates => _networkController.stream;
   Stream<List<ProvisionedNode>> get nodeUpdates => _nodeController.stream;
 
   /// Live-Heartbeats einzelner Knoten (Monitoring/Ausfall-Erkennung).
   Stream<ProvisionedNode> get heartbeatUpdates => _heartbeatController.stream;
+
+  /// Ergebnisse der Unprovisioned-Scans (Push an UI/Agent).
+  Stream<List<UnprovisionedDevice>> get unprovisionedUpdates =>
+      _unprovisionedController.stream;
 
   Future<void> initialize() async {
     _meshManager = await MeshManager.initialize();
@@ -74,7 +80,10 @@ class MeshService {
   Future<List<UnprovisionedDevice>> scanForUnprovisioned() async {
     final manager = _meshManager ??
         (throw StateError('Mesh nicht initialisiert – initialize() aufrufen'));
-    return manager.scanForUnprovisioned();
+    final devices = await manager.scanForUnprovisioned();
+    _unprovisionedController.add(List.unmodifiable(devices));
+    Logger.instance.info('Unprovisioned-Scan: ${devices.length} Geräte gefunden');
+    return devices;
   }
 
   // === KONFIGURATION ===
@@ -146,5 +155,6 @@ class MeshService {
     _networkController.close();
     _nodeController.close();
     _heartbeatController.close();
+    _unprovisionedController.close();
   }
 }

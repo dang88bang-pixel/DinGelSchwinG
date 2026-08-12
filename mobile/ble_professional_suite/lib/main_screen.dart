@@ -9,6 +9,7 @@ import 'features/gatt/gatt_explorer_screen.dart';
 import 'features/mesh/mesh_screen.dart';
 import 'features/agent/agent_chat_screen.dart';
 import 'features/logs/log_screen.dart';
+import 'ui/widgets/bottom_navigation.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -28,29 +29,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     LogScreen(),
   ];
 
-  final List<BottomNavigationBarItem> _navItems = const [
-    BottomNavigationBarItem(
-      icon: Icon(Icons.radar),
-      label: 'Scanner',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.list_alt),
-      label: 'GATT',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.network_nodes),
-      label: 'Mesh',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.chat),
-      label: 'Agent',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.terminal),
-      label: 'Logs',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -58,13 +36,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: BottomNavigationBar(
+      // Wiederverwendbare Bottom-Navigation (ui/widgets/bottom_navigation.dart)
+      bottomNavigationBar: AppBottomNavigation(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        items: _navItems,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor: Colors.grey,
       ),
     );
   }

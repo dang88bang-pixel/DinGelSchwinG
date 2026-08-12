@@ -112,15 +112,20 @@ class _ProfileEditorScreenState extends ConsumerState<ProfileEditorScreen> {
             decoration: const InputDecoration(labelText: 'Profilname'),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<BleDeviceClass>(
-            initialValue: _deviceClass,
+          InputDecorator(
             decoration: const InputDecoration(labelText: 'Geräteklasse'),
-            items: BleDeviceClass.values
-                .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
-                .toList(),
-            onChanged: (value) {
-              if (value != null) setState(() => _deviceClass = value);
-            },
+            child: DropdownButton<BleDeviceClass>(
+              value: _deviceClass,
+              isDense: true,
+              isExpanded: true,
+              underline: const SizedBox.shrink(),
+              items: BleDeviceClass.values
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _deviceClass = value);
+              },
+            ),
           ),
           const SizedBox(height: 16),
           Text('Schritte', style: Theme.of(context).textTheme.titleSmall),

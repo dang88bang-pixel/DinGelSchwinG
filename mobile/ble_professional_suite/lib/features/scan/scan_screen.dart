@@ -6,6 +6,7 @@ import '../../core/ble/ble_service.dart';
 import '../../core/models/ble_device.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../providers/ble_provider.dart';
+import '../settings/settings_controller.dart';
 import 'scan_controller.dart';
 import 'scanner_widget.dart';
 
@@ -48,7 +49,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     } else {
       setState(() => _error = null);
       try {
-        await controller.startScan();
+        // Scan-Zeitraum aus den Einstellungen verwenden (aktiv verdrahtet).
+        final settings = ref.read(settingsControllerProvider);
+        await controller.startScan(
+          timeout: Duration(seconds: settings.scanTimeoutSeconds),
+        );
       } catch (e) {
         if (mounted) setState(() => _error = 'Scan-Fehler: $e');
       }

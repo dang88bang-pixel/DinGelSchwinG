@@ -18,7 +18,7 @@ class DarkTheme {
           foregroundColor: Colors.white,
           elevation: 0,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 1,
           color: AppColors.surfaceDark,
           shape: RoundedRectangleBorder(

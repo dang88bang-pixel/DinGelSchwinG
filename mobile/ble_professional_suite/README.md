@@ -66,6 +66,14 @@ cd ios && pod install && cd ..
 flutter run
 ```
 
+> **Alle Parts aktiv:** Beim Start werden über `ProviderInitializer.initializeAll()`
+> BLE-, Mesh-, Peripheral-, Agent- und DB-Service robust initialisiert (ein
+> fehlschlagender Service blockiert den Start nicht). Router
+> (`AppRouter.onGenerateRoute`), Theme (`AppTheme`), RBAC (Agent-Controller),
+> Scan-Zeitraum (Settings) und der Unprovisioned-Stream
+> (`MeshService.unprovisionedUpdates`) sind verdrahtet – siehe
+> [`docs/ble-loesungsweg.md`](../../docs/ble-loesungsweg.md).
+
 > **Hinweis:** Die Plattform-Scaffolds (android/, ios/) sind bereits enthalten.
 > Falls `flutter run` nach einem SDK-Update fehlende Dateien meldet, kann
 > `flutter create --org com.bleprosuite --project-name ble_professional_suite .`
@@ -104,6 +112,9 @@ flutter build ios --release
 
 ```bash
 flutter test          # Widget-Smoke-Test (Hauptnavigation)
+
+# Ohne Flutter-SDK verfügbare statische Checks (Klammern, Imports, XML/JSON/plist):
+python3 tool/check_project.py
 ```
 
 ## Hinweise zum Produktivbetrieb
