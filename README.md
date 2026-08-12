@@ -34,6 +34,7 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 | [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
 | [`docs/ble-professional-suite.md`](docs/ble-professional-suite.md) | **BLE Professional Suite**: Scan/Klassifizierung, GATT-Explorer, Mesh, Test-Suite, Simulator, Profil-Cache, RBAC + WebAuthn, Agent-Workflows (Modus C) |
+| [`mobile/ble_professional_suite/README.md`](mobile/ble_professional_suite/README.md) | **Native Flutter-App** (Android/iOS): autarke BLE-App mit echten Hardware-Operationen, On-Device-KI-Agent, Mesh via nRF SDK, USB-Dongle (OTG) |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
 
 Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,
@@ -66,6 +67,12 @@ Betriebsumgebung, vollständig über den Chat-Agenten steuerbar (Modus C):
 schrittweise Ausführung → Zusammenfassung. Kritische Aktionen zusätzlich mit
 **„webauthn bestätigen“**. Details & Chat-Befehle:
 [`docs/ble-professional-suite.md`](docs/ble-professional-suite.md).
+
+**Native Mobile-App:** Zusätzlich enthält das Repo unter
+[`mobile/ble_professional_suite/`](mobile/ble_professional_suite/) die
+**autarke Flutter-App** (Android/iOS) für Feldtests: echte BLE-Operationen
+(Scan, GATT, Mesh via nRF SDK), On-Device-KI-Agent (TinyLLaMA/TFLite) mit
+Regel-Fallback, Profil-Cache und USB-C-Dongle-Unterstützung (OTG, Android).
 
 ---
 

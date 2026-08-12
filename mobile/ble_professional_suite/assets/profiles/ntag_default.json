@@ -1,0 +1,12 @@
+{
+  "id": "profile-ntag-default",
+  "name": "NTag Smart Tracker – Standard",
+  "deviceClass": "ntag",
+  "steps": [
+    { "type": "gattRead", "target": "Battery Level", "detail": "Batteriestand lesen", "critical": false },
+    { "type": "gattWrite", "target": "Battery Monitoring (Zustand)", "detail": "Batterieüberwachung aktivieren", "value": "BEEF", "critical": false },
+    { "type": "notifyOn", "target": "Battery Monitoring (Zustand)", "detail": "Notifications für Echtzeit-Datenstrom aktivieren", "critical": false },
+    { "type": "mtu", "target": "Verbindung", "detail": "MTU auf 247 erhöhen", "value": "247", "critical": false },
+    { "type": "verify", "target": "NTag-Tracker", "detail": "Funktionsprüfung: Read-Back vergleichen", "critical": false }
+  ]
+}

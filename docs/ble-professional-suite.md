@@ -28,6 +28,7 @@ nach ausdrücklicher Nutzerbestätigung** an gebundene/Zielgeräte aus.
 
 | Ebene | Datei | Inhalt |
 |---|---|---|
+| **Mobile (Flutter)** | `mobile/ble_professional_suite/` | **Native, autarke App** (Android/iOS): echte BLE-Hardware-Operationen – Scan/Klassifizierung, GATT-Explorer, Mesh (nRF SDK), On-Device-KI-Agent (TinyLLaMA/TFLite) mit Regel-Fallback, Profil-Cache, Audit-Log, USB-C-Dongle (OTG) |
 | Web-App | `src/lib/ble/types.ts` | Typverträge (Geräte, GATT, Mesh, Tests, Profile, Audit, RBAC) |
 | Web-App | `src/lib/ble/suiteStore.ts` | Simulations- & Koordinationskern (Singleton `bleSuiteStore`) – Single Source of Truth für UI + Agent |
 | Web-App | `src/components/ble/BleProfessionalSuite.tsx` | Vollbild-Modul mit Tabs (Übersicht, Discovery, GATT, Mesh, Tests & Debug, Simulator, Profil-Cache, Audit-Log) |
@@ -206,6 +207,26 @@ schlägt bei Abweichungen Maßnahmen vor.
 ---
 
 ## 8. Produktiver Betrieb (Roadmap)
+
+### 8.1 Native Flutter-App (Feldtests, Android/iOS)
+
+`mobile/ble_professional_suite/` ist die **native, autarke** Umsetzung: Alle
+BLE-Funktionen nutzen die echte Smartphone-Hardware (kein Backend, keine
+Mocks). Architektur:
+
+| Modul | Umsetzung |
+|---|---|
+| Scan & Klassifizierung, GATT, Verbindungen (≤ 20 parallel), MTU | `flutter_blue_plus` (echte Hardware) |
+| Mesh (Provisionierung, Schlüssel, Pub/Sub, TTL, Gruppen, Tracer) | `nrf_mesh_flutter` (nRF Mesh SDK) |
+| On-Device-KI-Agent | `tflite_flutter` + TinyLLaMA (quantisiert) mit deterministischem Regel-Fallback (`IntentParser`) |
+| Profil-Cache, Audit-Log | `sqflite` (lokal), Export CSV/JSON via `share_plus` |
+| USB-C-BLE-Dongle (nur Android) | `usb_serial` + native `UsbDongleHost`-Activity (OTG, VID-Whitelist: nRF52840, CSR8510) |
+| Sicherheit | RBAC-Rolle (Service L2 / Developer L3), Bestätigungspflicht, WebAuthn-Vorbereitung |
+
+Build: `flutter pub get && flutter run` (Details im
+[Projekt-README](../mobile/ble_professional_suite/README.md)).
+
+### 8.2 Backend-Anbindung (Web/Desktop)
 
 Die Web-App/Desktop-Konsole arbeiten derzeit mit dem integrierten
 Simulationskern (`suiteStore` / `ble_suite.py`) – identische Schnittstellen.

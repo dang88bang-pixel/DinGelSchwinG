@@ -1,0 +1,11 @@
+{
+  "id": "profile-token-default",
+  "name": "BLE-Token – Telemetrie 10s",
+  "deviceClass": "token",
+  "steps": [
+    { "type": "gattRead", "target": "Battery Level", "detail": "Batteriestand erfassen", "critical": false },
+    { "type": "gattWrite", "target": "Report", "detail": "Telemetrie-Intervall setzen", "value": "0A", "critical": false },
+    { "type": "notifyOn", "target": "Report", "detail": "Notifications aktivieren (10-s-Takt)", "critical": false },
+    { "type": "verify", "target": "BLE-Token", "detail": "3 Samples empfangen und auswerten", "critical": false }
+  ]
+}

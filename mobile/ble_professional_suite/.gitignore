@@ -1,0 +1,46 @@
+# Flutter-Projektdateien
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+coverage/
+pubspec.lock.bak
+*.iml
+
+# Keystore & Secrets (niemals einchecken)
+android/key.properties
+*.jks
+*.keystore
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/.cxx/
+android/app/build/
+android/build/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/ephemeral/
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+ios/Runner/GeneratedPluginRegistrant.*
+
+# KI-Modell (groß, wird separat geliefert – siehe assets/models/README.md)
+assets/models/*.tflite
+assets/models/*.onnx
+assets/models/*.bin
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# macOS/Windows/Linux Builds
+.macos/
+.windows/
+.linux/

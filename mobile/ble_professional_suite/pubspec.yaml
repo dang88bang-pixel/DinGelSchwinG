@@ -1,0 +1,64 @@
+name: ble_professional_suite
+description: BLE Professional Suite - Entwicklung, Test & Mesh-Netzwerke (nativ, autark)
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # BLE Kern
+  flutter_blue_plus: ^1.32.0
+
+  # BLE Mesh (nRF Mesh SDK)
+  nrf_mesh_flutter: ^1.0.0
+
+  # BLE Peripheral Modus
+  flutter_ble_peripheral: ^1.1.0
+
+  # USB-Dongle (nur Android)
+  usb_serial: ^0.5.0
+
+  # Datenbank
+  sqflite: ^2.3.0
+  path_provider: ^2.1.0
+
+  # State Management
+  riverpod: ^2.4.0
+  flutter_riverpod: ^2.4.0
+
+  # KI-Agent (On-Device)
+  tflite_flutter: ^0.10.4
+  tflite_flutter_helper: ^0.3.1
+
+  # UI
+  flutter_markdown: ^0.6.18
+  syncfusion_flutter_charts: ^24.1.41
+  fl_chart: ^0.66.0
+
+  # Utilities
+  permission_handler: ^11.0.1
+  device_info_plus: ^9.1.0
+  shared_preferences: ^2.2.2
+  intl: ^0.18.1
+  uuid: ^4.2.1
+  csv: ^5.1.1
+  share_plus: ^7.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.7
+  riverpod_generator: ^2.3.10
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/        # TinyLLaMA Modell (siehe assets/models/README.md)
+    - assets/profiles/      # Standard-BLE-Profile
+    - assets/icons/
+    - assets/images/

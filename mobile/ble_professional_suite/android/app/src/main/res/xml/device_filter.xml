@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- VID/PID-Whitelist der BLE Professional Suite:
+     nRF52840 Dongle (VID 0x1915), CSR 8510 (VID 0x0A12) -->
+<resources>
+    <usb-device vendor-id="6437" product-id="21023" /> <!-- 0x1915:0x521F -->
+    <usb-device vendor-id="2578" />                   <!-- 0x0A12 (CSR) -->
+</resources>

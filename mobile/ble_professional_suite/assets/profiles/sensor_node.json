@@ -1,0 +1,11 @@
+{
+  "id": "profile-sensor-node",
+  "name": "Sensor-Knoten (Mesh) – Bereitstellung",
+  "deviceClass": "mesh",
+  "steps": [
+    { "type": "meshPub", "target": "Sensor Server", "detail": "Publikationsadresse auf Gruppe setzen", "value": "0xC002", "critical": false },
+    { "type": "meshSub", "target": "Sensor Server", "detail": "Gruppe abonnieren", "value": "0xC002", "critical": false },
+    { "type": "ttl", "target": "Netzwerk", "detail": "TTL 4 setzen (Reichweite an Signalstärke angepasst)", "value": "4", "critical": false },
+    { "type": "verify", "target": "Sensor-Knoten", "detail": "Heartbeat + Nachrichten-Tracer prüfen", "critical": true }
+  ]
+}
