@@ -1,0 +1,17 @@
+{
+  "app": {
+    "title": "DinGelSchwinG – Agent Console",
+    "offline": "Offline – cached data",
+    "language": "Language"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "loading": "Loading …",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
+  }
+}

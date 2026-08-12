@@ -1,0 +1,18 @@
+{
+  "name": "DinGelSchwinG – Agent Console",
+  "short_name": "DinGelSchwinG",
+  "lang": "de",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e40af",
+  "description": "Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration",
+  "icons": [
+    {
+      "src": "vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

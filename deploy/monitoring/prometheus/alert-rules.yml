@@ -1,0 +1,31 @@
+groups:
+  - name: nexus-backend
+    rules:
+      - alert: BackendDown
+        expr: up{job="nexus-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NEXUS-Backend nicht erreichbar"
+          description: "Das Backend (Job nexus-backend) meldet seit >1 min kein up."
+
+      - alert: Http5xxRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Erhöhte 5xx-Rate"
+          description: "Mehr als 2 % der HTTP-Antworten sind 5xx (5 min Fenster)."
+
+      - alert: BruteForceLoginAttempts
+        expr: sum(rate(http_requests_total{status="429"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate-Limiter greift (429)"
+          description: "Login-Rate-Limiting aktiv – möglicher Brute-Force-Versuch."

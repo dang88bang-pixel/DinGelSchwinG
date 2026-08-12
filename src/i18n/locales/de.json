@@ -1,0 +1,17 @@
+{
+  "app": {
+    "title": "DinGelSchwinG – Agent Console",
+    "offline": "Offline – Zwischengespeicherte Daten",
+    "language": "Sprache"
+  },
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "retry": "Erneut versuchen",
+    "loading": "Lädt …",
+    "confirm": "Bestätigen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "close": "Schließen"
+  }
+}
