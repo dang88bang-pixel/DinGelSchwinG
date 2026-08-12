@@ -66,6 +66,14 @@ class ScannerService:
         with self._lock:
             return list(self._nodes.values())
 
+    def __init__(self) -> None:
+        self._nodes: dict[str, dict[str, Any]] = {}
+        self._lock = threading.Lock()
+        self._subscribers: list[Any] = []
+        self._running = False
+        self._thread: threading.Thread | None = None
+        self._probe_cache: dict[str, dict[str, Any]] = {}  # IP → HTTP-Probe-Ergebnis
+
     # ------------------------------------------------------------------
     def _loop(self) -> None:
         while self._running:
@@ -76,11 +84,16 @@ class ScannerService:
             time.sleep(config.SCAN_INTERVAL)
 
     def _scan_once(self) -> None:
+        from .feature_manager import feature_manager
+
         fresh: dict[str, dict[str, Any]] = {}
         now = time.time()
+        ble_on = feature_manager.is_enabled("ble_discovery")
+        arp_on = feature_manager.is_enabled("network_arp")
+        usb_on = feature_manager.is_enabled("usb_dongle")
 
         # 1) BLE via bleak (echte Hardware, optional)
-        if BLEAK_AVAILABLE and BleakScanner is not None:
+        if ble_on and BLEAK_AVAILABLE and BleakScanner is not None:
             try:
                 found = asyncio.run(BleakScanner.discover(timeout=4.0))
                 for dev in found:
@@ -88,7 +101,7 @@ class ScannerService:
                     uuids = [str(u) for u in (dev.metadata.get("uuids") or [])] if dev.metadata else []
                     fresh[f"ble:{dev.address}"] = {
                         "id": f"ble:{dev.address}",
-                        "kind": _classify(name, uuids),
+                        "kind": self._classify(name, uuids),
                         "label": name,
                         "lastSeen": now,
                         "signal": {"rssi": int(dev.rssi or 0)},
@@ -100,51 +113,59 @@ class ScannerService:
                 pass
 
         # 1b) Virtuelle Peripherals (protokollkorrekter Stapel) → als BLE-Nodes
-        try:
-            from .virtual_ble import virtual_ble
-            virtual_ble.start()
-            for ev in virtual_ble.scan_events():
-                fresh[f"ble:{ev['id']}"] = {
-                    "id": f"ble:{ev['id']}",
-                    "kind": {"token": "ble_token", "mesh": "ble_mesh",
-                             "peripheral": "ble_peripheral"}.get(ev["deviceClass"], ev["deviceClass"]),
-                    "label": ev["name"],
-                    "lastSeen": now,
-                    "signal": {"rssi": ev["rssi"]},
-                    "address": ev["address"],
-                    "serviceUuids": ev["serviceUuids"],
-                    "connectable": True,
-                    "virtual": True,
-                }
-        except Exception:  # noqa: BLE001
-            pass
+        if ble_on:
+            try:
+                from .virtual_ble import virtual_ble
+                virtual_ble.start()
+                for ev in virtual_ble.scan_events():
+                    fresh[f"ble:{ev['id']}"] = {
+                        "id": f"ble:{ev['id']}",
+                        "kind": {"token": "ble_token", "mesh": "ble_mesh",
+                                 "peripheral": "ble_peripheral"}.get(ev["deviceClass"], ev["deviceClass"]),
+                        "label": ev["name"],
+                        "lastSeen": now,
+                        "signal": {"rssi": ev["rssi"]},
+                        "address": ev["address"],
+                        "serviceUuids": ev["serviceUuids"],
+                        "connectable": True,
+                        "virtual": True,
+                    }
+            except Exception:  # noqa: BLE001
+                pass
 
         # 2) USB-Dongles (kein Netz-Scan, statisch)
-        for d in list_usb_dongles():
-            if d["whitelisted"]:
-                fresh[f"dongle:{d['vidHex']}:{d['pidHex']}"] = {
-                    "id": f"dongle:{d['vidHex']}:{d['pidHex']}",
-                    "kind": "dongle",
-                    "label": d["name"],
-                    "lastSeen": now,
-                    "usbVendorId": d["vidHex"],
-                    "usbProductId": d["pidHex"],
-                    "autoBindable": True,
-                }
+        if usb_on:
+            for d in list_usb_dongles():
+                if d["whitelisted"]:
+                    fresh[f"dongle:{d['vidHex']}:{d['pidHex']}"] = {
+                        "id": f"dongle:{d['vidHex']}:{d['pidHex']}",
+                        "kind": "dongle",
+                        "label": d["name"],
+                        "lastSeen": now,
+                        "usbVendorId": d["vidHex"],
+                        "usbProductId": d["pidHex"],
+                        "autoBindable": True,
+                    }
 
-        # 3) ARP (LAN-Geräte)
-        for entry in arp_table():
-            if entry.get("state") == "FAILED":
-                continue
-            ip = entry["ip"]
-            fresh[f"net:{ip}"] = {
-                "id": f"net:{ip}",
-                "kind": "network",
-                "label": ip,
-                "lastSeen": now,
-                "mac": entry.get("mac", ""),
-                "state": entry.get("state", ""),
-            }
+        # 3) ARP (LAN-/WLAN-Geräte) + HTTP-Probe (Fritzbox/Shelly/Drucker…)
+        if arp_on:
+            for entry in arp_table():
+                if entry.get("state") == "FAILED":
+                    continue
+                ip = entry["ip"]
+                probe = self._http_probe(ip)
+                fresh[f"net:{ip}"] = {
+                    "id": f"net:{ip}",
+                    "kind": "network_http" if probe.get("http") else "network",
+                    "label": probe.get("server") or ip,
+                    "lastSeen": now,
+                    "mac": entry.get("mac", ""),
+                    "state": entry.get("state", ""),
+                    "http": probe.get("http"),
+                    "httpStatus": probe.get("status"),
+                    "httpServer": probe.get("server"),
+                    "pingable": probe.get("pingable"),
+                }
 
         # Diff gegen alten Zustand → Broadcast (snapshot beim ersten Mal)
         with self._lock:
@@ -162,6 +183,36 @@ class ScannerService:
             self._broadcast({"type": "remove", "id": node_id})
         for node_id in added:
             self._broadcast({"type": "update", "node": fresh[node_id]})
+
+
+    # ------------------------------------------------------------------
+    # HTTP-Probe für ARP-Geräte (Fritzbox/Shelly/Drucker-Erkennung).
+    # Ergebnis wird pro IP kurz gecacht (TTL = 60 s), damit der Scan-Zyklus
+    # nicht durch langsame Geräte ausgebremst wird.
+    # ------------------------------------------------------------------
+    def _http_probe(self, ip: str) -> dict[str, Any]:
+        cached = self._probe_cache.get(ip)
+        if cached and time.time() - cached["t"] < 60.0:
+            return cached
+        result = {"http": False, "status": None, "server": None,
+                  "pingable": True, "t": time.time()}
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"http://{ip}/",
+                                         headers={"User-Agent": "NEXUS-BUILDER/2.0"})
+            with urllib.request.urlopen(req, timeout=0.8) as resp:  # noqa: S310
+                result["http"] = resp.status < 500
+                result["status"] = resp.status
+                result["server"] = resp.headers.get("Server")
+        except Exception:  # noqa: BLE001 – kein Web-Server auf Port 80
+            result["http"] = False
+        self._probe_cache[ip] = result
+        # Cache begrenzen
+        if len(self._probe_cache) > 200:
+            cutoff = time.time() - 60.0
+            self._probe_cache = {k: v for k, v in self._probe_cache.items()
+                                 if v["t"] > cutoff}
+        return result
 
 
 def _classify(name: str, uuids: list[str]) -> str:

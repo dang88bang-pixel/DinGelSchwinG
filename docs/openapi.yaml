@@ -430,6 +430,78 @@ paths:
       responses:
         "200": { description: Systeminfo }
 
+  /api/system/features:
+    get:
+      tags: [admin]
+      summary: Feature-Toggles der Background-Services abrufen
+      x-rbac: service
+      responses:
+        "200": { description: features }
+    patch:
+      tags: [admin]
+      summary: Feature-Toggle setzen (schaltet echte Scan-/Server-Tasks)
+      x-rbac: emergency
+      x-webauthn: true
+      responses:
+        "200": { description: ok }
+        "428": { description: WEBAUTHN_REQUIRED }
+
+  /api/metrics/live:
+    get:
+      tags: [console]
+      summary: Live-Metriken (CPU/RAM/Uptime/Geräte/Alerts) für Dashboard-Widgets
+      x-rbac: operator
+      responses:
+        "200": { description: live metrics }
+
+  /api/admin/rbac:
+    get:
+      tags: [admin]
+      summary: Dynamische RBAC-Matrix (Rollen × Aktionen, inkl. Overrides)
+      x-rbac: emergency
+      responses:
+        "200": { description: matrix }
+    patch:
+      tags: [admin]
+      summary: RBAC-Override setzen/zurücksetzen – wirkt live auf die Autorisierung
+      x-rbac: emergency
+      x-webauthn: true
+      responses:
+        "200": { description: ok }
+        "428": { description: WEBAUTHN_REQUIRED }
+
+  /api/agent/execute:
+    post:
+      tags: [agent]
+      summary: Befehl auf einem gebundenen Gerät ausführen (SSH/HTTP/Ping/BLE/Bluetooth)
+      x-rbac: service
+      responses:
+        "200": { description: Ausführung + Analyse }
+
+  /api/devices/bound:
+    get:
+      tags: [discovery]
+      summary: Gebundene Geräte (Device-Registry, Agent-Grundlage)
+      x-rbac: service
+      responses:
+        "200": { description: devices }
+
+  /api/devices/bind:
+    post:
+      tags: [discovery]
+      summary: Discovery-Node binden (Protokoll-Ableitung oder explizit)
+      x-rbac: service
+      responses:
+        "201": { description: gebunden }
+        "404": { description: node nicht gefunden }
+  /api/devices/bind/{id}:
+    delete:
+      tags: [discovery]
+      summary: Gerät entbinden
+      x-rbac: service
+      responses:
+        "200": { description: ok }
+
   # ------------------------------------------------------------------
   # BLE Professional Suite (NEXUS-BUILDER)
   # Kritische Aktionen (mesh delete, Profil anwenden, Fehlersimulation)

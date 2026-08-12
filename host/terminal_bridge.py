@@ -117,8 +117,13 @@ class TerminalSession:
         """Echte SSH-Session via paramiko.
 
         Ziel-Format: "host:port:user:passwort" (lokaler Demo-SSH-Server
-        host/ssh_server.py) oder "host:port" mit Key-/Default-Auth.
+        host/ssh_server.py) oder "host:port" mit Key-Auth.
+        Auth-Reihenfolge: 1) explizites Passwort im Ziel  2) hinterlegter
+        SSH-Key des Nutzers (Admin-Hub, per-User → global)  3) sonst klarer
+        Fehler (kein stiller Dummy-Fallback).
         """
+        from . import ssh_key_store
+
         parts = self.target.split(":")
         host = parts[0]
         port = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 22
@@ -131,7 +136,8 @@ class TerminalSession:
         self._ssh = paramiko.SSHClient()
         self._ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            key_path = os.path.expanduser("~/.ssh/id_rsa")
+            # Hochgeladener Key des Nutzers (Admin-Hub) → globaler Fallback
+            key_path = ssh_key_store.resolve_key_path(self.user)
             connect_kwargs = {
                 "hostname": host,
                 "port": port,
@@ -142,15 +148,16 @@ class TerminalSession:
             if password:
                 connect_kwargs["password"] = password
                 connect_kwargs["look_for_keys"] = False
-            elif os.path.isfile(key_path):
+            elif key_path:
                 connect_kwargs["key_filename"] = key_path
                 connect_kwargs["password"] = None
             else:
                 # Kein Key UND kein explizites Passwort → kein stiller
                 # Dummy-Fallback, sondern klarer Fehler (Härtung).
-                return False, (f"{FEHLERCODE_GENERIC}: SSH-Key {key_path} fehlt und "
+                return False, (f"{FEHLERCODE_GENERIC}: SSH-Key fehlt und "
                                "kein Passwort angegeben – Ziel-Format: "
-                               "host:port:user:passwort")
+                               "host:port:user:passwort oder SSH-Key im "
+                               "Admin-Hub hinterlegen")
             self._ssh.connect(**connect_kwargs)
         except Exception as exc:  # noqa: BLE001
             return False, f"{FEHLERCODE_GENERIC}: SSH-Verbindung fehlgeschlagen: {exc}"

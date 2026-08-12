@@ -235,6 +235,9 @@ class Agent:
         ble = self._try_ble_intents(t)
         if ble is not None:
             return ble
+        if re.search(r"(status|zustand|uptime|batterie|battery|reboot|ping)",
+                     t) and re.search(r"(alle|gerät|geraet|geräte|geraete|server|kopfhörer|kopfhoerer|box|fritz|usb|device)", t):
+            return self._intent_device_status(t)
         if re.search(r"\bstopp|abbrechen|beenden", t):
             return self._intent_stop()
         if re.search(r"\bscann|netzwerk-?scan", t):
@@ -712,6 +715,30 @@ class Agent:
         for d in devices:
             status = "🟢" if d.get("online") else "🔴"
             lines.append(f"- {status} {d.get('name')} ({d.get('ip')}, Typ: {d.get('type')})")
+        return "\n".join(lines)
+
+    def _intent_device_status(self, t: str) -> str:
+        """Aktiver Agent (Offline-Fall): Status gebundener Geräte abfragen.
+
+        Wenn der Host erreichbar ist, übernimmt der Host-Orchestrator die
+        Ausführung (echte Connectors); hier nur die Registry-Ansicht.
+        """
+        bound = APIClient.bound_devices()
+        if not bound:
+            return "⚠️ Keine Geräte am Host gebunden – im Discovery-Dashboard binden."
+        action = "status"
+        if "batterie" in t or "battery" in t:
+            action = "battery"
+        elif "ping" in t:
+            action = "ping"
+        self._audit("device_status", f"{action} auf {len(bound)} Geräten")
+        lines = [f"🎯 {len(bound)} gebundene Geräte – Aktion: {action}"]
+        for d in bound[:10]:
+            icon = "🟢" if d.get("online") else "🔴"
+            lines.append(f"- {icon} {d.get('alias')} ({d.get('protocol')}, "
+                         f"{d.get('address') or d.get('ip', '–')})")
+        lines.append("\nTipp: Mit Host-Controller (python3 desktop/main.py) führt der "
+                     "Agent „Status alle“ als echte Befehle aus (SSH/HTTP/Ping).")
         return "\n".join(lines)
 
     def _intent_clients(self) -> str:

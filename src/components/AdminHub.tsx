@@ -8,10 +8,10 @@
  *    kritische L3+-Aktionen erforderlich)
  */
 import { useCallback, useEffect, useState } from 'react';
-import { X, Users, ScrollText, KeyRound, ShieldCheck, RefreshCw, Plus, Trash2, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { X, Users, ScrollText, KeyRound, ShieldCheck, RefreshCw, Plus, Trash2, Loader2, CheckCircle2, AlertTriangle, SlidersHorizontal, Gauge, Search, RotateCcw } from 'lucide-react';
 import { api } from '../lib/api/client';
 
-type TabKey = 'users' | 'audit' | 'ssh' | 'webauthn';
+type TabKey = 'users' | 'audit' | 'ssh' | 'webauthn' | 'rbac' | 'system';
 
 const ROLE_OPTIONS = ['guest', 'operator', 'service', 'developer', 'expert', 'emergency', 'admin'];
 
@@ -21,6 +21,8 @@ function TabBar({ tab, setTab }: { tab: TabKey; setTab: (t: TabKey) => void }) {
     { key: 'audit', label: 'Audit-Log', icon: <ScrollText className="w-3.5 h-3.5" /> },
     { key: 'ssh', label: 'SSH-Key', icon: <KeyRound className="w-3.5 h-3.5" /> },
     { key: 'webauthn', label: 'WebAuthn', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+    { key: 'rbac', label: 'RBAC-Matrix', icon: <SlidersHorizontal className="w-3.5 h-3.5" /> },
+    { key: 'system', label: 'System', icon: <Gauge className="w-3.5 h-3.5" /> },
   ];
   return (
     <nav className="px-4 pt-3 flex gap-1.5 overflow-x-auto border-b border-white/5 bg-[#050a18]/60">
@@ -341,6 +343,271 @@ function WebAuthnTab() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// RBAC-Matrix-Tab (Closed-Loop #1): Checkboxen wirken LIVE auf die
+// tatsächliche Backend-Autorisierung (PATCH /api/admin/rbac, WebAuthn-geschützt)
+// ---------------------------------------------------------------------------
+const FEATURE_LABELS: Record<string, string> = {
+  ble_discovery: 'BLE-Discovery (bleak + virtuelle Peripherals)',
+  network_arp: 'ARP-/Netzwerk-Scan + HTTP-Probe (Fritzbox, Drucker…)',
+  usb_dongle: 'USB-Dongle-Enumeration',
+  ssh_server: 'SSH-Server (:2222, Terminal-Ziel)',
+};
+
+function RbacTab() {
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.adminRbac>> | null>(null);
+  const [q, setQ] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try { setData(await api.adminRbac()); setError(null); }
+    catch (e) { setError(String(e)); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (action: string, role: string, current: boolean) => {
+    setBusy(true); setMsg(null); setError(null);
+    try {
+      const res = await api.adminRbacSet(action, role, !current);
+      if (res.ok) {
+        setMsg(`✅ ${action} / ${role} → ${!current ? 'erlaubt' : 'gesperrt'} (wirkt sofort im Backend)`);
+        await load();
+      }
+    } catch (e) { setError(`⚠️ ${String(e)}`); }
+    finally { setBusy(false); }
+  };
+
+  const resetAction = async (action: string) => {
+    setBusy(true); setMsg(null); setError(null);
+    try {
+      for (const role of data?.roles ?? []) {
+        await api.adminRbacReset(action, role).catch(() => undefined);
+      }
+      setMsg(`↩️ ${action}: alle Overrides zurückgesetzt (Default-Matrix)`);
+      await load();
+    } catch (e) { setError(`⚠️ ${String(e)}`); }
+    finally { setBusy(false); }
+  };
+
+  if (!data) {
+    return <div className="text-[11px] text-slate-500">Lade RBAC-Matrix…</div>;
+  }
+  const filtered = data.actions.filter((a) => a.includes(q.toLowerCase()));
+  const overridden = (action: string, role: string) =>
+    data.overrides[action]?.[role] !== undefined;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 flex-wrap items-center">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Aktion filtern… (z. B. ble_connect, config_write)"
+            className="w-full bg-slate-900/70 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-[11px] text-slate-100 outline-none focus:border-cyan-400/50" />
+        </div>
+        <span className="text-[10px] font-mono text-slate-500">
+          {data.actions.length} Aktionen · {data.roles.length} Rollen · Live-Wirkung im Backend
+        </span>
+      </div>
+      {msg && <div className="text-[11px] font-mono text-emerald-300 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{msg}</div>}
+      {error && <div className="text-[11px] font-mono text-rose-300">⚠️ {error}</div>}
+      {busy && <div className="text-[10px] font-mono text-cyan-300 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> warte auf WebAuthn-Bestätigung…</div>}
+
+      <div className="rounded-2xl border border-white/5 bg-[#060f2a]/60 overflow-hidden">
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-[11px] font-mono">
+            <thead className="bg-slate-900/80 sticky top-0 z-10">
+              <tr className="text-slate-400 text-left">
+                <th className="px-3 py-2">Aktion</th>
+                {data.roles.map((r) => (
+                  <th key={r} className="px-2 py-2 text-center text-[10px]">{r}</th>
+                ))}
+                <th className="px-2 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((action) => {
+                const hasOverride = data.roles.some((r) => overridden(action, r));
+                return (
+                  <tr key={action} className={`border-t border-white/5 ${hasOverride ? 'bg-cyan-950/20' : ''}`}>
+                    <td className="px-3 py-1.5 text-violet-300 whitespace-nowrap" title={`Mindestlevel: ${data.defaults[action]}`}>
+                      {action} <span className="text-slate-600">L{data.defaults[action]}</span>
+                    </td>
+                    {data.roles.map((role) => {
+                      const allowed = data.matrix[action]?.[role] ?? false;
+                      const isOverride = overridden(action, role);
+                      return (
+                        <td key={role} className="px-2 py-1.5 text-center">
+                          <button
+                            onClick={() => toggle(action, role, allowed)}
+                            disabled={busy}
+                            title={isOverride ? `Override (${allowed ? 'erlaubt' : 'gesperrt'}) – klicken zum Ändern` : `Default (${allowed ? 'erlaubt' : 'gesperrt'}) – klicken zum Override`}
+                            className={`w-4 h-4 rounded inline-block align-middle transition border disabled:opacity-40 ${
+                              allowed
+                                ? 'bg-emerald-500/80 border-emerald-400'
+                                : 'bg-slate-800 border-slate-600'
+                            } ${isOverride ? 'ring-2 ring-amber-400/60' : ''}`}
+                          />
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-1.5 text-center">
+                      {hasOverride && (
+                        <button onClick={() => resetAction(action)} disabled={busy}
+                          className="p-1 rounded bg-slate-800 hover:bg-amber-900/50 text-slate-400 hover:text-amber-300 transition" title="Alle Overrides dieser Aktion zurücksetzen">
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={data.roles.length + 2} className="px-3 py-6 text-center text-slate-500">Keine Aktion gefunden.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="text-[10px] font-mono text-slate-500 flex items-center gap-3">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500/80 inline-block" /> erlaubt</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-800 border border-slate-600 inline-block" /> gesperrt</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded ring-2 ring-amber-400/60 bg-emerald-500/80 inline-block" /> UI-Override (wirkt live)</span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// System-Tab (Closed-Loop #2 + #5): Feature-Toggles + Live-Metriken
+// ---------------------------------------------------------------------------
+function SystemTab() {
+  const [features, setFeatures] = useState<Record<string, boolean> | null>(null);
+  const [metrics, setMetrics] = useState<Awaited<ReturnType<typeof api.metricsLive>> | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadFeatures = useCallback(async () => {
+    try { const res = await api.systemFeatures(); setFeatures(res.features); } catch { /* offline */ }
+  }, []);
+  const loadMetrics = useCallback(async () => {
+    try { setMetrics(await api.metricsLive()); } catch { /* offline */ }
+  }, []);
+  useEffect(() => { loadFeatures(); }, [loadFeatures]);
+  useEffect(() => {
+    loadMetrics();
+    const id = window.setInterval(loadMetrics, 2000);
+    return () => window.clearInterval(id);
+  }, [loadMetrics]);
+
+  const toggleFeature = async (key: string, enabled: boolean) => {
+    setBusy(true); setMsg(null); setError(null);
+    try {
+      const res = await api.systemFeaturesPatch({ [key]: !enabled });
+      if (res.ok) {
+        setFeatures(res.features);
+        setMsg(`✅ Feature '${key}' → ${!enabled ? 'AKTIV' : 'GESTOPPT'} – Hintergrund-Task real geschaltet`);
+      }
+    } catch (e) { setError(`⚠️ ${String(e)}`); }
+    finally { setBusy(false); }
+  };
+
+  const fmtUptime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
+  return (
+    <div className="grid md:grid-cols-2 gap-4">
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-white/5 bg-[#060f2a]/60 p-4">
+          <h4 className="text-xs font-black text-white mb-3 flex items-center gap-2">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-300" /> Background-Services (Feature-Toggles)
+            <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-700/40 bg-amber-950/40 text-amber-300">WebAuthn-geschützt</span>
+          </h4>
+          {msg && <div className="mb-2 text-[11px] font-mono text-emerald-300 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{msg}</div>}
+          {error && <div className="mb-2 text-[11px] font-mono text-rose-300">⚠️ {error}</div>}
+          {busy && <div className="mb-2 text-[10px] font-mono text-cyan-300 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> warte auf WebAuthn-Bestätigung…</div>}
+          <div className="space-y-2">
+            {Object.entries(FEATURE_LABELS).map(([key, label]) => (
+              <div key={key} className="flex items-center gap-3 rounded-xl border border-white/5 bg-slate-900/50 px-3 py-2">
+                <button
+                  onClick={() => toggleFeature(key, features?.[key] ?? false)}
+                  disabled={busy || !features}
+                  className={`relative w-10 h-5 rounded-full transition disabled:opacity-40 ${features?.[key] ? 'bg-emerald-500/80' : 'bg-slate-700'}`}
+                  title={features?.[key] ? 'Anklicken → stoppen' : 'Anklicken → starten'}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${features?.[key] ? 'left-[22px]' : 'left-0.5'}`} />
+                </button>
+                <span className="text-[11px] font-bold text-slate-100 flex-1">{label}</span>
+                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+                  features?.[key] ? 'text-emerald-300 border-emerald-700/40 bg-emerald-950/40' : 'text-rose-300 border-rose-700/40 bg-rose-950/40'
+                }`}>{features?.[key] ? 'RUNNING' : 'STOPPED'}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-[10px] font-mono text-slate-500">
+            Toggle schaltet die tatsächlichen Scan-/Server-Tasks des Hosts ab/an (persistiert in host/data/features.json).
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-white/5 bg-[#060f2a]/60 p-4">
+          <h4 className="text-xs font-black text-white mb-3 flex items-center gap-2">
+            <Gauge className="w-3.5 h-3.5 text-emerald-300" /> Live-Metriken (2s-Poll)
+          </h4>
+          {metrics ? (
+            <div className="space-y-2 text-[11px] font-mono">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-slate-900/60 border border-white/5 p-2.5">
+                  <div className="text-[9px] text-slate-500 uppercase">CPU</div>
+                  <div className="text-base font-black text-cyan-300">{metrics.cpu_percent ?? '--'}%</div>
+                  <div className="h-1.5 rounded bg-slate-800 mt-1 overflow-hidden">
+                    <div className="h-full bg-cyan-400 transition-all" style={{ width: `${Math.min(100, metrics.cpu_percent ?? 0)}%` }} />
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-900/60 border border-white/5 p-2.5">
+                  <div className="text-[9px] text-slate-500 uppercase">RAM</div>
+                  <div className="text-base font-black text-violet-300">{metrics.ram_percent ?? '--'}%</div>
+                  <div className="h-1.5 rounded bg-slate-800 mt-1 overflow-hidden">
+                    <div className="h-full bg-violet-400 transition-all" style={{ width: `${Math.min(100, metrics.ram_percent ?? 0)}%` }} />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">Uptime</span><b className="text-slate-100">{fmtUptime(metrics.uptime_s)}</b></div>
+              <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">Backend</span><b className="text-cyan-200">{metrics.backend}</b></div>
+              <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">BLE verbunden</span><b className="text-slate-100">{metrics.connected_devices}</b></div>
+              <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">Gebundene Geräte</span><b className="text-slate-100">{metrics.bound_devices}</b></div>
+              <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">Clients online</span><b className="text-slate-100">{metrics.clients_online}</b></div>
+            </div>
+          ) : (
+            <div className="text-[11px] text-slate-500 italic">Keine Live-Daten (Host offline).</div>
+          )}
+          {metrics && metrics.alerts.length > 0 && (
+            <div className="mt-3 pt-2 border-t border-white/5">
+              <div className="text-[9px] font-black uppercase tracking-wide text-rose-300 mb-1.5">Kritische Alerts (letzte 5)</div>
+              <div className="space-y-1">
+                {metrics.alerts.map((a, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[10px] font-mono text-rose-200/90 bg-rose-950/30 rounded-lg px-2 py-1">
+                    <AlertTriangle className="w-3 h-3 text-rose-300 shrink-0" />
+                    <span className="text-slate-500">{a.ts.split('T')[1]}</span>
+                    <span className="text-rose-200">{a.action}</span>
+                    <span className="text-slate-400 truncate flex-1">{a.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminHub({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<TabKey>('users');
   return (
@@ -366,6 +633,8 @@ export default function AdminHub({ onClose }: { onClose: () => void }) {
           {tab === 'audit' && <AuditTab />}
           {tab === 'ssh' && <SshKeyTab />}
           {tab === 'webauthn' && <WebAuthnTab />}
+          {tab === 'rbac' && <RbacTab />}
+          {tab === 'system' && <SystemTab />}
         </div>
       </main>
     </div>

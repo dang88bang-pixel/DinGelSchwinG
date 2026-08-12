@@ -63,6 +63,7 @@ class SshServer:
         }
         self._thread: threading.Thread | None = None
         self._running = False
+        self._sock: socket.socket | None = None
         self._host_key = self._load_host_key()
 
     def _load_host_key(self) -> paramiko.RSAKey:
@@ -80,18 +81,35 @@ class SshServer:
         self._thread = threading.Thread(target=self._serve, daemon=True)
         self._thread.start()
 
+    def stop(self) -> None:
+        """Stoppt den Server (Feature-Toggle): Socket schließen → Loop endet."""
+        self._running = False
+        sock = self._sock
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+        self._sock = None
+
     def _serve(self) -> None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("127.0.0.1", self.port))
         sock.listen(8)
+        sock.settimeout(0.5)  # erlaubt sauberen Stop über close()/Timeout
+        self._sock = sock
         while self._running:
             try:
                 conn, _addr = sock.accept()
                 threading.Thread(target=self._handle,
                                  args=(conn,), daemon=True).start()
             except OSError:
+                if self._running:
+                    continue
                 break
+            except socket.timeout:
+                continue
 
     def _handle(self, conn: socket.socket) -> None:
         transport = paramiko.Transport(conn)

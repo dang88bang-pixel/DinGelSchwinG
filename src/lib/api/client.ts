@@ -42,6 +42,17 @@ export function setHostReachable(value: boolean): void {
   _hostReachable = value;
 }
 
+export class ApiError extends Error {
+  status: number;
+  code: string;
+
+  constructor(message: string, status: number, code: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -50,10 +61,38 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (_token) headers['Authorization'] = `Bearer ${_token}`;
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { message?: string }).message ?? `HTTP ${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
+    throw new ApiError(body.message ?? `HTTP ${res.status}`, res.status, body.code ?? 'ERROR');
   }
   return res.json() as Promise<T>;
+}
+
+/**
+ * Kritische Aktion (WebAuthn-Pflicht): 428 → Challenge/Assertion abrufen und
+ * mit X-WebAuthn-Token automatisch erneut senden (FIDO2-Bestätigung).
+ */
+export async function requestCritical<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  try {
+    return await request<T>(path, options);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 428) {
+      // WebAuthn-Assertion holen (HMAC-signierte Challenge des Hosts)
+      const ch = await request<{ challenge: string }>('/webauthn/challenge', { method: 'POST' });
+      const ass = await request<{ ok: boolean; token: string }>('/webauthn/assert', {
+        method: 'POST',
+        body: JSON.stringify({ challenge: ch.challenge }),
+      });
+      if (ass.ok) {
+        const headers = { ...(options.headers as Record<string, string> | undefined) };
+        headers['X-WebAuthn-Token'] = ass.token;
+        return await request<T>(path, { ...options, headers });
+      }
+    }
+    throw e;
+  }
 }
 
 export const api = {
@@ -241,6 +280,68 @@ export const api = {
   async webauthnDelete(credentialId: string): Promise<{ ok: boolean }> {
     return request(`/webauthn/credentials/${encodeURIComponent(credentialId)}`, { method: 'DELETE' });
   },
+
+  // ------------------------------------------------------------------
+  // Closed-Loop #1: dynamische RBAC-Matrix (Admin-UI → Backend-Autorisierung)
+  // ------------------------------------------------------------------
+  async adminRbac(): Promise<RbacMatrix> {
+    return request('/admin/rbac');
+  },
+
+  async adminRbacSet(action: string, role: string, allow: boolean): Promise<{ ok: boolean }> {
+    return requestCritical('/admin/rbac', {
+      method: 'PATCH',
+      body: JSON.stringify({ action, role, allow }),
+    });
+  },
+
+  async adminRbacReset(action: string, role: string): Promise<{ ok: boolean }> {
+    return requestCritical('/admin/rbac', {
+      method: 'PATCH',
+      body: JSON.stringify({ action, role, reset: true }),
+    });
+  },
+
+  // ------------------------------------------------------------------
+  // Closed-Loop #2: Feature-Toggles (UI → Background-Services)
+  // ------------------------------------------------------------------
+  async systemFeatures(): Promise<{ features: Record<string, boolean>; defaults: Record<string, boolean> }> {
+    return request('/system/features');
+  },
+
+  async systemFeaturesPatch(features: Record<string, boolean>): Promise<{ ok: boolean; features: Record<string, boolean> }> {
+    return requestCritical('/system/features', {
+      method: 'PATCH',
+      body: JSON.stringify({ features }),
+    });
+  },
+
+  // ------------------------------------------------------------------
+  // Closed-Loop #5: Live-Metriken (Dashboard-Widgets)
+  // ------------------------------------------------------------------
+  async metricsLive(): Promise<LiveMetrics> {
+    return request('/metrics/live');
+  },
+
+  // ------------------------------------------------------------------
+  // Closed-Loop #4 + Aktiver Agent: gebundene Geräte & Befehlausführung
+  // ------------------------------------------------------------------
+  async boundDevices(): Promise<BoundDevice[]> {
+    const body = await request<{ devices: BoundDevice[] }>('/devices/bound');
+    return body.devices;
+  },
+
+  async deviceBind(nodeId: string, alias = '', protocol = ''): Promise<{ ok: boolean; device?: BoundDevice }> {
+    return request('/devices/bind', { method: 'POST', body: JSON.stringify({ nodeId, alias, protocol }) });
+  },
+
+  async deviceUnbind(deviceId: string): Promise<{ ok: boolean }> {
+    return request(`/devices/bind/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+  },
+
+  async agentExecute(command: string, target: string): Promise<AgentExecuteResult> {
+    return request('/agent/execute', { method: 'POST', body: JSON.stringify({ command, target }) });
+  },
 };
 
 export interface VirtualPeripheral {
@@ -286,4 +387,52 @@ export interface SnifferFrame {
   dir: 'rx' | 'tx';
   opcode: number;
   hex: string;
+}
+
+export interface RbacMatrix {
+  roles: string[];
+  actions: string[];
+  defaults: Record<string, number>;
+  overrides: Record<string, Record<string, boolean>>;
+  matrix: Record<string, Record<string, boolean>>;
+}
+
+export interface LiveMetrics {
+  cpu_percent: number | null;
+  ram_percent: number | null;
+  uptime_s: number;
+  backend: string;
+  connected_devices: number;
+  bound_devices: number;
+  clients_online: number;
+  features: Record<string, boolean>;
+  alerts: Array<{ action: string; detail: string; ts: string; trace_id: string }>;
+  time: number;
+}
+
+export interface BoundDevice {
+  id: string;
+  alias: string;
+  label: string;
+  kind: string;
+  protocol: string;
+  address: string;
+  ip: string;
+  mac: string;
+  capabilities: string[];
+  online: boolean;
+  connected: boolean;
+}
+
+export interface AgentExecuteResult {
+  ok: boolean;
+  reply?: string;
+  error?: string;
+  results?: Array<{
+    alias: string;
+    ok: boolean;
+    output?: string;
+    error?: string;
+    analysis?: { summary?: string; status?: string };
+  }>;
 }

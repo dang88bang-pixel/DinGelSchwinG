@@ -222,10 +222,14 @@ def start_ws_servers() -> None:
 
 
 def main() -> None:
+    from .feature_manager import feature_manager
     audit.audit.log("system", "system", "host.start", "Host-Backend startet")
     scanner.scanner.start()
     virtual_ble.virtual_ble.start()          # protokollkorrekter BLE-Stapel
-    ssh_server.ssh_server.start()            # echter userspace-SSH-Server :2222
+    # SSH-Server dem Feature-Manager melden (Toggle kann ihn live stoppen/starten)
+    feature_manager.register_ssh_server(ssh_server.ssh_server)
+    if feature_manager.is_enabled("ssh_server"):
+        ssh_server.ssh_server.start()        # echter userspace-SSH-Server :2222
     start_ws_servers()
     app = create_app()
     print(f"NEXUS-BLE-Host: REST :{config.REST_PORT} | WS Terminal "

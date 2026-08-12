@@ -990,6 +990,31 @@ export class AgentEngine {
     if (action === 'audit') return this.intentAudit();
     if (action === 'stop') return this.intentStop();
     if (action === 'clear_cache') return this.intentClearCache();
+    if (action.startsWith('exec:')) {
+      // Closed-Loop #4: Button führt echten Befehl auf einem gebundenen Gerät
+      // aus (Host-API /api/agent/execute → SSH/HTTP/Ping/BLE-Connector).
+      const rest = action.slice(5);
+      const idx = rest.indexOf(':');
+      const target = idx >= 0 ? rest.slice(0, idx).trim() : 'alle';
+      const command = idx >= 0 ? rest.slice(idx + 1).trim() : rest.trim();
+      const { api } = await import('../api/client');
+      try {
+        const res = await api.agentExecute(command || 'status', target);
+        if (!res.ok) return `❌ ${res.error ?? 'Ausführung fehlgeschlagen'}`;
+        const parts = [`✅ Befehl '${command || 'status'}' → ${target}`];
+        for (const r of res.results ?? []) {
+          if (r.ok) {
+            const summary = r.analysis?.summary ? r.analysis.summary : (r.output ?? '').slice(0, 300);
+            parts.push(`📟 **${r.alias}**\n${summary}`);
+          } else {
+            parts.push(`❌ **${r.alias}**: ${r.error ?? 'Fehler'}`);
+          }
+        }
+        return parts.join('\n');
+      } catch (e) {
+        return `❌ Befehlausführung fehlgeschlagen: ${String(e)}`;
+      }
+    }
     if (action.startsWith('script:')) {
       const name = action.split(':')[1];
       this.audit('run_script', name);

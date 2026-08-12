@@ -8,7 +8,7 @@ import {
   Network as NetworkIcon, Plus, KeyRound, Radio, Send, Trash2, ShieldCheck, Server, BatteryFull,
 } from 'lucide-react';
 import { useBleStore } from './useBleStore';
-import { api, isHostReachable, MeshNetworkApi } from '../../lib/api/client';
+import { api, MeshNetworkApi } from '../../lib/api/client';
 import { Chip } from './BleCharts';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -50,11 +50,6 @@ export default function MeshBuilder() {
   }, [refreshHost]);
 
   // Host-Routing-Helfer: primär Host-API, Fallback Store
-  const hostCreateMesh = async (name: string) => {
-    const res = await api.meshCreate(name);
-    setFeedback(res.ok ? `🌐 Host-Mesh '${name}' erstellt (zentrale Schlüssel)` : `❌ ${res.error}`);
-    await refreshHost();
-  };
   const hostProvision = async (networkId: string, deviceId: string) => {
     const res = await api.meshProvision(networkId, deviceId);
     setFeedback(res.ok && res.node ? `🔑 ${res.node.name} → ${res.node.unicast} (${res.node.role}) [Host]` : `❌ ${res.error}`);

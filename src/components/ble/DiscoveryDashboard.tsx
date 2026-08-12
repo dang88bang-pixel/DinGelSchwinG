@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Bluetooth, Plug, Unplug, RefreshCw, Loader2, RadioTower, Server } from 'lucide-react';
 import { useBleStore } from './useBleStore';
-import { api, isHostReachable, VirtualPeripheral } from '../../lib/api/client';
+import { api, VirtualPeripheral } from '../../lib/api/client';
 import { Chip } from './BleCharts';
 import { DEVICE_CLASS_COLORS, DEVICE_CLASS_LABELS, BleDeviceClass } from '../../lib/ble/types';
 

@@ -157,3 +157,52 @@ WebAuthn-Routen, `settings_ssh`/`webauthn_manage`-RBAC), `main.py`
 Audit-Filter + trace_id ✅ · WebAuthn Challenge/Register/Credentials ✅ ·
 Discovery Bind/Connect ✅ · Terminal SSH über URLSearchParams-Pfad ✅ ·
 Host 44 Tests · Web tsc/lint/build · Desktop 46 · Mobile 80 · py_compile ✅
+
+---
+
+## 7. Closed-Loop: alle 6 Aktionsketten geschlossen + aktiver Agent + drahtlose Geräte
+
+Die GAP-Analyse identifizierte 6 „Broken Links“ (UI-Schalter ohne Backend-Wirkung).
+Alle wurden geschlossen – Änderungen wirken live, keine Platzhalter:
+
+| # | Aktionskette | Geschlossen durch (tatsächliche Dateien) | Verifikation |
+|---|---|---|---|
+| 1 | RBAC-Matrix (UI) → Backend-Autorisierung | `host/rbac.py` dynamische Overlays (persistiert in `host/data/rbac_matrix.json`), `PATCH /api/admin/rbac` (kritisch, WebAuthn), AdminHub-Tab „RBAC-Matrix“ (Checkboxen, Override-Ring) | `can()` liest Override → wirkt sofort; API 428 ohne Token, 200 mit |
+| 2 | Feature-Toggle (UI) → Background-Services | `host/feature_manager.py` (Singleton, persistiert), `PATCH /api/system/features` (kritisch), `host/scanner.py` wertet Flags aus (`ble_discovery`/`network_arp`/`usb_dongle`), `ssh_server.stop()` | Toggle entfernt BLE-Nodes live aus dem Discovery-Snapshot (Test `test_scanner_respects_feature`) |
+| 3 | SSH-Key-Upload → Terminal-Verbindung | `host/ssh_key_store.py` (pro-User `host/data/ssh_keys/<user>_id_rsa` + globaler Fallback), `terminal_bridge._open_ssh` und SSH-Connector nutzen `resolve_key_path(user)` | Terminal nutzt den hochgeladenen Key; ohne Key/Passwort klarer Fehler |
+| 4 | Agent-Console-Buttons → Befehlausführung | `POST /api/agent/execute` (RBAC `agent_execute`), `host/agent/agent_orchestrator.execute()` + Connectors; Web-Buttons mit `exec:<ziel>:<befehl>` rufen die Host-API auf | Test `TestAgentOrchestrator`, Live-Ping/SSH-Ausführung |
+| 5 | Dashboard-Widgets → Echtzeit-Metriken | `GET /api/metrics/live` (CPU/RAM/Uptime/gebundene Geräte/Clients/Alerts), Sidebar-Widget in `NetworkDashboard.tsx` (2s-Poll), AdminHub „System“-Tab | Test `TestMetricsLive` |
+| 6 | WebAuthn → kritische Aktionen | `auth.require_action` erzwingt für `CRITICAL_ACTIONS` signierten `X-WebAuthn-Token` **und** registriertes Credential (428 sonst); erweitert um `ble_virtual_delete`, `rbac_write`, `feature_toggle` | Tests `test_mesh_delete_requires_webauthn_token`, `TestRbacDynamic.test_matrix_api_requires_webauthn` |
+
+### Aktiver Agent (Geräte-Erkennung, Ausführung, intelligente Auswertung)
+
+`host/agent/` – rein produktiv, kein Mock:
+- `device_resolver.py` – exakte/Teilstring/Typ/Status/unscharfe Suche („Status alle“, „Kopfhörer“, „alle usb“)
+- `result_analyzer.py` – wertet uptime/free/df/ping/Batterie aus, erkennt Fehler-Muster, liefert Metriken
+- `agent_orchestrator.py` – lädt gebundene Geräte (Device-Registry), dispatcht über Connectors, komponiert Antwort
+- Anbindung: `/api/agent/ask` routet Geräte-/Status-Anfragen an den Orchestrator; `POST /api/agent/execute` führt Befehle aus
+- UI: `AgentConsole.tsx` zeigt gebundene Geräte als Chips („Status von X“, „🔍 Alle prüfen“)
+
+### Drahtlose Geräte (Fritzbox, Smartphones, BLE-Kopfhörer, Musikboxen)
+
+`host/connectors/` – echte Protokolle, keine Simulation:
+| Connector | Protokoll | Echte Ausführung |
+|---|---|---|
+| `ssh_connector.py` | SSH | paramiko exec, per-User-Key-Auth |
+| `http_connector.py` | HTTP/HTTPS | urllib GET/POST/PUT/DELETE, Fritzbox `login_sid.lua`-Status |
+| `ping_connector.py` | ICMP | subprocess ping, Latenz-Parsing |
+| `ble_connector.py` | BLE GATT | Host-ATT-Stapel/bleak: Batterie (0x180F/0x2A19), read/write |
+| `bluetooth_classic_connector.py` | Bluetooth Classic | bluetoothctl + playerctl (Play/Pause/Volume); ohne Tools klarer Fehler |
+| `serial_connector.py` | Seriell | Terminal-Bridge-PTY |
+
+- `host/device_registry.py` – gebundene Geräte mit Protokoll-Ableitung (Kopfhörer→ble, Boxen→bluetooth, Netzwerk→ping/http), Persistenz `host/data/devices.json`
+- `host/scanner.py` – HTTP-Probe für ARP-Geräte (kind `network_http`), Feature-aware
+- API: `/api/devices/bind`, `/api/devices/bound`, `/api/devices/bind/<id>` (DELETE)
+
+### Verifikation (zuletzt durchgeführt)
+
+- Host **63 Tests** (davon 1 Skip ohne virtuellen Node) ✅ · Desktop **46** ✅
+- Web `tsc --noEmit`, `npm run lint` (0 Warnungen), `npm run build` ✅
+- Mobile `check_project.py` 77 Dart-Dateien ✅ · `py_compile` host+desktop ✅
+- Live-E2E: RBAC-PATCH 428→200 · Feature-Toggle stoppt BLE-Nodes · SSH-Key pro User ·
+  Agent „Status alle“ mit echtem Ping · Metrics-Live-Poll · WebAuthn-Critical-Flow ✅

@@ -97,6 +97,7 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
   const [modeDraft, setModeDraft] = useState<AgentMode>(engine.mode);
   const [instructionDraft, setInstructionDraft] = useState(engine.systemInstruction);
   const [hostOnline, setHostOnline] = useState(false);
+  const [boundDevices, setBoundDevices] = useState<Array<{ alias: string; protocol: string; online: boolean }>>([]);
 
   // Host-Controller-Anbindung (POST /api/agent/ask) – aktiv, wenn Host erreichbar
   useEffect(() => {
@@ -106,6 +107,16 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
     }, 15000);
     return () => window.clearInterval(timer);
   }, []);
+
+  // Gebundene Geräte (Host-Registry) – Kontext für den aktiven Agenten
+  useEffect(() => {
+    if (!hostOnline) return;
+    api.boundDevices().then(setBoundDevices).catch(() => undefined);
+    const id = window.setInterval(() => {
+      api.boundDevices().then(setBoundDevices).catch(() => undefined);
+    }, 8000);
+    return () => window.clearInterval(id);
+  }, [hostOnline]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const msgId = useRef(1);
@@ -172,6 +183,33 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
       setBusy(false);
     }
   }, [input, busy, engine, addMessage, hostOnline]);
+
+  // Schnell-Abfrage: gebundenes Gerät gezielt ansprechen (aktiver Agent)
+  const quickAsk = useCallback(
+    async (text: string) => {
+      addMessage('user', text);
+      setBusy(true);
+      try {
+        let reply: string;
+        if (hostOnline) {
+          try {
+            const res = await api.agentAsk(text);
+            reply = res.ok ? res.reply : `⚠️ ${res.reply ?? 'Unbekannter Controller-Fehler'}`;
+          } catch {
+            reply = await engine.ask(text);
+          }
+        } else {
+          reply = await engine.ask(text);
+        }
+        addMessage('agent', reply);
+      } catch (e) {
+        addMessage('agent', `⚠️ Fehler: ${String(e)}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [hostOnline, engine, addMessage],
+  );
 
   const actionClick = useCallback(
     async (idx: number) => {
@@ -403,6 +441,43 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Gebundene Geräte – Kontext für den aktiven Agenten */}
+      {hostOnline && (
+        <div className="px-4 pt-2 flex items-center gap-1.5 flex-wrap bg-[#050a18]/60 border-b border-white/5">
+          <span className="text-[10px] font-black uppercase tracking-wide text-slate-400 mr-1">📟 Gebunden:</span>
+          {boundDevices.length === 0 && (
+            <span className="text-[10px] text-slate-500 italic">keine – im BLE-Pro „Geräte“-Tab binden</span>
+          )}
+          {boundDevices.map((d) => (
+            <button
+              key={d.alias}
+              onClick={() => quickAsk(`Status von ${d.alias}`)}
+              disabled={busy}
+              title={`Status von ${d.alias} abfragen (${d.protocol})`}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition disabled:opacity-40 ${
+                d.online
+                  ? 'bg-emerald-950/50 border-emerald-700/40 text-emerald-200 hover:bg-emerald-900/50'
+                  : 'bg-rose-950/40 border-rose-700/40 text-rose-200 hover:bg-rose-900/40'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${d.online ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+              {d.alias}
+              <span className="text-[8px] text-slate-400 font-mono">{d.protocol}</span>
+            </button>
+          ))}
+          {boundDevices.length > 0 && (
+            <button
+              onClick={() => quickAsk('Status alle')}
+              disabled={busy}
+              className="ml-auto px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-cyan-600/20 border border-cyan-500/40 text-cyan-200 hover:bg-cyan-600/40 transition disabled:opacity-40"
+              title="Status aller gebundenen Geräte abfragen (echte Connectors)"
+            >
+              🔍 Alle prüfen
+            </button>
+          )}
         </div>
       )}
 

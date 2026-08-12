@@ -13,6 +13,8 @@ from .controller import controller
 
 api = Blueprint("api", __name__)
 
+_START_TIME = time.time()
+
 
 @api.get("/health")
 def health():
@@ -76,6 +78,69 @@ def devices():
 @auth.auth_required
 def dongles():
     return jsonify({"dongles": list_usb_dongles(), "serialPorts": list_serial_ports()})
+
+
+# ----------------------------------------------------------------------
+# Device-Registry (gebundene Geräte) – Grundlage für den aktiven Agenten
+# ----------------------------------------------------------------------
+@api.get("/devices/bound")
+@auth.auth_required
+def bound_devices():
+    from .device_registry import registry
+    return jsonify({"devices": registry.list()})
+
+
+@api.post("/devices/bind")
+@auth.auth_required
+def device_bind():
+    ok, msg = rbac.require_action(g.role, "device_bind")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    from .device_registry import registry
+    data = request.get_json(silent=True) or {}
+    node_id = str(data.get("nodeId") or data.get("id") or "")
+    if not node_id:
+        return jsonify({"type": "error", "code": "BAD_REQUEST",
+                        "message": "nodeId nötig"}), 400
+    nodes = __import__("host.scanner", fromlist=["scanner"]).scanner.snapshot()
+    node = next((n for n in nodes if n["id"] == node_id), None)
+    if node is None:
+        # BLE-Suite-Geräte (nicht im Scanner-Snapshot) ebenfalls bindbar
+        ble_devices = ble_service.ble_host.list_devices()
+        node = next((b for b in ble_devices if str(b.get("id")) == node_id), None)
+    if node is None and str(data.get("address") or "").strip():
+        # Manuelle Bindung (z. B. SSH-Ziel host:port:user:pass) – kein Node
+        # in Discovery nötig; Protokoll/Adresse kommen explizit aus der UI.
+        address = str(data.get("address")).strip()
+        node = {
+            "id": node_id,
+            "kind": str(data.get("kind") or "network"),
+            "label": str(data.get("alias") or node_id),
+            "address": address,
+            "ip": address.split(":")[0],
+        }
+    if node is None:
+        return jsonify({"type": "error", "code": "NOT_FOUND",
+                        "message": f"Node '{node_id}' nicht in Discovery/Scan – "
+                                   f"oder 'address' angeben"}), 404
+    entry = registry.bind(node_id, node,
+                          alias=str(data.get("alias") or "").strip() or None,
+                          protocol=str(data.get("protocol") or "").strip() or None,
+                          bound_by=g.user, role=g.role)
+    audit.audit.log(g.user, g.role, "device.bind",
+                    f"{entry['alias']} ({entry['protocol']})")
+    return jsonify({"ok": True, "device": entry}), 201
+
+
+@api.delete("/devices/bind/<device_id>")
+@auth.auth_required
+def device_unbind(device_id: str):
+    from .device_registry import registry
+    removed = registry.unbind(device_id)
+    if not removed:
+        return jsonify({"type": "error", "code": "NOT_FOUND"}), 404
+    audit.audit.log(g.user, g.role, "device.unbind", device_id)
+    return jsonify({"ok": True})
 
 
 # ----------------------------------------------------------------------
@@ -192,9 +257,11 @@ def ble_virtual_spawn():
 
 
 @api.delete("/ble/virtual/<device_id>")
-@auth.auth_required
+@auth.require_action("ble_virtual_delete")
 def ble_virtual_remove(device_id: str):
+    # Kritische Aktion (WebAuthn-Pflicht): Löschen eines (virtuellen) Geräts
     removed = ble_service.ble_host.remove_virtual(device_id)
+    audit.audit.log(g.user, g.role, "ble.virtual_delete", device_id, critical=True)
     return jsonify({"ok": removed}), 200 if removed else 404
 
 
@@ -342,6 +409,138 @@ def admin_users_delete(username: str):
     return jsonify(res)
 
 
+# ----------------------------------------------------------------------
+# Dynamische RBAC-Matrix (Closed-Loop #1): UI-Checkboxen wirken live
+# ----------------------------------------------------------------------
+@api.get("/admin/rbac")
+@auth.auth_required
+def rbac_matrix_get():
+    ok, msg = rbac.require_action(g.role, "config_write")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    return jsonify({
+        "roles": list(rbac.ROLE_LEVEL.keys()),
+        "actions": list(rbac.ACTION_LEVELS.keys()),
+        "defaults": {a: rbac.ACTION_LEVELS[a] for a in rbac.ACTION_LEVELS},
+        "overrides": rbac.list_overrides(),
+        "matrix": rbac.matrix(),
+    })
+
+
+@api.patch("/admin/rbac")
+@auth.require_action("rbac_write")
+def rbac_matrix_set():
+    # Kritische Aktion: erfordert WebAuthn-Token (X-WebAuthn-Token) + Credential
+    data = request.get_json(silent=True) or {}
+    action = str(data.get("action") or "")
+    role = str(data.get("role") or "")
+    allow = data.get("allow")
+    reset = bool(data.get("reset", False))
+    if action not in rbac.ACTION_LEVELS or role not in rbac.ROLE_LEVEL:
+        return jsonify({"type": "error", "code": "BAD_REQUEST",
+                        "message": "action/role unbekannt"}), 400
+    if reset:
+        changed = rbac.clear_override(action, role)
+    else:
+        if not isinstance(allow, bool):
+            return jsonify({"type": "error", "code": "BAD_REQUEST",
+                            "message": "allow (bool) nötig"}), 400
+        changed = rbac.set_override(action, role, allow)
+    audit.audit.log(g.user, g.role, "rbac.matrix",
+                    f"{action}/{role} → {allow if not reset else 'default'}",
+                    critical=True)
+    return jsonify({"ok": True, "changed": changed,
+                    "overrides": rbac.list_overrides()})
+
+
+# ----------------------------------------------------------------------
+# Feature-Toggles (Closed-Loop #2): Toggle schaltet Background-Tasks real
+# ----------------------------------------------------------------------
+@api.get("/system/features")
+@auth.auth_required
+def system_features():
+    from .feature_manager import feature_manager, FEATURE_DEFAULTS
+    return jsonify({"features": feature_manager.all(),
+                    "defaults": dict(FEATURE_DEFAULTS)})
+
+
+@api.patch("/system/features")
+@auth.require_action("feature_toggle")
+def system_features_patch():
+    # Kritische Aktion: erfordert WebAuthn-Token + registriertes Credential
+    from .feature_manager import feature_manager
+    data = request.get_json(silent=True) or {}
+    updates = data.get("features")
+    if not isinstance(updates, dict) or not updates:
+        return jsonify({"type": "error", "code": "BAD_REQUEST",
+                        "message": "features-Dict nötig"}), 400
+    changed = feature_manager.set_many(updates)
+    audit.audit.log(g.user, g.role, "system.features",
+                    ", ".join(f"{k}={v}" for k, v in changed.items()),
+                    critical=True)
+    return jsonify({"ok": True, "changed": changed,
+                    "features": feature_manager.all()})
+
+
+# ----------------------------------------------------------------------
+# Live-Metriken (Closed-Loop #5): Dashboard-Widgets bekommen echte Daten
+# ----------------------------------------------------------------------
+@api.get("/metrics/live")
+@auth.auth_required
+def metrics_live():
+    ok, msg = rbac.require_action(g.role, "metrics_live")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    from .device_registry import registry
+    from .feature_manager import feature_manager
+    load = _system_load()
+    connected = ble_service.ble_host.connected()
+    recent_critical = [e for e in audit.audit.recent(200) if e.get("critical")]
+    return jsonify({
+        "cpu_percent": load.get("cpu"),
+        "ram_percent": load.get("ram"),
+        "uptime_s": round(time.time() - _START_TIME, 1),
+        "backend": ble_service.ble_host.backend,
+        "connected_devices": len(connected),
+        "bound_devices": registry.count(),
+        "clients_online": sum(1 for c in status.status_board.snapshot_clients()
+                              if c.get("online")),
+        "features": feature_manager.all(),
+        "alerts": [{"action": e.get("action"), "detail": e.get("detail"),
+                    "ts": e.get("ts"), "trace_id": e.get("trace_id")}
+                   for e in recent_critical[-5:]],
+        "services": {
+            "rest": True,
+            "ws_terminal": True,
+            "ws_discovery": True,
+            "ws_status": True,
+            "ssh": True,
+        },
+        "time": time.time(),
+    })
+
+
+# ----------------------------------------------------------------------
+# Agent-Befehlausführung (Closed-Loop #4): Buttons führen echte Befehle aus
+# ----------------------------------------------------------------------
+@api.post("/agent/execute")
+@auth.auth_required
+def agent_execute():
+    ok, msg = rbac.require_action(g.role, "agent_execute")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    from .agent.agent_orchestrator import AgentOrchestrator
+    data = request.get_json(silent=True) or {}
+    command = str(data.get("command") or "")
+    target = str(data.get("target") or "")
+    timeout = min(int(data.get("timeout", 25)), 60)
+    if not command or not target:
+        return jsonify({"type": "error", "code": "BAD_REQUEST",
+                        "message": "command + target nötig"}), 400
+    result = AgentOrchestrator.execute(g.user, g.role, command, target, timeout)
+    return jsonify(result), 200 if result.get("ok") else 404
+
+
 @api.get("/audit/logs")
 @auth.auth_required
 def audit_logs():
@@ -360,18 +559,13 @@ def audit_logs():
     return jsonify(entries)
 
 
-SSH_KEY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "data", "ssh_keys")
-SSH_KEY_PATH = os.path.join(SSH_KEY_DIR, "id_rsa")
-
-
 @api.get("/settings/ssh-key")
 @auth.auth_required
 def ssh_key_status():
-    return jsonify({
-        "configured": os.path.isfile(SSH_KEY_PATH),
-        "path": SSH_KEY_PATH,
-    })
+    # Closed-Loop #3: Status zeigt den pro-User-Key, der für SSH-Sessions
+    # verwendet wird (per-User zuerst, globaler Fallback).
+    from . import ssh_key_store
+    return jsonify(ssh_key_store.status(g.user))
 
 
 @api.post("/settings/ssh-key")
@@ -380,20 +574,16 @@ def ssh_key_upload():
     ok, msg = rbac.require_action(g.role, "settings_ssh")
     if not ok:
         return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    from . import ssh_key_store
     data = request.get_json(silent=True) or {}
     key = str(data.get("key") or "")
     if not key or "PRIVATE KEY" not in key:
         return jsonify({"type": "error", "code": "BAD_REQUEST",
                         "message": "Privater SSH-Key (PEM) erwartet"}), 400
-    os.makedirs(SSH_KEY_DIR, exist_ok=True)
-    with open(SSH_KEY_PATH, "w", encoding="utf-8") as f:
-        f.write(key.rstrip() + "\n")
-    try:
-        os.chmod(SSH_KEY_PATH, 0o600)
-    except OSError:
-        pass
-    audit.audit.log(g.user, g.role, "settings.ssh_key", "Privater SSH-Key hinterlegt")
-    return jsonify({"ok": True, "configured": True})
+    path = ssh_key_store.save_key(g.user, key)
+    audit.audit.log(g.user, g.role, "settings.ssh_key",
+                    f"Privater SSH-Key des Users {g.user} hinterlegt ({path})")
+    return jsonify({"ok": True, **ssh_key_store.status(g.user)})
 
 
 WEBAUTHN_CRED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -568,6 +758,11 @@ def agent_ask():
     text = str(data.get("text") or "")
     if not text:
         return jsonify({"type": "error", "code": "BAD_REQUEST"}), 400
+    # Aktiver Agent (Geräte-Orchestrator) zuerst – erkennt gebundene Geräte,
+    # führt Aktionen aus und wertet Ergebnisse aus; sonst BLE-Controller.
+    from .agent.agent_orchestrator import AgentOrchestrator
+    if AgentOrchestrator.looks_like_device_request(text):
+        return jsonify(AgentOrchestrator.process(g.user, g.role, text))
     return jsonify(controller.ask(g.user, g.role, text))
 
 

@@ -133,6 +133,45 @@ class APIClient:
         return cls._safe(cls._request, "GET",
                          f"/api/ble/devices/{device_id}/gatt/{uuid}/read")
 
+    # ------------------------------------------------------------------
+    # Aktiver Agent: gebundene Geräte + Befehlausführung (Closed-Loop #4)
+    # ------------------------------------------------------------------
+    @classmethod
+    def bound_devices(cls) -> list[dict]:
+        """Gebundene Geräte der Host-Registry (Agent-Grundlage)."""
+        data = cls._safe(cls._request, "GET", "/api/devices/bound")
+        if isinstance(data, dict) and isinstance(data.get("devices"), list):
+            return data["devices"]
+        return []
+
+    @classmethod
+    def bind_device(cls, node_id: str, alias: str = "",
+                    protocol: str = "") -> dict | None:
+        """Bindet einen Discovery-Node dauerhaft am Host."""
+        return cls._safe(cls._request, "POST", "/api/devices/bind",
+                         {"nodeId": node_id, "alias": alias, "protocol": protocol})
+
+    @classmethod
+    def unbind_device(cls, device_id: str) -> bool:
+        res = cls._safe(cls._request, "DELETE", f"/api/devices/bind/{device_id}")
+        return bool(res and res.get("ok"))
+
+    @classmethod
+    def agent_execute(cls, command: str, target: str) -> dict | None:
+        """Führt einen Befehl auf einem gebundenen Gerät aus (Host-Connectors)."""
+        return cls._safe(cls._request, "POST", "/api/agent/execute",
+                         {"command": command, "target": target, "timeout": 25})
+
+    @classmethod
+    def metrics_live(cls) -> dict | None:
+        """Live-Metriken des Hosts (/api/metrics/live)."""
+        return cls._safe(cls._request, "GET", "/api/metrics/live")
+
+    @classmethod
+    def system_features(cls) -> dict | None:
+        """Feature-Toggles des Hosts (/api/system/features)."""
+        return cls._safe(cls._request, "GET", "/api/system/features")
+
     @classmethod
     def write_gatt(cls, device_id: str, uuid: str, value_hex: str) -> dict | None:
         """Echtes GATT-Write über die Host-API (ATT-Transaktion)."""

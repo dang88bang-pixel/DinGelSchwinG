@@ -81,8 +81,22 @@ class StatusBoard:
             return out
 
     def snapshot_devices(self) -> list[dict]:
+        out = []
         with self._lock:
-            return [dict(d) for d in self._devices.values()]
+            out = [dict(d) for d in self._devices.values()]
+        # Gebundene Geräte (Device-Registry) in den Live-Status einblenden
+        try:
+            from .device_registry import registry
+            for dev in registry.list():
+                entry = {"id": dev.get("id"), "alias": dev.get("alias"),
+                         "status": "online" if dev.get("online") else "offline",
+                         "protocol": dev.get("protocol"),
+                         "connected": bool(dev.get("connected"))}
+                if not any(e.get("id") == entry["id"] for e in out):
+                    out.append(entry)
+        except Exception:  # noqa: BLE001
+            pass
+        return out
 
     def snapshot_workflows(self) -> list[dict]:
         with self._lock:

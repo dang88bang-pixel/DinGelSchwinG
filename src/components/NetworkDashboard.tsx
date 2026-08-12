@@ -27,6 +27,70 @@ export interface SceneDevice {
   txPower: number;
 }
 
+/** Live-Metriken-Widget (2s-Poll) – CPU/RAM/Uptime/gebundene Geräte/Alerts. */
+function LiveMetricsWidget() {
+  const [metrics, setMetrics] = useState<{
+    cpu_percent: number | null;
+    ram_percent: number | null;
+    uptime_s: number;
+    connected_devices: number;
+    bound_devices: number;
+    clients_online: number;
+    alerts: Array<{ action: string; detail: string; ts: string }>;
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const m = await api.metricsLive();
+        if (alive) setMetrics(m);
+      } catch { /* offline */ }
+    };
+    load();
+    const id = window.setInterval(load, 2000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, []);
+
+  if (!metrics) {
+    return <div className="text-[11px] text-slate-500 italic">Lade Metriken…</div>;
+  }
+  const uptime = `${Math.floor(metrics.uptime_s / 3600)}h ${Math.floor((metrics.uptime_s % 3600) / 60)}m`;
+  const bar = (v: number | null, cls: string) => (
+    <div className="h-1.5 rounded bg-slate-800 mt-1 overflow-hidden">
+      <div className={`h-full transition-all ${cls}`} style={{ width: `${Math.min(100, v ?? 0)}%` }} />
+    </div>
+  );
+  return (
+    <div className="space-y-2 text-[11px] font-mono">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-[#060f2a]/60 border border-white/5 p-2.5">
+          <div className="text-[9px] text-slate-500 uppercase">CPU</div>
+          <div className="text-base font-black text-cyan-300">{metrics.cpu_percent ?? '--'}%</div>
+          {bar(metrics.cpu_percent, 'bg-cyan-400')}
+        </div>
+        <div className="rounded-xl bg-[#060f2a]/60 border border-white/5 p-2.5">
+          <div className="text-[9px] text-slate-500 uppercase">RAM</div>
+          <div className="text-base font-black text-violet-300">{metrics.ram_percent ?? '--'}%</div>
+          {bar(metrics.ram_percent, 'bg-violet-400')}
+        </div>
+      </div>
+      <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">Uptime</span><b className="text-slate-100">{uptime}</b></div>
+      <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">BLE verbunden</span><b className="text-cyan-200">{metrics.connected_devices}</b></div>
+      <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">Gebundene Geräte</span><b className="text-emerald-200">{metrics.bound_devices}</b></div>
+      <div className="flex justify-between border-b border-white/5 py-1"><span className="text-slate-500">Clients online</span><b className="text-slate-100">{metrics.clients_online}</b></div>
+      {metrics.alerts.length > 0 && (
+        <div className="pt-1">
+          <div className="text-[9px] font-black uppercase tracking-wide text-rose-300 mb-1">Kritische Alerts</div>
+          {metrics.alerts.slice(0, 3).map((a, i) => (
+            <div key={i} className="text-[10px] text-rose-200/90 truncate">⚠ {a.action} – {a.detail}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function NetworkDashboard() {
   const sensors = useSensors();
   const [mode, setMode] = useState<'ble' | 'wifi' | 'usb'>('ble');
@@ -348,6 +412,21 @@ export default function NetworkDashboard() {
                 ))}
                 <div className="text-slate-600">Kanal: {discoveryStatus} / {statusStatus}</div>
               </div>
+            )}
+          </div>
+
+          {/* Live-Metriken (Closed-Loop #5): echte Host-Daten, 2s-Poll */}
+          <div className="glass-card p-5 relative overflow-hidden">
+            <h3 className="text-sm font-black text-white mb-3 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-emerald-300" /> Live-Metriken
+              <span className={`ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                hostOnline ? 'text-emerald-300 border-emerald-700/40 bg-emerald-950/40' : 'text-slate-500 border-white/10 bg-white/5'
+              }`}>{hostOnline ? '● live' : '○ offline'}</span>
+            </h3>
+            {hostOnline ? (
+              <LiveMetricsWidget />
+            ) : (
+              <div className="text-[11px] text-slate-500 italic">Host starten: python3 -m host.main</div>
             )}
           </div>
 

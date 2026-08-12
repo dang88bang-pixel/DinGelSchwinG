@@ -45,6 +45,29 @@ Offline-Anzeige) — Details in [`public/sw.js`](public/sw.js).
 
 ---
 
+## 🔗 Closed-Loop & Aktiver Agent (alle Aktionsketten verdrahtet)
+
+Alle UI-Bedienelemente wirken jetzt **live** auf das Backend (keine „Deko-Buttons“):
+
+| Kette | Umsetzung |
+|---|---|
+| RBAC-Matrix (UI) → Autorisierung | AdminHub-Tab **„RBAC-Matrix“**: Checkboxen schreiben Overrides in `host/data/rbac_matrix.json` → `host/rbac.can()` wertet sie sofort aus (WebAuthn-geschützt) |
+| Feature-Toggle → Background-Services | AdminHub-Tab **„System“**: Toggles stoppen/starten die echten Tasks (BLE-Scan, ARP-Watcher, USB, SSH-Server) via `host/feature_manager.py` |
+| SSH-Key-Upload → Terminal | Pro-User-Schlüssel (`host/data/ssh_keys/<user>_id_rsa`); Terminal-Bridge und SSH-Connector nutzen ihn automatisch |
+| Agent-Buttons → Befehlausführung | `POST /api/agent/execute` + Web-Buttons `exec:<ziel>:<befehl>`; Connectors führen echt aus (SSH/HTTP/Ping/BLE) |
+| Dashboard-Widgets → Metriken | `GET /api/metrics/live` (CPU/RAM/Uptime/Geräte/Alerts) – Sidebar-Widget (2s-Poll) + AdminHub „System“ |
+| WebAuthn → kritische Aktionen | `X-WebAuthn-Token` + registriertes Credential Pflicht für `ble_mesh_delete`, `ble_profile_apply`, `ble_fault_sim`, `ble_virtual_delete`, `rbac_write`, `feature_toggle` (428 sonst) |
+
+**Aktiver Agent:** `host/agent/` (Device-Resolver mit unscharfer Suche, Result-Analyzer,
+Orchestrator) spricht **gebundene Geräte** gezielt an – „Status alle“, „Zeige Batterie der
+Kopfhörer“, „Reboot Server-1“ – und wertet Ausgaben aus (Last/RAM/Platte/Fehler).
+
+**Drahtlose Geräte:** `host/connectors/` (SSH, HTTP/HTTPS inkl. Fritzbox TR-064, Ping,
+BLE-GATT, Bluetooth Classic, Seriell) + `host/device_registry.py` (gebundene Geräte mit
+Protokoll-Ableitung) + HTTP-Probe im Scanner (`kind: network_http`). Details: `docs/audit-mocks.md` §7.
+
+---
+
 ## 📡 BLE Professional Suite (KI-gestützte BLE-Erweiterung)
 
 Die **BLE Professional Suite** ist ein nativ integriertes Zusatzmodul für die

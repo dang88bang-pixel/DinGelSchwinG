@@ -502,3 +502,358 @@ class TestScannerVirtual(unittest.TestCase):
                         "Virtuelle Peripherals fehlen im Discovery-Snapshot")
         kinds = {n["kind"] for n in nodes if n.get("virtual")}
         self.assertTrue(kinds & {"ble_token", "ntag", "ble_mesh"})
+
+
+class TestRbacDynamic(unittest.TestCase):
+    """Closed-Loop #1: dynamische RBAC-Matrix wirkt live."""
+
+    def setUp(self) -> None:
+        from host import rbac
+        self.rbac = rbac
+
+    def tearDown(self) -> None:
+        for action, roles in list(self.rbac.list_overrides().items()):
+            for role in roles:
+                self.rbac.clear_override(action, role)
+
+    def test_override_grants_and_revokes(self) -> None:
+        # Default: guest darf ble_connect NICHT
+        self.assertFalse(self.rbac.can("guest", "ble_connect"))
+        # UI-Checkbox setzt Override → wirkt sofort
+        self.assertTrue(self.rbac.set_override("ble_connect", "guest", True))
+        self.assertTrue(self.rbac.can("guest", "ble_connect"))
+        # Zurücksetzen → Default greift wieder
+        self.assertTrue(self.rbac.clear_override("ble_connect", "guest"))
+        self.assertFalse(self.rbac.can("guest", "ble_connect"))
+
+    def test_override_revokes_admin(self) -> None:
+        self.assertTrue(self.rbac.can("admin", "ble_sniffer"))
+        self.rbac.set_override("ble_sniffer", "admin", False)
+        self.assertFalse(self.rbac.can("admin", "ble_sniffer"))
+        self.rbac.clear_override("ble_sniffer", "admin")
+
+    def test_matrix_api_requires_webauthn(self) -> None:
+        app = create_app()
+        client = app.test_client()
+        login = client.post("/api/login",
+                            json={"email": "admin", "password": "admin"})
+        headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        # Matrix lesen (config_write L5, admin ok)
+        res = client.get("/api/admin/rbac", headers=headers)
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertIn("matrix", body)
+        self.assertIn("ble_connect", body["matrix"])
+        # PATCH (rbac_write, kritisch) → ohne WebAuthn-Token 428
+        res = client.patch("/api/admin/rbac", headers=headers,
+                           json={"action": "ble_connect", "role": "guest",
+                                 "allow": True})
+        self.assertEqual(res.status_code, 428, res.get_json())
+        self.assertEqual(res.get_json()["code"], "WEBAUTHN_REQUIRED")
+        # Aufräumen falls die Test-Registrierung hängen blieb
+        creds = client.get("/api/webauthn/credentials", headers=headers).get_json()
+        for c in creds.get("credentials", []):
+            client.delete(f"/api/webauthn/credentials/{c['credentialId']}",
+                          headers=headers)
+        reg = client.post("/api/webauthn/register", headers=headers,
+                          json={"credentialId": "rbac-test-key",
+                                "deviceName": "RBAC-Test"})
+        self.assertEqual(reg.status_code, 200)
+        ch = client.post("/api/webauthn/challenge", headers=headers)
+        ass = client.post("/api/webauthn/assert", headers=headers,
+                          json={"challenge": ch.get_json()["challenge"]})
+        token = ass.get_json()["token"]
+        res = client.patch("/api/admin/rbac", headers=headers,
+                           json={"action": "ble_connect", "role": "guest",
+                                 "allow": True})
+        # ohne Token-Header weiterhin 428
+        self.assertEqual(res.status_code, 428)
+        res = client.patch("/api/admin/rbac",
+                           headers={**headers, "X-WebAuthn-Token": token},
+                           json={"action": "ble_connect", "role": "guest",
+                                 "allow": True})
+        self.assertEqual(res.status_code, 200, res.get_json())
+        self.assertTrue(res.get_json()["ok"])
+        # Aufräumen
+        client.delete("/api/webauthn/credentials/rbac-test-key", headers=headers)
+        self.rbac.clear_override("ble_connect", "guest")
+
+
+class TestFeatureManager(unittest.TestCase):
+    """Closed-Loop #2: Feature-Toggles steuern Tasks + Persistenz."""
+
+    def test_set_and_persist(self) -> None:
+        import tempfile
+        from host.feature_manager import FeatureManager
+        with tempfile.TemporaryDirectory() as tmp:
+            fm = FeatureManager(path=f"{tmp}/features.json")
+            self.assertTrue(fm.is_enabled("ble_discovery"))
+            self.assertTrue(fm.set("ble_discovery", False))
+            self.assertFalse(fm.is_enabled("ble_discovery"))
+            self.assertFalse(fm.set("unbekannt", True))
+            # Persistenz
+            fm2 = FeatureManager(path=f"{tmp}/features.json")
+            self.assertFalse(fm2.is_enabled("ble_discovery"))
+
+    def test_features_api_requires_webauthn(self) -> None:
+        app = create_app()
+        client = app.test_client()
+        login = client.post("/api/login",
+                            json={"email": "admin", "password": "admin"})
+        headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        res = client.get("/api/system/features", headers=headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("features", res.get_json())
+        # PATCH ohne Token → 428 (feature_toggle ist kritisch)
+        res = client.patch("/api/system/features", headers=headers,
+                           json={"features": {"network_arp": False}})
+        self.assertEqual(res.status_code, 428, res.get_json())
+
+    def test_scanner_respects_feature(self) -> None:
+        from host import scanner
+        from host.feature_manager import feature_manager
+        from host.virtual_ble import virtual_ble
+        virtual_ble.start()
+        virtual_ble.spawn("Feat-Virt", "token", [], 2.0)
+        old = feature_manager.is_enabled("ble_discovery")
+        feature_manager.set("ble_discovery", True)
+        scanner.scanner._scan_once()
+        before = any(n.get("virtual") for n in scanner.scanner.snapshot())
+        self.assertTrue(before)
+        feature_manager.set("ble_discovery", False)
+        scanner.scanner._scan_once()
+        after = any(n.get("virtual") for n in scanner.scanner.snapshot())
+        self.assertFalse(after, "Feature-Toggle muss virtuelle BLE-Nodes entfernen")
+        feature_manager.set("ble_discovery", old)
+
+
+class TestDeviceRegistry(unittest.TestCase):
+    """Bound-Devices: Bindung mit Protokoll-Ableitung (Agent-Grundlage)."""
+
+    def test_bind_detect_protocol(self) -> None:
+        import tempfile
+        from host.device_registry import DeviceRegistry
+        with tempfile.TemporaryDirectory() as tmp:
+            reg = DeviceRegistry(path=f"{tmp}/devices.json")
+            node = {"id": "ble:02:00:00:00:01:01", "kind": "ble_token",
+                    "label": "Kopfhörer", "address": "02:00:00:00:01:01",
+                    "signal": {"rssi": -55}}
+            reg.bind(node["id"], node, alias="Meine Kopfhörer", bound_by="tester")
+            devs = reg.list()
+            self.assertEqual(len(devs), 1)
+            self.assertEqual(devs[0]["protocol"], "ble")
+            self.assertIn("battery", devs[0]["capabilities"])
+            # Netzwerk-Node → ping
+            reg.bind("net:192.168.1.1", {"id": "net:192.168.1.1",
+                                         "kind": "network", "label": "192.168.1.1"},
+                     alias="Router")
+            self.assertEqual(reg.get("net:192.168.1.1")["protocol"], "ping")
+            self.assertTrue(reg.unbind("net:192.168.1.1"))
+            self.assertIsNone(reg.get("net:192.168.1.1"))
+
+    def test_bind_api(self) -> None:
+        from host import scanner
+        scanner.scanner._scan_once()
+        nodes = scanner.scanner.snapshot()
+        target = next((n for n in nodes if n.get("virtual")), None)
+        if target is None:
+            self.skipTest("kein virtueller Node im Snapshot")
+        app = create_app()
+        client = app.test_client()
+        login = client.post("/api/login",
+                            json={"email": "developer", "password": "dev123"})
+        headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        res = client.post("/api/devices/bind", headers=headers,
+                          json={"nodeId": target["id"], "alias": "Test-Gerät"})
+        self.assertEqual(res.status_code, 201, res.get_json())
+        bound = client.get("/api/devices/bound", headers=headers).get_json()
+        self.assertTrue(any(d["id"] == target["id"] for d in bound["devices"]))
+        # Aufräumen
+        client.delete(f"/api/devices/bind/{target['id']}", headers=headers)
+
+
+class TestDeviceResolver(unittest.TestCase):
+    """Aktiver Agent: unscharfe Gerätesuche."""
+
+    DEVICES = [
+        {"alias": "Server-1", "protocol": "ssh", "ip": "192.168.1.10",
+         "kind": "network", "online": True},
+        {"alias": "Kopfhörer-1", "protocol": "ble", "address": "02:00:00:00:01:01",
+         "kind": "ble_token", "online": True},
+        {"alias": "Musikbox", "protocol": "bluetooth", "mac": "AA:BB:CC:DD:EE:FF",
+         "kind": "ble_peripheral", "online": False},
+    ]
+
+    def test_exact_and_substring(self) -> None:
+        from host.agent.device_resolver import DeviceResolver
+        matched, msg = DeviceResolver.resolve(self.DEVICES, "Server-1")
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]["alias"], "Server-1")
+        matched, msg = DeviceResolver.resolve(self.DEVICES, "ser")
+        self.assertEqual(len(matched), 1)
+        self.assertIn("enthalten", msg)
+
+    def test_type_and_status(self) -> None:
+        from host.agent.device_resolver import DeviceResolver
+        matched, _ = DeviceResolver.resolve(self.DEVICES, "ssh")
+        self.assertEqual(len(matched), 1)
+        matched, _ = DeviceResolver.resolve(self.DEVICES, "alle ble")
+        self.assertEqual(len(matched), 1)
+        matched, _ = DeviceResolver.resolve(self.DEVICES, "offline")
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]["alias"], "Musikbox")
+
+    def test_unknown(self) -> None:
+        from host.agent.device_resolver import DeviceResolver
+        matched, msg = DeviceResolver.resolve(self.DEVICES, "XYZ")
+        self.assertIsNone(matched)
+        self.assertIn("Kein Gerät gefunden", msg)
+
+
+class TestResultAnalyzer(unittest.TestCase):
+    """Aktiver Agent: intelligente Auswertung statt Roh-Output."""
+
+    def test_uptime_memory_disk(self) -> None:
+        from host.agent.result_analyzer import ResultAnalyzer
+        out = (" 10:15:00 up 3 days,  2:34,  2 users,  load average: 0.85, 0.60, 0.42\n"
+               "---\n"
+               "              total        used        free\n"
+               "Mem:           3.8Gi       2.1Gi       1.2Gi\n"
+               "---\n"
+               "/dev/sda1       117G   92G   19G  83% /\n")
+        res = ResultAnalyzer.analyze("status", out, "Server-1")
+        self.assertEqual(res["metrics"]["load_1min"], 0.85)
+        self.assertEqual(res["metrics"]["memory_used"], "2.1gi")
+        self.assertEqual(res["metrics"]["disk_usage_percent"], 83)
+        self.assertIn("Systemlast", res["summary"])
+
+    def test_error_detection(self) -> None:
+        from host.agent.result_analyzer import ResultAnalyzer
+        res = ResultAnalyzer.analyze("reboot", "Permission denied", "Server-1")
+        self.assertEqual(res["status"], "error")
+        self.assertIn("Fehler", res["summary"])
+
+
+class TestConnectors(unittest.TestCase):
+    """Drahtlose Geräte: echte Connectors (HTTP gegen lokalen Server, Ping)."""
+
+    def test_http_connector(self) -> None:
+        import http.server
+        import threading
+        from host.connectors.http_connector import HTTPConnector
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                if self.path == "/login_sid.lua":
+                    body = b'<SessionInfo><SID>abc123</SID></SessionInfo>'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/xml")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+            def log_message(self, *args):  # noqa: N802
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        port = server.server_address[1]
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            conn = HTTPConnector({"protocol": "http", "address": f"127.0.0.1:{port}"})
+            status = conn.get_status()
+            self.assertTrue(status["online"])
+            self.assertIn("abc123", status.get("data", ""))
+        finally:
+            server.shutdown()
+
+    def test_ping_connector(self) -> None:
+        from host.connectors.ping_connector import PingConnector
+        conn = PingConnector({"address": "127.0.0.1"})
+        res = conn.execute("ping", {"count": 1, "timeout": 2})
+        self.assertTrue(res["ok"], res)
+        self.assertGreaterEqual(res["received"], 1)
+
+
+class TestAgentOrchestrator(unittest.TestCase):
+    """Aktiver Agent: Ende-zu-Ende Status-Abfrage + Befehlausführung."""
+
+    def test_status_alle(self) -> None:
+        import tempfile
+        from host.agent.agent_orchestrator import AgentOrchestrator
+        from host.device_registry import DeviceRegistry
+        import host.device_registry as dr_mod
+        import host.connectors as connectors
+        old_reg = dr_mod.registry
+        old_exec = connectors.execute_on_device
+        with tempfile.TemporaryDirectory() as tmp:
+            reg = DeviceRegistry(path=f"{tmp}/devices.json")
+            reg.bind("net:127.0.0.1",
+                     {"id": "net:127.0.0.1", "kind": "network",
+                      "label": "127.0.0.1", "address": "127.0.0.1"},
+                     alias="Lokal-Ping", bound_by="tester")
+            dr_mod.registry = reg
+            try:
+                from host.connectors.ping_connector import PingConnector
+                def fake_execute(device, command, params=None, user="", role="",
+                                 timeout=25):
+                    return PingConnector(device).execute(command, params)
+                connectors.execute_on_device = fake_execute
+                result = AgentOrchestrator.process("tester", "developer",
+                                                   "Status alle")
+                self.assertTrue(result["ok"], result)
+                self.assertEqual(result["action"], "status")
+                self.assertIn("Lokal-Ping", result["reply"])
+                self.assertTrue(result["details"][0]["analysis"]["summary"])
+            finally:
+                connectors.execute_on_device = old_exec
+                dr_mod.registry = old_reg
+
+    def test_looks_like_device_request(self) -> None:
+        from host.agent.agent_orchestrator import AgentOrchestrator
+        self.assertTrue(AgentOrchestrator.looks_like_device_request(
+            "Status von Server-1"))
+        self.assertTrue(AgentOrchestrator.looks_like_device_request(
+            "Zeige den Batteriestatus der Kopfhörer"))
+        self.assertFalse(AgentOrchestrator.looks_like_device_request(
+            "scanne ble"))
+        self.assertFalse(AgentOrchestrator.looks_like_device_request(
+            "verbinde mit gerät"))
+
+
+class TestMetricsLive(unittest.TestCase):
+    """Closed-Loop #5: /api/metrics/live liefert echte Daten."""
+
+    def test_metrics_live(self) -> None:
+        app = create_app()
+        client = app.test_client()
+        login = client.post("/api/login",
+                            json={"email": "developer", "password": "dev123"})
+        headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        res = client.get("/api/metrics/live", headers=headers)
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertIn("cpu_percent", body)
+        self.assertIn("ram_percent", body)
+        self.assertIn("uptime_s", body)
+        self.assertIn("features", body)
+        self.assertIn("bound_devices", body)
+
+
+class TestSshKeyStore(unittest.TestCase):
+    """Closed-Loop #3: pro-User-SSH-Keys für Terminal + Agent."""
+
+    def test_save_and_resolve(self) -> None:
+        import tempfile
+        from host import ssh_key_store
+        with tempfile.TemporaryDirectory() as tmp:
+            ssh_key_store.SSH_KEY_DIR = tmp
+            ssh_key_store.GLOBAL_KEY_PATH = f"{tmp}/id_rsa"
+            path = ssh_key_store.save_key("tester", "-----BEGIN PRIVATE KEY-----x")
+            self.assertTrue(path.endswith("tester_id_rsa"))
+            self.assertEqual(ssh_key_store.resolve_key_path("tester"), path)
+            st = ssh_key_store.status("tester")
+            self.assertTrue(st["userKey"])
+            self.assertEqual(st["activePath"], path)
