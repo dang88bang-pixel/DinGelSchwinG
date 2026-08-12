@@ -12,7 +12,7 @@ import {
   ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, CHAT_SYSTEM_INSTRUCTION,
   MODE_LABELS,
 } from '../../config/systemInstructions';
-import { MOCK_DEVICES } from '../../mocks/devices.mock';
+import { getRuntimeClients, getRuntimeDevices } from '../runtimeData';
 import { TransformersBackend } from './transformersBackend';
 
 export interface AgentMessage {
@@ -175,6 +175,8 @@ export class AgentEngine {
       this.audit('approve_plan', plan.kind);
       return '✅ Freigabe erteilt.\n' + this.generateAdbScript(plan.kind);
     }
+    const asyncIntent = await this.tryAsyncIntents(t);
+    if (asyncIntent !== null) return asyncIntent;
     const intent = this.tryIntents(t);
     if (intent !== null) return intent;
     if (this.backend.isReady()) {
@@ -188,9 +190,10 @@ export class AgentEngine {
   }
 
   async tryLLM(text: string): Promise<string> {
+    const devices = getRuntimeDevices();
     const context =
       `Aktueller Kontext:\n- Rolle: ${this.role}\n` +
-      `- Geräte: ${MOCK_DEVICES.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ')}\n` +
+      `- Live-Geräte: ${devices.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ') || 'keine'}\n` +
       `- Aktive Workflows: ${this.activeWorkflows().length}\n${skillsToPrompt(this.skills)}`;
     try {
       const raw = await this.backend.generate(this.systemInstruction + '\n\n' + context, text);
@@ -223,6 +226,56 @@ export class AgentEngine {
     } catch (e) {
       return `⚠️ Tool-Ausführung fehlgeschlagen: ${String(e)}`;
     }
+  }
+
+  private async tryApi(path: string, payload?: unknown): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+    try {
+      const response = await fetch(path, {
+        method: payload === undefined ? 'GET' : 'POST',
+        headers: payload === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
+      });
+      if (!response.ok) return { ok: false, error: `HTTP ${response.status}` };
+      const text = await response.text();
+      return { ok: true, data: text ? JSON.parse(text) : {} };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  async tryAsyncIntents(text: string): Promise<string | null> {
+    const t = text.toLowerCase();
+    if (/\bscann|netzwerk-?scan/.test(t)) return this.intentScanLive(t);
+    const scriptMatch = t.match(/([\w.-]+\.(py|sh|ps1|js))/);
+    if (scriptMatch && /(führe|fuehre|starte|run|exec)/.test(t)) return this.intentRunScriptLive(t);
+    return null;
+  }
+
+  async intentScanLive(t: string): Promise<string> {
+    const m = t.match(/([\d.]+\/\d{1,2})/);
+    const subnet = m ? m[1] : '192.168.1.0/24';
+    this.startTask('network_scan', 5);
+    this.audit('scan_network', `subnet=${subnet}`);
+    const result = await this.tryApi('/api/scan', { subnet });
+    if (result.ok) {
+      this.finishTask('network_scan');
+      return `✅ Netzwerk-Scan für ${subnet} über Backend gestartet/ausgeführt.\n\`\`\`json\n${JSON.stringify(result.data, null, 2).slice(0, 1200)}\n\`\`\``;
+    }
+    this.tasks = this.tasks.filter((task) => task.name !== 'network_scan');
+    return `⚠️ Netzwerk-Scan nicht ausgeführt: Backend-Endpunkt /api/scan ist nicht erreichbar (${result.error}).\nIm Web-Client werden keine künstlichen Scan-Ergebnisse erzeugt. Starte das Produktionsbackend oder nutze die Desktop-Konsole für lokale Skripte.`;
+  }
+
+  async intentRunScriptLive(t: string): Promise<string> {
+    const m = t.match(/([\w.-]+\.(py|sh|ps1|js))/);
+    if (!m) return '❌ Kein Skript erkannt.';
+    const name = m[1];
+    const rest = t.split(name)[1]?.trim() ?? '';
+    this.audit('run_script', `${name} ${rest}`);
+    const result = await this.tryApi('/api/scripts/run', { name, args: rest });
+    if (result.ok) {
+      return `▶️ Skript '${name}' über Backend ausgeführt.\n\`\`\`json\n${JSON.stringify(result.data, null, 2).slice(0, 1200)}\n\`\`\``;
+    }
+    return `⚠️ Skript '${name}' wurde nicht künstlich im Browser ausgeführt: Backend-Endpunkt /api/scripts/run ist nicht erreichbar (${result.error}).\nNutze ein angebundenes Backend oder die Desktop-Konsole, die lokale Skripte real ausführt.`;
   }
 
   // ------------------------------------------------------------------
@@ -334,12 +387,8 @@ export class AgentEngine {
   intentAdbDevices(): string {
     this.audit('adb_devices', 'Geräteliste abgefragt');
     return (
-      '📱 ADB-Geräte (USB/WiFi):\n' +
-      '- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n' +
-      '- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n' +
-      '- `offline` R22X987DEF – Gerät reaktivieren\n' +
-      '- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n' +
-      'Hinweis: `adb devices -l` liefert Details (Modell, Transport).'
+      '📱 ADB-Geräte können im Browser nicht direkt über `adb devices -l` ausgelesen werden.\n' +
+      'Es werden keine Beispielgeräte angezeigt. Verbinde ein Backend mit `/api/adb/devices` oder nutze die Desktop-Konsole; dort wird `adb devices -l` real ausgeführt, sofern ADB installiert ist.'
     );
   }
 
@@ -391,33 +440,29 @@ export class AgentEngine {
   intentScan(t: string): string {
     const m = t.match(/([\d.]+\/\d{1,2})/);
     const subnet = m ? m[1] : '192.168.1.0/24';
-    this.startTask('network_scan', 5);
     this.audit('scan_network', `subnet=${subnet}`);
-    // Simulation: Task läuft ~8 s im Hintergrund
-    const started = now();
-    window.setTimeout(() => this.finishTask('network_scan'), 8000);
-    return `✅ Netzwerk-Scan für ${subnet} gestartet (Skript network_scan.py).\n▶️ Status im Status-Panel: network_scan läuft (seit ${started}).`;
+    return `⚠️ Netzwerk-Scan für ${subnet} benötigt das Backend (/api/scan) oder die Desktop-Konsole. Im Browser wird kein künstlicher Scan erzeugt.`;
   }
 
   intentDevices(): string {
-    this.audit('show_devices', `${MOCK_DEVICES.length} Geräte`);
-    const lines = [`📡 Gefundene Geräte: ${MOCK_DEVICES.length}`];
-    for (const d of MOCK_DEVICES) {
+    const devices = getRuntimeDevices();
+    this.audit('show_devices', `${devices.length} Geräte`);
+    if (!devices.length) return '📡 Keine Live-Geräte registriert. Es werden keine Mock-Geräte angezeigt.';
+    const lines = [`📡 Live-Geräte: ${devices.length}`];
+    for (const d of devices) {
       const icon = d.bound ? '🟢' : d.type === 'target' ? '🔴' : '🟡';
-      lines.push(`- ${icon} ${d.name} (${d.id}, RSSI ${d.rssi} dBm)`);
+      lines.push(`- ${icon} ${d.name} (${d.id}, Quelle ${d.method ?? 'live'}, RSSI ${d.rssi ?? '--'} dBm)`);
     }
     return lines.join('\n');
   }
 
   intentClients(): string {
-    const clients = [
-      { name: 'admin', role: 'admin', device: 'MASTER-Gold', last_action: 'login' },
-      { name: 'service-1', role: 'service', device: 'Client-A-Grün', last_action: 'scan_network' },
-    ];
+    const clients = getRuntimeClients();
     this.audit('show_clients', `${clients.length} Clients`);
-    const lines = [`👥 Eingeloggte Clients: ${clients.length}`];
+    if (!clients.length) return '👥 Keine Live-Clients registriert. Es werden keine Beispiel-Clients angezeigt.';
+    const lines = [`👥 Live-Clients: ${clients.length}`];
     for (const c of clients) {
-      lines.push(`- ${c.name} (${c.role}) – ${c.device} – zuletzt: ${c.last_action}`);
+      lines.push(`- ${c.name} (${c.role}) – ${c.device} – zuletzt: ${c.lastAction}`);
     }
     return lines.join('\n');
   }
@@ -439,7 +484,7 @@ export class AgentEngine {
     const name = m[1];
     const rest = t.split(name)[1]?.trim() ?? '';
     this.audit('run_script', `${name} ${rest}`);
-    return `▶️ Skript '${name}' ${rest ? `mit Argumenten '${rest}' ` : ''}gestartet.\nErgebnisse werden im Status-Panel angezeigt.`;
+    return `⚠️ Skript '${name}' wird im Browser nicht künstlich ausgeführt. Für echte Ausführung Backend-Endpunkt /api/scripts/run anbinden oder Desktop-Konsole nutzen.`;
   }
 
   intentExport(t: string): string {
@@ -508,16 +553,15 @@ export class AgentEngine {
     if (action === 'clear_cache') return this.intentClearCache();
     if (action.startsWith('script:')) {
       const name = action.split(':')[1];
-      this.audit('run_script', name);
-      return `▶️ Skript '${name}' gestartet (simulierte Ausführung).`;
+      return this.intentRunScriptLive(`run ${name}`);
     }
     if (action.startsWith('workflow:')) {
       const name = action.split(':')[1];
-      if (name === 'scan') return this.intentScan('scan');
-      this.startTask(name, 10);
-      window.setTimeout(() => this.finishTask(name), 6000);
+      if (name === 'scan') return this.intentScanLive('scan');
       this.audit('start_workflow', name);
-      return `✅ Workflow '${name}' gestartet (siehe Status-Panel).`;
+      const result = await this.tryApi('/api/workflows/start', { name });
+      if (result.ok) return `✅ Workflow '${name}' über Backend gestartet.`;
+      return `⚠️ Workflow '${name}' nicht gestartet: Backend-Endpunkt /api/workflows/start ist nicht erreichbar (${result.error}).`;
     }
     return `❓ Unbekannte Aktion: ${action}`;
   }
@@ -558,10 +602,11 @@ export class AgentEngine {
   // Status-Bar
   // ------------------------------------------------------------------
   summary(): string {
-    const devices = MOCK_DEVICES.filter((d) => d.bound).length;
+    const devices = getRuntimeDevices().filter((d) => d.bound).length;
+    const clients = getRuntimeClients().length;
     const wf = this.activeWorkflows().length;
     const state = wf > 0 ? 'BUSY' : 'IDLE';
-    return `🟢 Geräte: ${devices}  |  👥 Clients: 2  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
+    return `🟢 Geräte: ${devices}  |  👥 Clients: ${clients}  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
   }
 
   modelStatus(): string {

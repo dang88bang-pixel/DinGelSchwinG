@@ -10,44 +10,69 @@ export class RosettaConverter {
     this.backend = override ? (override === 'agnes' ? MODEL_AGNES : MODEL_GLM) : mapped;
   }
 
-  // Request -> Backend -> Response (vollständiger Roundtrip)
   async request(req: ConverterRequest): Promise<ConverterResponse> {
     const start = performance.now();
     try {
-      // Simulierte Backend-Interaktion mit Aufgaben-Spezialisierung
-      const specialization = this.backend.specialization.join(', ');
-      const result = {
-        route: req.route,
-        backend: this.backend.modelName,
-        specialization,
-        inputSummary: JSON.stringify(req.payload).slice(0, 200),
-        recommendation: `Analyse durch ${this.backend.id} (${this.backend.specialization[0]})`,
-        confidence: 0.92,
-      };
-      const latencyMs = Math.round(performance.now() - start);
-      return { route: req.route, backendId: this.backend.id, result, latencyMs, streamChunk: false };
-    } catch (e: any) {
-      return { route: req.route, backendId: this.backend.id, result: { error: e?.message || 'Backend-Fehler' }, latencyMs: Math.round(performance.now() - start), streamChunk: false };
+      const response = await fetch(this.backend.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(req),
+      });
+      if (!response.ok) throw new Error(`Backend ${this.backend.endpoint} antwortet mit HTTP ${response.status}`);
+      const result = await response.json();
+      return { route: req.route, backendId: this.backend.id, result, latencyMs: Math.round(performance.now() - start), streamChunk: false };
+    } catch (e) {
+      return { route: req.route, backendId: this.backend.id, result: { error: e instanceof Error ? e.message : 'Backend-Fehler' }, latencyMs: Math.round(performance.now() - start), streamChunk: false };
     }
   }
 
-  // Stream -> Converter <- Backend (Stream-Roundtrip)
   async stream(req: ConverterRequest, onChunk: (chunk: StreamChunk) => void): Promise<ConverterResponse> {
     const start = performance.now();
     this.streamControllers.add(onChunk);
     try {
-      // Simuliert: Stream von Backend durch Converter weitergeleitet
-      for (let i = 0; i < 3; i++) {
-        await new Promise(r => setTimeout(r, 300));
-        onChunk({ chunkId: `${req.route}-${i}`, data: `Teil ${i + 1}/${this.backend.maxTokens / 1024} — ${this.backend.specialization[0]}`, done: false });
+      const response = await fetch(`${this.backend.endpoint}/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/x-ndjson, application/json' },
+        body: JSON.stringify(req),
+      });
+      if (!response.ok) throw new Error(`Stream-Backend ${this.backend.endpoint}/stream antwortet mit HTTP ${response.status}`);
+      if (!response.body) throw new Error('Stream-Backend liefert keinen ReadableStream');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let chunks = 0;
+      let streamOpen = true;
+      while (streamOpen) {
+        const { value, done } = await reader.read();
+        if (done) {
+          streamOpen = false;
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.replace(/^data:\s*/, '').trim();
+          if (!trimmed) continue;
+          chunks += 1;
+          let data = trimmed;
+          try { data = JSON.stringify(JSON.parse(trimmed)); } catch { /* plain text stream chunk */ }
+          onChunk({ chunkId: `${req.route}-${chunks}`, data, done: false });
+        }
       }
-      await new Promise(r => setTimeout(r, 200));
+      if (buffer.trim()) {
+        chunks += 1;
+        onChunk({ chunkId: `${req.route}-${chunks}`, data: buffer.trim(), done: false });
+      }
       onChunk({ chunkId: `${req.route}-end`, data: 'Stream abgeschlossen', done: true });
       this.streamControllers.delete(onChunk);
-      return { route: req.route, backendId: this.backend.id, result: { streamComplete: true, chunks: 4 }, latencyMs: Math.round(performance.now() - start), streamChunk: true };
-    } catch (e: any) {
+      return { route: req.route, backendId: this.backend.id, result: { streamComplete: true, chunks: chunks + 1 }, latencyMs: Math.round(performance.now() - start), streamChunk: true };
+    } catch (e) {
       this.streamControllers.delete(onChunk);
-      return { route: req.route, backendId: this.backend.id, result: { error: e?.message || 'Stream-Fehler' }, latencyMs: Math.round(performance.now() - start), streamChunk: false };
+      const message = e instanceof Error ? e.message : 'Stream-Fehler';
+      onChunk({ chunkId: `${req.route}-error`, data: message, done: true });
+      return { route: req.route, backendId: this.backend.id, result: { error: message }, latencyMs: Math.round(performance.now() - start), streamChunk: false };
     }
   }
 

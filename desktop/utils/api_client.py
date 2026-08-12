@@ -1,16 +1,13 @@
 """HTTP-Client für die Backend-API (Flask auf localhost:5000).
 
-Nutzt nur die Standardbibliothek (urllib). Schlägt jede Anfrage fehl,
-liefert der Mock-Datenprovider realistische Beispieldaten – die GUI
-bleibt damit immer funktionsfähig (offline-fähig).
+Nutzt nur die Standardbibliothek (urllib). Schlägt eine Anfrage fehl,
+werden bewusst leere Live-Daten zurückgegeben. Es gibt keinen Mock- oder
+Demo-Datenprovider; die UI zeigt dadurch klar, dass kein Backend verbunden ist.
 """
 from __future__ import annotations
 
 import json
-import random
-import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -18,68 +15,29 @@ BASE_URL = "http://localhost:5000"
 TIMEOUT = 3.0
 
 
-# --------------------------------------------------------------------------
-# Mock-Daten (Offline-Fallback)
-# --------------------------------------------------------------------------
-class MockDataSource:
-    """Erzeugt stabile, plausible Statusdaten, wenn kein Backend erreichbar ist."""
-
-    def __init__(self) -> None:
-        self._seed = int(time.time()) % 1000
-        self._rng = random.Random(self._seed)
-        self._devices = [
-            {"name": "MASTER-Gold", "ip": "192.168.1.1", "type": "master", "online": True},
-            {"name": "Client-A", "ip": "192.168.1.12", "type": "client", "online": True},
-            {"name": "Client-B", "ip": "192.168.1.15", "type": "client", "online": True},
-            {"name": "Target-X", "ip": "192.168.1.33", "type": "target", "online": True},
-            {"name": "WiFi-AP-01", "ip": "192.168.1.254", "type": "other", "online": True},
-            {"name": "BLE-Beacon-3", "ip": "192.168.1.77", "type": "other", "online": False},
-        ]
-        self._clients = [
-            {"name": "admin", "role": "admin", "device": "MASTER-Gold", "last_action": "login"},
-            {"name": "service-1", "role": "service", "device": "Client-A", "last_action": "scan_network"},
-        ]
+class EmptyLiveDataSource:
+    """Leere Live-Daten, wenn kein Produktionsbackend erreichbar ist."""
 
     def get_devices(self) -> list[dict]:
-        return [dict(d) for d in self._devices]
+        return []
 
     def get_clients(self) -> list[dict]:
-        return [dict(c) for c in self._clients]
+        return []
 
     def get_workflows(self) -> list[dict]:
-        return [
-            {
-                "name": "network_scan",
-                "status": "running",
-                "progress": min(97, 35 + int(time.time()) % 50),
-                "started": time.strftime("%H:%M:%S"),
-            },
-            {
-                "name": "audit_collect",
-                "status": "success",
-                "progress": 100,
-                "started": time.strftime("%H:%M:%S"),
-            },
-        ]
+        return []
 
     def get_test_results(self) -> list[dict]:
-        return [
-            {"name": "Ping 192.168.1.1", "success": True, "result": "3.2 ms"},
-            {"name": "SSH Client-A", "success": True, "result": "verbunden"},
-            {"name": "Web http://192.168.1.254", "success": False, "result": "Timeout"},
-        ]
+        return []
 
     def get_system_load(self) -> dict:
-        return {"cpu": random.randint(5, 40), "ram": random.randint(30, 70)}
+        return {}
 
 
-# --------------------------------------------------------------------------
-# API-Client
-# --------------------------------------------------------------------------
 class APIClient:
-    """Kapselt REST-Aufrufe; fällt bei Fehlern auf MockDataSource zurück."""
+    """Kapselt REST-Aufrufe; erzeugt keine Beispiel- oder Zufallsdaten."""
 
-    mock = MockDataSource()
+    offline = EmptyLiveDataSource()
 
     @staticmethod
     def _request(method: str, path: str, payload: dict | None = None,
@@ -105,27 +63,27 @@ class APIClient:
     @classmethod
     def get_devices(cls) -> list[dict]:
         data = cls._safe(cls._request, "GET", "/api/devices")
-        return data if isinstance(data, list) else cls.mock.get_devices()
+        return data if isinstance(data, list) else cls.offline.get_devices()
 
     @classmethod
     def get_clients(cls) -> list[dict]:
         data = cls._safe(cls._request, "GET", "/api/clients")
-        return data if isinstance(data, list) else cls.mock.get_clients()
+        return data if isinstance(data, list) else cls.offline.get_clients()
 
     @classmethod
     def get_workflows(cls) -> list[dict]:
         data = cls._safe(cls._request, "GET", "/api/workflows")
-        return data if isinstance(data, list) else cls.mock.get_workflows()
+        return data if isinstance(data, list) else cls.offline.get_workflows()
 
     @classmethod
     def get_test_results(cls) -> list[dict]:
         data = cls._safe(cls._request, "GET", "/api/tests")
-        return data if isinstance(data, list) else cls.mock.get_test_results()
+        return data if isinstance(data, list) else cls.offline.get_test_results()
 
     @classmethod
     def get_system_load(cls) -> dict:
         data = cls._safe(cls._request, "GET", "/api/system")
-        return data if isinstance(data, dict) else cls.mock.get_system_load()
+        return data if isinstance(data, dict) else cls.offline.get_system_load()
 
     @classmethod
     def backend_online(cls) -> bool:

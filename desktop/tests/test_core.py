@@ -68,19 +68,19 @@ class TestScriptExecutor(unittest.TestCase):
 
 
 class TestStatusManager(unittest.TestCase):
-    def test_mock_fallback(self) -> None:
+    def test_offline_returns_empty_live_data(self) -> None:
         manager = StatusManager(poll_interval=0.5)
         manager.refresh()
-        self.assertGreaterEqual(len(manager.devices), 5)
-        self.assertGreaterEqual(len(manager.clients), 1)
-        self.assertGreaterEqual(manager.connected_devices(), 1)
+        self.assertEqual(manager.devices, [])
+        self.assertEqual(manager.clients, [])
+        self.assertEqual(manager.connected_devices(), 0)
         self.assertIsInstance(manager.summary(), str)
-        self.assertIn("Geräte", manager.summary())
+        self.assertIn("offline", manager.summary())
 
     def test_manual_workflows(self) -> None:
         manager = StatusManager(poll_interval=0.5)
         manager.refresh()
-        baseline = manager.active_workflows()  # Mock liefert 1 laufenden Workflow
+        baseline = manager.active_workflows()
         manager.add_workflow("test_wf", progress=10)
         self.assertEqual(manager.active_workflows(), baseline + 1)
         manager.update_workflow("test_wf", 100, "success")
@@ -121,7 +121,7 @@ class TestAgent(unittest.TestCase):
 
     def test_devices(self) -> None:
         reply = self.agent.ask("zeige alle Geräte")
-        self.assertIn("Gefundene Geräte", reply)
+        self.assertIn("Geräte", reply)
 
     def test_scan(self) -> None:
         # Echten Scan vermeiden: Executor stubben (Antwort aber durchintentieren)
@@ -164,10 +164,10 @@ class TestAgent(unittest.TestCase):
         self.assertGreaterEqual(count, 1)
 
     def test_stop_workflow(self) -> None:
-        self.agent.status.add_workflow("demo_task")
+        self.agent.status.add_workflow("live_task")
         reply = self.agent.ask("stoppe den Workflow")
         self.assertIn("Gestoppt", reply)
-        self.assertIn("demo_task", reply)
+        self.assertIn("live_task", reply)
 
     def test_fallback(self) -> None:
         reply = self.agent.ask("was ist die Hauptstadt von Frankreich?")

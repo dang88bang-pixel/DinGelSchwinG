@@ -1,16 +1,27 @@
 /**
  * Eingebettetes Lightweight-LLM für die React-App (läuft im Browser/WebView).
  *
- * Modell: Qwen2.5-0.5B-Instruct (ONNX, q4-Quantisierung, ~400 MB)
- * Engine: transformers.js (@huggingface/transformers) – WASM, kein Server.
- *
- * Das Modell wird NUR auf Anforderung geladen („Modell laden“-Button),
- * damit die App auch ohne Download voll funktionsfähig bleibt.
+ * Das Modell wird NUR auf Anforderung geladen („Modell laden“-Button).
+ * Das transformers.js-Modul wird absichtlich nicht als npm-Abhängigkeit
+ * gebündelt, weil die aktuelle npm-Kette native Node-Pakete mit offenen
+ * Advisories enthält. Stattdessen wird ein ESM-Browserbuild zur Laufzeit
+ * geladen; schlägt das fehl, bleibt die deterministische Engine aktiv.
  */
 export const MODEL_ID = 'onnx-community/Qwen2.5-0.5B-Instruct';
 export const MODEL_SIZE_MB = 400;
 
+const DEFAULT_TRANSFORMERS_MODULE_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0';
+
 type ProgressCallback = (progress: number, label?: string) => void;
+
+type TransformersModule = {
+  env: { allowLocalModels: boolean };
+  pipeline: (
+    task: string,
+    model: string,
+    options?: Record<string, unknown>,
+  ) => Promise<unknown>;
+};
 
 export class TransformersBackend {
   status: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
@@ -22,7 +33,7 @@ export class TransformersBackend {
   }
 
   describe(): string {
-    if (this.status === 'ready') return `Modell aktiv: Qwen2.5-0.5B (lokal)`;
+    if (this.status === 'ready') return 'Modell aktiv: Qwen2.5-0.5B (lokal im Browser)';
     if (this.status === 'loading') return 'Modell wird geladen…';
     if (this.status === 'error') return `Modell-Fehler: ${this.error.slice(0, 40)}`;
     return 'Deterministische Engine (Modell nicht geladen)';
@@ -33,11 +44,11 @@ export class TransformersBackend {
     this.status = 'loading';
     this.error = '';
     try {
-      // Lazy-Import: hält den Haupt-Bundle klein
-      const mod = await import('@huggingface/transformers');
+      const viteEnv = (import.meta as ImportMeta & { env?: { VITE_TRANSFORMERS_MODULE_URL?: string } }).env;
+      const moduleUrl = viteEnv?.VITE_TRANSFORMERS_MODULE_URL || DEFAULT_TRANSFORMERS_MODULE_URL;
+      const mod = await import(/* @vite-ignore */ moduleUrl) as TransformersModule;
       mod.env.allowLocalModels = false;
-      const pipeline = mod.pipeline.bind(mod);
-      this.generator = await pipeline('text-generation', MODEL_ID, {
+      this.generator = await mod.pipeline('text-generation', MODEL_ID, {
         dtype: 'q4',
         progress_callback: (p: { progress?: number; status?: string }) => {
           if (typeof p?.progress === 'number') onProgress?.(p.progress, p.status);
@@ -47,7 +58,7 @@ export class TransformersBackend {
       onProgress?.(100, 'fertig');
     } catch (e) {
       this.status = 'error';
-      this.error = String(e);
+      this.error = e instanceof Error ? e.message : String(e);
       throw e;
     }
   }

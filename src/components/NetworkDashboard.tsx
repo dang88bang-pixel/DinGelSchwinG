@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Radio, Wifi, Bluetooth, ShieldCheck, Cpu, Waves, MapPin, Activity, Menu, Zap, Layers, CircleDot } from 'lucide-react';
+import { Radio, Wifi, Bluetooth, ShieldCheck, Cpu, Waves, MapPin, Activity, Menu, Zap, Layers, CircleDot, AlertTriangle } from 'lucide-react';
 import Scene3D from './Scene3D';
 import PairingPanel, { PairedDevice } from './PairingPanel';
 import NetworkDiagnostics from './diagnostics/NetworkDiagnostics';
@@ -9,52 +9,109 @@ import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
 import AgentConsole from './AgentConsole';
 import { useSensors } from '../hooks/useSensors';
-import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
+import { loadBLEDistanceModule, BLEDistanceModule, BLEWasmExports } from '../lib/bleWasm';
+import { registerLocalClient, setRuntimeDevices, upsertRuntimeDevice } from '../lib/runtimeData';
 
 export interface SceneDevice {
   id: string;
   name: string;
-  x: number; y: number; z: number;
+  x: number;
+  y: number;
+  z: number;
   type: 'master' | 'client' | 'target' | 'other';
-  rssi: number;
+  rssi: number | null;
   distance?: number;
-  txPower: number;
+  txPower: number | null;
+  method?: PairedDevice['method'] | 'local';
+}
+
+function localMaster(): SceneDevice {
+  return {
+    id: 'local-master',
+    name: (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || 'Lokales Gerät',
+    x: 0,
+    y: 0,
+    z: 0,
+    type: 'master',
+    rssi: null,
+    txPower: null,
+    method: 'local',
+  };
+}
+
+function positionedDevice(device: PairedDevice, index: number, wasm: BLEWasmExports | null): SceneDevice {
+  const angle = index * 1.2566370614;
+  const distance = device.rssi !== null && wasm ? wasm.calculate_distance(device.rssi, device.txPower ?? -59) : undefined;
+  const radius = distance ? Math.min(Math.max(distance, 1), 6) : 2 + (index % 4) * 0.8;
+  return {
+    id: device.id,
+    name: device.name,
+    x: Math.cos(angle) * radius,
+    y: 0.35 + (index % 3) * 0.25,
+    z: Math.sin(angle) * radius,
+    type: 'client',
+    rssi: device.rssi,
+    txPower: device.txPower ?? -59,
+    distance,
+    method: device.method,
+  };
 }
 
 export default function NetworkDashboard() {
   const sensors = useSensors();
   const [mode, setMode] = useState<'ble' | 'wifi' | 'usb'>('ble');
-  const [wasmModule, setWasmModule] = useState<BLEWasmExports | null>(null);
-  const [devices, setDevices] = useState<SceneDevice[]>([
-    { id: 'master-1', name: 'MASTER-Gold', x: 0, y: 0, z: 0, type: 'master', rssi: -42, txPower: -59 },
-    { id: 'client-1', name: 'Client-A', x: 1.8, y: 0.9, z: 0.7, type: 'client', rssi: -62, txPower: -59 },
-    { id: 'client-2', name: 'Client-B', x: -2.1, y: 0.6, z: 1.4, type: 'client', rssi: -68, txPower: -59 },
-    { id: 'target-1', name: 'Target-X', x: -1.4, y: 0.4, z: -2.2, type: 'target', rssi: -74, txPower: -59 },
-    { id: 'other-1', name: 'WiFi-AP-01', x: 3.2, y: 0.3, z: -1.0, type: 'other', rssi: -81, txPower: -55 },
-    { id: 'other-2', name: 'BLE-Beacon-3', x: 0.6, y: 1.2, z: -2.5, type: 'other', rssi: -76, txPower: -59 },
-  ]);
+  const [distanceModule, setDistanceModule] = useState<BLEDistanceModule | null>(null);
+  const [devices, setDevices] = useState<SceneDevice[]>([localMaster()]);
   const [boundClients, setBoundClients] = useState<PairedDevice[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>('local-master');
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const wasmModule = distanceModule?.exports ?? null;
 
   useEffect(() => {
-    loadBLEWasm().then(mod => {
-      setWasmModule(mod);
-      setDevices(prev => prev.map(d => ({
+    registerLocalClient('admin');
+    upsertRuntimeDevice({
+      id: 'local-master',
+      name: localMaster().name,
+      type: 'master',
+      method: 'local',
+      rssi: null,
+      txPower: null,
+      bound: true,
+      lastSeen: new Date().toISOString(),
+    });
+  }, []);
+
+  useEffect(() => {
+    loadBLEDistanceModule().then((mod) => {
+      setDistanceModule(mod);
+      setDevices((prev) => prev.map((d) => ({
         ...d,
-        distance: d.rssi !== undefined && d.txPower !== undefined ? mod.calculate_distance(d.rssi, d.txPower) : undefined,
+        distance: d.rssi !== null && d.txPower !== null ? mod.exports.calculate_distance(d.rssi, d.txPower) : undefined,
       })));
     });
   }, []);
 
   useEffect(() => {
+    setRuntimeDevices(devices.map((d) => ({
+      id: d.id,
+      name: d.name,
+      type: d.type,
+      method: d.method,
+      rssi: d.rssi,
+      txPower: d.txPower,
+      bound: d.type === 'master' || boundClients.some((c) => c.id === d.id),
+      lastSeen: new Date().toISOString(),
+    })));
+  }, [devices, boundClients]);
+
+  useEffect(() => {
     if (sensors.permissionGranted && (sensors.beta !== null || sensors.gamma !== null)) {
-      setDevices(prev => prev.map(d => {
-        if (d.type !== 'master' && d.id !== selectedId) {
+      setDevices((prev) => prev.map((d) => {
+        if (d.type !== 'master' && d.id !== selectedId && d.distance) {
           const phi = ((sensors.alpha || 0) / 360) * Math.PI * 2;
-          const theta = ((sensors.beta || 0) + 90) / 180 * Math.PI;
-          const dEst = d.distance || 1.5;
+          const theta = (((sensors.beta || 0) + 90) / 180) * Math.PI;
+          const dEst = d.distance;
           return { ...d, x: dEst * Math.sin(theta) * Math.cos(phi), y: dEst * Math.sin(theta), z: dEst * Math.sin(theta) * Math.sin(phi) };
         }
         return d;
@@ -63,19 +120,23 @@ export default function NetworkDashboard() {
   }, [sensors.alpha, sensors.beta, sensors.gamma, sensors.permissionGranted, selectedId]);
 
   const handleBind = useCallback((device: PairedDevice) => {
-    setBoundClients(prev => [...prev, device]);
-    setDevices(prev => [
-      ...prev,
-      { id: device.id, name: device.name, x: 1.5 + Math.random() * 2, y: 0.5 + Math.random() * 1, z: Math.random() * 2 - 1, type: 'client', rssi: device.rssi, txPower: -59 },
-    ]);
-  }, []);
+    setBoundClients((prev) => {
+      const filtered = prev.filter((d) => d.id !== device.id);
+      const next = [...filtered, device];
+      setDevices((current) => {
+        const master = current.find((d) => d.type === 'master') ?? localMaster();
+        const clients = next.map((client, idx) => positionedDevice(client, idx + 1, wasmModule));
+        return [master, ...clients];
+      });
+      return next;
+    });
+  }, [wasmModule]);
 
-  const sceneDevices = useMemo(() => devices.map(d => ({ id: d.id, name: d.name, x: d.x, y: d.y, z: d.z, type: d.type, rssi: d.rssi })), [devices]);
-  const selectedDevice = devices.find(d => d.id === selectedId);
+  const sceneDevices = useMemo(() => devices.map((d) => ({ id: d.id, name: d.name, x: d.x, y: d.y, z: d.z, type: d.type, rssi: d.rssi ?? undefined })), [devices]);
+  const selectedDevice = devices.find((d) => d.id === selectedId);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#050a18] to-[#0b1220] text-slate-100 font-sans selection:bg-cyan-400/30 overflow-hidden">
-      {/* Header */}
       <header className="sticky top-0 z-50 bg-[#050a18]/80 backdrop-blur-2xl border-b border-white/10 px-5 md:px-8 py-4 flex items-center justify-between shadow-2xl shadow-blue-950/30">
         <div className="flex items-center gap-4">
           <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-200 border border-white/10 transition"><Menu className="w-5 h-5" /></button>
@@ -85,7 +146,7 @@ export default function NetworkDashboard() {
               <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-amber-400" /> Master</span>
               <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-emerald-400" /> Client</span>
               <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-rose-400" /> Ziel</span>
-              <span className="text-slate-600">| WASM · BLE · 3D · Sensoren</span>
+              <span className="text-slate-600">| BLE · 3D · Sensoren · Live-Kopplung</span>
             </div>
           </div>
         </div>
@@ -97,34 +158,37 @@ export default function NetworkDashboard() {
           >
             🤖 Agent
           </button>
-          {(['ble','wifi','usb'] as const).map(m => (
-            <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
-              {m==='ble' && <Bluetooth className="w-3.5 h-3.5" />}{m==='wifi' && <Wifi className="w-3.5 h-3.5" />}{m==='usb' && <Radio className="w-3.5 h-3.5" />}{m.toUpperCase()}
+          {(['ble', 'wifi', 'usb'] as const).map((m) => (
+            <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode === m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
+              {m === 'ble' && <Bluetooth className="w-3.5 h-3.5" />}{m === 'wifi' && <Wifi className="w-3.5 h-3.5" />}{m === 'usb' && <Radio className="w-3.5 h-3.5" />}{m.toUpperCase()}
             </button>
           ))}
         </div>
       </header>
 
       <main className={`max-w-[1600px] mx-auto px-4 md:px-8 py-6 md:py-8 grid gap-6 ${menuOpen ? 'grid-cols-1 md:grid-cols-[1fr_340px]' : 'grid-cols-1 lg:grid-cols-[1fr_360px]'}`}>
-        {/* Hauptbereich */}
         <section className="flex flex-col gap-6">
-          {/* 3D Szene — besonders hervorheben */}
           <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-blue-950/40 ring-1 ring-white/10 bg-gradient-to-b from-[#060f2a] to-[#020617]">
             <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-[#060f2a]/90 to-[#0a1835]/70 border-b border-white/10 backdrop-blur-md">
               <div className="flex items-center gap-2 text-xs font-mono text-cyan-200">
-                <Layers className="w-3.5 h-3.5 text-amber-300" /> 3D-Raumdarstellung — exakte Positionen
-                <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border ${wasmModule ? 'bg-emerald-900/60 text-emerald-200 border-emerald-600/40' : 'bg-amber-900/40 text-amber-200 border-amber-600/30'}`}>{wasmModule ? 'WASM aktiv' : 'WASM lädt...'}</span>
+                <Layers className="w-3.5 h-3.5 text-amber-300" /> 3D-Raumdarstellung — Live-Geräte und gekoppelte Clients
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border ${distanceModule ? 'bg-emerald-900/60 text-emerald-200 border-emerald-600/40' : 'bg-amber-900/40 text-amber-200 border-amber-600/30'}`}>{distanceModule ? `Distanz: ${distanceModule.source}` : 'Distanz lädt...'}</span>
               </div>
               <div className="text-[10px] font-mono text-slate-500">Modus: <span className="text-white font-bold">{mode.toUpperCase()}</span></div>
             </div>
             <div className="h-[420px] md:h-[540px] lg:h-[580px] relative">
               <Scene3D devices={sceneDevices} onSelect={setSelectedId} />
+              {devices.length === 1 && (
+                <div className="absolute bottom-4 left-4 right-4 rounded-xl border border-amber-500/30 bg-amber-950/50 px-4 py-3 text-xs text-amber-100 flex gap-2 shadow-xl">
+                  <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
+                  Keine Demo-Knoten geladen. Nutze rechts QR, BLE, NFC oder WiFi, um echte Clients zu koppeln; Backend-/Hardware-Funktionen zeigen sonst bewusst leere Live-Daten.
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Geräte-Status — elegante Karten */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {devices.map(d => (
+            {devices.map((d) => (
               <button
                 key={d.id}
                 onClick={() => setSelectedId(d.id)}
@@ -137,9 +201,9 @@ export default function NetworkDashboard() {
                 </div>
                 <div className="text-base font-black text-white leading-tight mb-1.5 tracking-tight">{d.name}</div>
                 <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
-                  <span>RSSI <b className="text-cyan-200">{d.rssi}</b></span>
+                  <span>RSSI <b className="text-cyan-200">{d.rssi !== null ? d.rssi : '--'}</b></span>
                   <span>·</span>
-                  <span>Dist <b className="text-amber-200">{d.distance ? d.distance.toFixed(2) + 'm' : '--'}</b></span>
+                  <span>Dist <b className="text-amber-200">{d.distance ? `${d.distance.toFixed(2)}m` : '--'}</b></span>
                 </div>
                 <div className="mt-3 pt-2 border-t border-white/5 flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
                   <MapPin className="w-3 h-3 text-slate-500" /> {d.x.toFixed(1)}, {d.y.toFixed(1)}, {d.z.toFixed(1)}
@@ -148,7 +212,6 @@ export default function NetworkDashboard() {
             ))}
           </div>
 
-          {/* Sensoren + WASM Status — zwei Spalten */}
           <div className="grid md:grid-cols-2 gap-4">
             <div className="rounded-3xl p-5 bg-gradient-to-br from-blue-950/40 to-indigo-950/40 border border-blue-800/30 backdrop-blur-xl shadow-2xl shadow-blue-950/10 relative overflow-hidden ring-gradient">
               <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -158,10 +221,10 @@ export default function NetworkDashboard() {
                   { label: 'Alpha', val: sensors.alpha, clr: 'text-cyan-300' },
                   { label: 'Beta', val: sensors.beta, clr: 'text-amber-300' },
                   { label: 'Gamma', val: sensors.gamma, clr: 'text-violet-300' },
-                ].map(s => (
+                ].map((s) => (
                   <div key={s.label} className="bg-[#060f2a]/60 rounded-xl p-2.5 border border-white/5">
                     <div className="text-[10px] text-slate-400 mb-0.5">{s.label}</div>
-                    <div className={`font-bold text-sm ${s.clr}`}>{s.val !== null ? s.val.toFixed(1) + '°' : '--'}</div>
+                    <div className={`font-bold text-sm ${s.clr}`}>{s.val !== null ? `${s.val.toFixed(1)}°` : '--'}</div>
                   </div>
                 ))}
                 <div className="col-span-3 bg-[#060f2a]/60 rounded-xl p-2.5 border border-white/5">
@@ -181,51 +244,48 @@ export default function NetworkDashboard() {
 
             <div className="rounded-3xl p-5 bg-gradient-to-br from-amber-950/30 to-orange-950/30 border border-amber-800/30 backdrop-blur-xl shadow-2xl shadow-amber-950/10 relative overflow-hidden ring-gradient">
               <div className="absolute -top-10 -left-10 w-40 h-40 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
-              <h3 className="text-sm font-black text-amber-100 flex items-center gap-2 mb-4 relative"><Activity className="w-4 h-4 text-amber-300" /> WASM-Abstandsbestimmung</h3>
+              <h3 className="text-sm font-black text-amber-100 flex items-center gap-2 mb-4 relative"><Activity className="w-4 h-4 text-amber-300" /> Abstandsbestimmung</h3>
               <div className="text-xs font-mono text-slate-300 leading-relaxed mb-3 relative space-y-0.5">
-                <div className="flex justify-between border-b border-amber-800/30 py-1"><span>Modul</span> <b className="text-amber-200">{wasmModule ? 'geladen' : 'wird geladen...'}</b></div>
+                <div className="flex justify-between border-b border-amber-800/30 py-1"><span>Quelle</span> <b className="text-amber-200">{distanceModule?.source ?? 'lädt...'}</b></div>
                 <div className="flex justify-between border-b border-amber-800/30 py-1"><span>Formel</span> <span className="text-amber-200">d = 10^((Tx-RSSI)/(10·n))</span></div>
                 <div className="flex justify-between border-b border-amber-800/30 py-1"><span>Standard n</span> <b className="text-amber-200">2.0 (Freifeld)</b></div>
                 <div className="flex justify-between py-1"><span>Kalibrierung</span> <b className="text-amber-200">calc_exact_distance()</b></div>
               </div>
               <div className="bg-[#0b0f18] rounded-xl p-3 font-mono text-[11px] text-slate-400 border border-amber-900/20 relative overflow-hidden">
-                <div className="text-amber-200 font-bold mb-1">// Beispiel (WASM / JS-Bridge identisch)</div>
-                <div>const d = calculate_distance(-65, -59);</div>
-                <div className="text-amber-300">// Ergebnis ≈ 2.00 m</div>
+                <div className="text-amber-200 font-bold mb-1">Aktiver Algorithmus</div>
+                <div>calculate_distance(rssi, txPower)</div>
+                <div className="text-amber-300">WASM wird genutzt, wenn das Artefakt vorhanden ist; sonst läuft dieselbe Formel in TypeScript.</div>
               </div>
             </div>
-          {/* Neue Diagnose-Module */}
+          </div>
+
           <NetworkDiagnostics />
           <MeshControl />
           <ReplayEditor />
           <RosettaPanel />
-          {/* Rekursiver Lern-Feedback */}
+
           <div className="glass-card p-5 relative overflow-hidden ring-gradient">
-            <h3 className="text-sm font-black text-white flex items-center gap-2 mb-3"><Zap className="w-4 h-4 text-amber-300" /> Rekursives Lernen (WASM)</h3>
+            <h3 className="text-sm font-black text-white flex items-center gap-2 mb-3"><Zap className="w-4 h-4 text-amber-300" /> Rekursives Lernen</h3>
             <div className="grid md:grid-cols-3 gap-3 text-xs font-mono mb-3">
               <div className="bg-[#060f2a]/60 rounded-xl p-2.5 border border-white/5"><div className="text-slate-400">Referenz RSSI</div><div className="text-cyan-200 font-bold">{selectedDevice?.rssi ?? '--'} dBm</div></div>
-              <div className="bg-[#060f2a]/60 rounded-xl p-2.5 border border-white/5"><div className="text-slate-400">Referenz Distanz</div><div className="text-amber-200 font-bold">{selectedDevice?.distance ? selectedDevice.distance.toFixed(2)+'m' : '--'}</div></div>
-              <div className="bg-[#060f2a]/60 rounded-xl p-2.5 border border-white/5"><div className="text-slate-400">Gelernter n</div><div className="text-violet-200 font-bold">{wasmModule ? (wasmModule.get_learned_n ? wasmModule.get_learned_n().toFixed(2) : '2.00') : '--'}</div></div>
+              <div className="bg-[#060f2a]/60 rounded-xl p-2.5 border border-white/5"><div className="text-slate-400">Referenz Distanz</div><div className="text-amber-200 font-bold">{selectedDevice?.distance ? `${selectedDevice.distance.toFixed(2)}m` : '--'}</div></div>
+              <div className="bg-[#060f2a]/60 rounded-xl p-2.5 border border-white/5"><div className="text-slate-400">Gelernter n</div><div className="text-violet-200 font-bold">{wasmModule ? wasmModule.get_learned_n().toFixed(2) : '--'}</div></div>
             </div>
-            <button onClick={async () => {
-              if (!selectedDevice || !wasmModule) return;
-              try {
-                // Simulation einer Bestätigung durch Client-Gerät
-                const confirmedDist = selectedDevice.distance || 2.0;
-                const confirmedRssi = selectedDevice.rssi || -65;
-                const newN = wasmModule.learn_from_feedback(-59, confirmedDist, confirmedRssi, confirmedDist * 0.95);
-                alert(`Lernen abgeschlossen: Neuer Umgebungsfaktor n = ${newN.toFixed(3)} (aus Bestätigung des Client-Geräts)`);
-              } catch (e) { alert('Lernprozess fehlgeschlagen'); }
-            }} className="text-xs font-extrabold px-4 py-2 rounded-xl bg-gradient-to-br from-amber-600 to-violet-700 text-white shadow-xl hover:brightness-110 transition">🔄 Bestätigung durch Client-Gerät auswerten</button>
-          </div>
-<ReplayEditor />
-          <RosettaPanel />
+            <button onClick={() => {
+              if (!selectedDevice || !wasmModule || selectedDevice.rssi === null || !selectedDevice.distance) {
+                alert('Wähle zuerst ein live gekoppeltes Gerät mit RSSI und Distanz.');
+                return;
+              }
+              const confirmedDist = Number(prompt('Bestätigte reale Distanz in Metern eingeben:', selectedDevice.distance.toFixed(2)));
+              if (!Number.isFinite(confirmedDist) || confirmedDist <= 0) return;
+              const newN = wasmModule.learn_from_feedback(selectedDevice.rssi, selectedDevice.distance, selectedDevice.rssi, confirmedDist);
+              alert(`Lernen abgeschlossen: Umgebungsfaktor n = ${newN.toFixed(3)}`);
+            }} className="text-xs font-extrabold px-4 py-2 rounded-xl bg-gradient-to-br from-amber-600 to-violet-700 text-white shadow-xl hover:brightness-110 transition">🔄 Reale Distanz bestätigen</button>
           </div>
         </section>
 
-        {/* Sidebar */}
         <aside className={`flex flex-col gap-5 ${menuOpen ? 'hidden md:flex' : 'flex'}`}>
-          <PairingPanel onBind={handleBind} />
+          <PairingPanel onBind={handleBind} boundDevices={boundClients} />
 
           <div className="glass-card p-5 relative overflow-hidden">
             <h3 className="text-sm font-black text-white mb-3 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-amber-300" /> Details</h3>
@@ -234,9 +294,10 @@ export default function NetworkDashboard() {
                 <div className="flex justify-between"><span className="text-slate-500">ID</span> <b className="text-cyan-200">{selectedDevice.id}</b></div>
                 <div className="flex justify-between"><span className="text-slate-500">Name</span> <b className="text-white">{selectedDevice.name}</b></div>
                 <div className="flex justify-between"><span className="text-slate-500">Typ</span> <b className={selectedDevice.type === 'master' ? 'text-amber-300' : selectedDevice.type === 'client' ? 'text-emerald-300' : selectedDevice.type === 'target' ? 'text-rose-300' : 'text-slate-300'}>{selectedDevice.type}</b></div>
-                <div className="flex justify-between"><span className="text-slate-500">RSSI</span> <b className="text-cyan-200">{selectedDevice.rssi} dBm</b></div>
-                <div className="flex justify-between"><span className="text-slate-500">TxPower</span> <b className="text-amber-200">{selectedDevice.txPower} dBm</b></div>
-                <div className="flex justify-between"><span className="text-slate-500">Distanz (WASM)</span> <b className="text-amber-300">{selectedDevice.distance !== undefined ? selectedDevice.distance.toFixed(3) + ' m' : '--'}</b></div>
+                <div className="flex justify-between"><span className="text-slate-500">Quelle</span> <b className="text-white">{selectedDevice.method ?? 'live'}</b></div>
+                <div className="flex justify-between"><span className="text-slate-500">RSSI</span> <b className="text-cyan-200">{selectedDevice.rssi !== null ? `${selectedDevice.rssi} dBm` : '--'}</b></div>
+                <div className="flex justify-between"><span className="text-slate-500">TxPower</span> <b className="text-amber-200">{selectedDevice.txPower !== null ? `${selectedDevice.txPower} dBm` : '--'}</b></div>
+                <div className="flex justify-between"><span className="text-slate-500">Distanz</span> <b className="text-amber-300">{selectedDevice.distance !== undefined ? `${selectedDevice.distance.toFixed(3)} m` : '--'}</b></div>
                 <div className="flex justify-between"><span className="text-slate-500">Position</span> <b className="text-violet-300">({selectedDevice.x.toFixed(2)}, {selectedDevice.y.toFixed(2)}, {selectedDevice.z.toFixed(2)})</b></div>
                 <div className="flex justify-between"><span className="text-slate-500">Modus</span> <b className="text-white">{mode.toUpperCase()}</b></div>
               </div>
@@ -251,7 +312,7 @@ export default function NetworkDashboard() {
               {boundClients.length === 0 ? (
                 <div className="text-slate-500 italic">Noch keine Kopplung.</div>
               ) : (
-                boundClients.map(c => (
+                boundClients.map((c) => (
                   <div key={c.id} className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-700/30 rounded-xl px-3 py-2 text-emerald-100 shadow-inner shadow-emerald-900/10">
                     <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
                     <div className="flex-1 truncate font-bold">{c.name}</div>
@@ -261,12 +322,12 @@ export default function NetworkDashboard() {
               )}
             </div>
           </div>
-        <NetworkSettings config={{ defaultMode: "ble", scanIntervalMs: 2000, bleTxPower: -59, bleEnvFactor: 2.0, sensorTimeoutMs: 1000, meshIntervalMs: 2000, meshFreqStart: 2400, meshFreqEnd: 2500, pairingMethods: { qr: true, ble: true, nfc: true, wifi: true }, wasmCalibrationRssiRef: -59, wasmCalibrationDistRef: 2.0 }} onChange={(() => {})} />
+          <NetworkSettings config={{ defaultMode: 'ble', scanIntervalMs: 2000, bleTxPower: -59, bleEnvFactor: 2.0, sensorTimeoutMs: 1000, meshIntervalMs: 2000, meshFreqStart: 2400, meshFreqEnd: 2500, pairingMethods: { qr: true, ble: true, nfc: true, wifi: true }, wasmCalibrationRssiRef: -59, wasmCalibrationDistRef: 2.0 }} onChange={() => {}} />
         </aside>
       </main>
 
       <footer className="border-t border-white/10 mt-auto py-4 text-center text-[11px] text-slate-600 font-mono tracking-wide bg-[#020617]/60 backdrop-blur-md">
-        DinGelSchwinG • NEXUS-BUILDER • WASM BLE Modul • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
+        DinGelSchwinG • NEXUS-BUILDER • BLE Distanzmodul • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
       </footer>
 
       {agentOpen && <AgentConsole role="admin" onClose={() => setAgentOpen(false)} />}

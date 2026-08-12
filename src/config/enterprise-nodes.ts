@@ -165,7 +165,7 @@ export function getAllNodeConfigs(): EnterpriseNode[] {
 }
 
 /**
- * Validate node endpoint connectivity (placeholder for actual implementation)
+ * Validate node endpoint connectivity with a real network request.
  */
 export async function validateNodeEndpoint(category: NodeCategory): Promise<boolean> {
   const node = ENTERPRISE_NODES[category];
