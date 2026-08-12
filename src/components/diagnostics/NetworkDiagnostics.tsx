@@ -35,18 +35,28 @@ export default function NetworkDiagnostics() {
   const [running, setRunning] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Async coroutine-style ping with error handling
   const runPing = useCallback(async (target: string) => {
-    const start = performance.now();
     try {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      // Use small HEAD request as latency proxy (real ping requires native APIs; we use fetch timing)
-      await fetch(`https://${target}`, { method: 'HEAD', mode: 'no-cors', signal: controller.signal, cache: 'no-store' });
-      const end = performance.now();
-      return { target, latencyMs: Math.round(end - start), status: 'ok' as const };
+      const { ensureSession, api } = await import('../../lib/api/client');
+      await ensureSession();
+      const res = await api<{ results: Array<{ target: string; ok: boolean; latencyMs: number | null }> }>(
+        '/api/diag/ping',
+        { method: 'POST', body: JSON.stringify({ targets: [target] }) },
+      );
+      const row = res.results?.[0];
+      if (row?.ok) return { target, latencyMs: Math.round(row.latencyMs || 0), status: 'ok' as const };
+      return { target, latencyMs: null, status: 'fail' as const, error: 'keine Antwort' };
     } catch (e: any) {
-      return { target, latencyMs: null, status: 'fail' as const, error: e?.message || 'Zeitüberschreitung' };
+      // Fallback: HTTP-Timing gegen öffentliche Resolver (kein ICMP)
+      const start = performance.now();
+      try {
+        await fetch(`https://${target === '8.8.8.8' ? 'dns.google' : target === '1.1.1.1' ? '1.1.1.1' : target}`, {
+          method: 'HEAD', mode: 'no-cors', cache: 'no-store',
+        });
+        return { target, latencyMs: Math.round(performance.now() - start), status: 'ok' as const };
+      } catch {
+        return { target, latencyMs: null, status: 'fail' as const, error: e?.message || 'Zeitüberschreitung' };
+      }
     }
   }, []);
 
@@ -59,36 +69,36 @@ export default function NetworkDiagnostics() {
     }
   }, [pingResults, runPing]);
 
-  // Speed test via download timing (simulated payload via data URI or local fetch)
   const runSpeed = useCallback(async () => {
-    setSpeedResult({ url: '/test-payload', bytesPerSec: null, durationMs: null, status: 'pending' });
+    setSpeedResult({ url: '/api/diag/payload', bytesPerSec: null, durationMs: null, status: 'pending' });
     try {
-      const payload = 'x'.repeat(1024 * 1024); // ~1MB test payload
-      const blob = new Blob([payload], { type: 'text/plain' });
+      const bytes = 1_048_576;
       const start = performance.now();
-      const url = URL.createObjectURL(blob);
-      await fetch(url);
-      const end = performance.now();
-      const durationMs = end - start;
-      const bytesPerSec = (1024 * 1024) / (durationMs / 1000);
-      setSpeedResult({ url: '/test-payload', bytesPerSec: Math.round(bytesPerSec), durationMs: Math.round(durationMs), status: 'ok' });
+      const res = await fetch(`/api/diag/payload?bytes=${bytes}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = await res.arrayBuffer();
+      const durationMs = performance.now() - start;
+      const bytesPerSec = buf.byteLength / (durationMs / 1000);
+      setSpeedResult({ url: '/api/diag/payload', bytesPerSec: Math.round(bytesPerSec), durationMs: Math.round(durationMs), status: 'ok' });
     } catch (e: any) {
-      setSpeedResult({ url: '/test-payload', bytesPerSec: null, durationMs: null, status: 'fail', error: e?.message || 'Geschwindigkeitsmessung fehlgeschlagen' });
+      setSpeedResult({ url: '/api/diag/payload', bytesPerSec: null, durationMs: null, status: 'fail', error: e?.message || 'Geschwindigkeitsmessung fehlgeschlagen' });
     }
   }, []);
 
-  // iPerf3-style throughput simulation with background service timer
   const runIperf = useCallback(async () => {
-    setIperfResult({ target: 'local-mesh', throughputMbps: null, packets: null, status: 'pending' });
+    setIperfResult({ target: 'local-loop', throughputMbps: null, packets: null, status: 'pending' });
     try {
-      // Simulate throughput measurement with progressive reporting
-      const packets = 1000 + Math.floor(Math.random() * 500);
-      const mbps = 50 + Math.random() * 200;
-      // Small delay to simulate measurement time
-      await new Promise(r => setTimeout(r, 800));
-      setIperfResult({ target: 'local-mesh', throughputMbps: parseFloat(mbps.toFixed(1)), packets, status: 'ok' });
+      const { ensureSession, api } = await import('../../lib/api/client');
+      await ensureSession();
+      const res = await api<{ throughputMbps: number; packets: number; status: string }>('/api/diag/throughput');
+      setIperfResult({
+        target: 'local-loop',
+        throughputMbps: res.throughputMbps,
+        packets: res.packets,
+        status: res.status === 'ok' ? 'ok' : 'fail',
+      });
     } catch (e: any) {
-      setIperfResult({ target: 'local-mesh', throughputMbps: null, packets: null, status: 'fail', error: e?.message || 'Durchsatzmessung fehlgeschlagen' });
+      setIperfResult({ target: 'local-loop', throughputMbps: null, packets: null, status: 'fail', error: e?.message || 'Durchsatzmessung fehlgeschlagen' });
     }
   }, []);
 

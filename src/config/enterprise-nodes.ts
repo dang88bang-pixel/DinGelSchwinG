@@ -170,8 +170,19 @@ export function getAllNodeConfigs(): EnterpriseNode[] {
 export async function validateNodeEndpoint(category: NodeCategory): Promise<boolean> {
   const node = ENTERPRISE_NODES[category];
   try {
-    // Implementation depends on node type and protocol
-    console.log(`Validating endpoint for ${node.nodeId}: ${node.endpointUrl}`);
+    const { ensureSession, api } = await import('../lib/api/client');
+    await ensureSession();
+    const local = await api<{ ok: boolean }>('/api/nodes/validate');
+    if (local.ok) return true;
+  } catch {
+    /* fall through to direct probe */
+  }
+  try {
+    const ctrl = new AbortController();
+    const t = window.setTimeout(() => ctrl.abort(), 2500);
+    const url = node.endpointUrl.replace(/^wss:/, 'https:').replace(/^grpc:\/\//, 'https://');
+    await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal });
+    window.clearTimeout(t);
     return true;
   } catch (error) {
     console.error(`Endpoint validation failed for ${node.nodeId}:`, error);

@@ -10,30 +10,37 @@ export interface MeshNode {
 }
 
 export default function MeshControl() {
-  const [running, setRunning] = useState(false);
-  const [nodes, setNodes] = useState<MeshNode[]>([
-    { id: 'mesh-01', freqMHz: 2412, rssi: -45, active: true, lastUpdate: new Date().toISOString() },
-    { id: 'mesh-02', freqMHz: 2437, rssi: -62, active: true, lastUpdate: new Date().toISOString() },
-    { id: 'mesh-03', freqMHz: 2462, rssi: -78, active: false, lastUpdate: new Date().toISOString() },
-  ]);
+  const [running, setRunning] = useState(true);
+  const [nodes, setNodes] = useState<MeshNode[]>([]);
   const [selectedFreq, setSelectedFreq] = useState<number>(2412);
 
-  // Background service simulation: updates every 2s when running
   useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => {
-      setNodes(prev => prev.map(n => {
-        if (!n.active) return { ...n, lastUpdate: new Date().toISOString() };
-        const drift = (Math.random() - 0.5) * 2;
-        return {
-          ...n,
-          freqMHz: Math.round((n.freqMHz + drift) * 10) / 10,
-          rssi: Math.round((n.rssi + (Math.random() - 0.5) * 3) * 10) / 10,
-          lastUpdate: new Date().toISOString(),
-        };
+    let cancelled = false;
+    const pull = async () => {
+      const { registry } = await import('../lib/devices/registry');
+      const list = registry.list();
+      const mapped: MeshNode[] = list.slice(0, 8).map((d, i) => ({
+        id: d.id.slice(0, 18),
+        freqMHz: 2412 + (i % 3) * 25,
+        rssi: d.rssi,
+        active: d.online !== false,
+        lastUpdate: new Date().toISOString(),
       }));
-    }, 2000);
-    return () => clearInterval(timer);
+      if (!cancelled) {
+        setNodes(mapped);
+        if (mapped[0]) setSelectedFreq((prev) => prev || mapped[0].freqMHz);
+      }
+    };
+    void pull();
+    const unsub = import('../lib/devices/registry').then(({ registry }) =>
+      registry.subscribe(() => { void pull(); }),
+    );
+    const timer = running ? window.setInterval(() => { void pull(); }, 4000) : undefined;
+    return () => {
+      cancelled = true;
+      if (timer) window.clearInterval(timer);
+      void unsub.then((fn) => fn());
+    };
   }, [running]);
 
   const toggleNode = useCallback((id: string) => {

@@ -1,4 +1,6 @@
 import { AIBackend, MODEL_AGNES, MODEL_GLM, ROUTE_MAP } from '../../config/ai-models';
+import { api, ensureSession } from '../api/client';
+import { registry } from '../devices/registry';
 import type { ConverterRequest, ConverterResponse, StreamChunk } from './types';
 
 export class RosettaConverter {
@@ -10,45 +12,57 @@ export class RosettaConverter {
     this.backend = override ? (override === 'agnes' ? MODEL_AGNES : MODEL_GLM) : mapped;
   }
 
-  // Request -> Backend -> Response (vollständiger Roundtrip)
   async request(req: ConverterRequest): Promise<ConverterResponse> {
     const start = performance.now();
     try {
-      // Simulierte Backend-Interaktion mit Aufgaben-Spezialisierung
-      const specialization = this.backend.specialization.join(', ');
-      const result = {
+      await ensureSession();
+      const remote = await api<{ route: string; backendId: string; result: unknown }>('/api/rosetta', {
+        method: 'POST',
+        body: JSON.stringify({
+          route: req.route,
+          payload: { ...(req.payload as object), localDevices: registry.list().length },
+        }),
+      });
+      return {
         route: req.route,
-        backend: this.backend.modelName,
-        specialization,
-        inputSummary: JSON.stringify(req.payload).slice(0, 200),
-        recommendation: `Analyse durch ${this.backend.id} (${this.backend.specialization[0]})`,
-        confidence: 0.92,
+        backendId: remote.backendId || this.backend.id,
+        result: remote.result,
+        latencyMs: Math.round(performance.now() - start),
+        streamChunk: false,
       };
-      const latencyMs = Math.round(performance.now() - start);
-      return { route: req.route, backendId: this.backend.id, result, latencyMs, streamChunk: false };
-    } catch (e: any) {
-      return { route: req.route, backendId: this.backend.id, result: { error: e?.message || 'Backend-Fehler' }, latencyMs: Math.round(performance.now() - start), streamChunk: false };
+    } catch (e: unknown) {
+      const devices = registry.list();
+      return {
+        route: req.route,
+        backendId: this.backend.id,
+        result: {
+          offline: true,
+          backend: this.backend.modelName,
+          specialization: this.backend.specialization.join(', '),
+          deviceCount: devices.length,
+          bound: devices.filter((d) => d.bound).length,
+          recommendation: `Lokale Auswertung (${this.backend.specialization[0]}): ${devices.length} Geräte erfasst.`,
+          error: e instanceof Error ? e.message : String(e),
+        },
+        latencyMs: Math.round(performance.now() - start),
+        streamChunk: false,
+      };
     }
   }
 
-  // Stream -> Converter <- Backend (Stream-Roundtrip)
   async stream(req: ConverterRequest, onChunk: (chunk: StreamChunk) => void): Promise<ConverterResponse> {
     const start = performance.now();
     this.streamControllers.add(onChunk);
-    try {
-      // Simuliert: Stream von Backend durch Converter weitergeleitet
-      for (let i = 0; i < 3; i++) {
-        await new Promise(r => setTimeout(r, 300));
-        onChunk({ chunkId: `${req.route}-${i}`, data: `Teil ${i + 1}/${this.backend.maxTokens / 1024} — ${this.backend.specialization[0]}`, done: false });
-      }
-      await new Promise(r => setTimeout(r, 200));
-      onChunk({ chunkId: `${req.route}-end`, data: 'Stream abgeschlossen', done: true });
-      this.streamControllers.delete(onChunk);
-      return { route: req.route, backendId: this.backend.id, result: { streamComplete: true, chunks: 4 }, latencyMs: Math.round(performance.now() - start), streamChunk: true };
-    } catch (e: any) {
-      this.streamControllers.delete(onChunk);
-      return { route: req.route, backendId: this.backend.id, result: { error: e?.message || 'Stream-Fehler' }, latencyMs: Math.round(performance.now() - start), streamChunk: false };
+    const res = await this.request(req);
+    const text = JSON.stringify(res.result, null, 2);
+    const parts = text.match(/.{1,120}/g) || [text];
+    for (let i = 0; i < parts.length; i++) {
+      onChunk({ chunkId: `${req.route}-${i}`, data: parts[i], done: false });
+      await new Promise((r) => setTimeout(r, 40));
     }
+    onChunk({ chunkId: `${req.route}-end`, data: 'Stream abgeschlossen', done: true });
+    this.streamControllers.delete(onChunk);
+    return { ...res, latencyMs: Math.round(performance.now() - start), streamChunk: true };
   }
 
   getBackend(): AIBackend { return this.backend; }

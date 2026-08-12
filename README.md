@@ -45,6 +45,8 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 | [`docs/monitoring.md`](docs/monitoring.md) | Mitgelieferter Monitoring-Stack: Prometheus, Loki, Grafana-Dashboard, Slack-Alerting |
 | [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
+| [`docs/store-listing.md`](docs/store-listing.md) | Offizielle Store-Texte (Play / App Store) |
+| [`docs/store-compliance.md`](docs/store-compliance.md) | Prüferhinweise und Berechtigungen |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
 
 Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,
@@ -305,15 +307,12 @@ Beispiel-Rechte: service kann Pairing aus hardware/dongle erstellen (write), abe
 ### Schnellstart (Entwicklung)
 
 ```bash
-# 1. Frontend (Repository-Wurzel)
-npm install
-npm run dev            # http://localhost:5173 (proxied /api -> Flask)
+# 1. Backend (echte Discovery, Diagnose, Auth, SQLite)
+python3 server/app.py          # http://0.0.0.0:5000  Login: admin / admin
 
-# 2. Backend
-cd server
-pip install -r requirements.txt
-python app.py          # Auth auf :5000
-python pty_bridge.py   # Terminal-Bridge auf :8765
+# 2. Frontend (Repository-Wurzel)
+npm install
+npm run dev            # http://localhost:5173 (proxied /api -> :5000)
 
 # 3. Produktion (docker-compose)
 cd ..
