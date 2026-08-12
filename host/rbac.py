@@ -53,6 +53,9 @@ ACTION_LEVELS = {
     # controller / agent
     "agent_ask": 2,
     "agent_approve": 2,
+    # settings
+    "settings_ssh": 2,
+    "webauthn_manage": 2,
     # admin
     "clients_kick": 4,
     "config_write": 5,

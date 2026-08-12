@@ -290,6 +290,188 @@ def ble_fault(device_id: str):
 
 
 # ----------------------------------------------------------------------
+# Admin: Benutzerverwaltung (RBAC), Audit-Logs, SSH-Key, WebAuthn-Registrierung
+# ----------------------------------------------------------------------
+VALID_ROLES = ("guest", "operator", "service", "developer", "expert", "emergency", "admin")
+
+
+@api.get("/admin/users")
+@auth.auth_required
+def admin_users_list():
+    ok, msg = rbac.require_action(g.role, "config_write")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    return jsonify(auth.list_users())
+
+
+@api.post("/admin/users")
+@auth.auth_required
+def admin_users_create():
+    ok, msg = rbac.require_action(g.role, "config_write")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    data = request.get_json(silent=True) or {}
+    username = str(data.get("username") or "").strip().lower()
+    password = str(data.get("password") or "")
+    role = str(data.get("role") or "service")
+    if not username or len(password) < 8:
+        return jsonify({"type": "error", "code": "BAD_REQUEST",
+                        "message": "Benutzername + Passwort (mind. 8 Zeichen) nötig"}), 400
+    if role not in VALID_ROLES:
+        return jsonify({"type": "error", "code": "BAD_REQUEST",
+                        "message": f"Ungültige Rolle: {role}"}), 400
+    res = auth.create_user(username, password, role)
+    if not res.get("ok"):
+        return jsonify({"type": "error", "code": "CONFLICT",
+                        "message": res.get("error")}), 409
+    audit.audit.log(g.user, g.role, "admin.user_create", f"{username} ({role})")
+    return jsonify(res), 201
+
+
+@api.delete("/admin/users/<username>")
+@auth.auth_required
+def admin_users_delete(username: str):
+    ok, msg = rbac.require_action(g.role, "config_write")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    res = auth.delete_user(username)
+    if not res.get("ok"):
+        return jsonify({"type": "error", "code": "CONFLICT",
+                        "message": res.get("error")}), 409
+    audit.audit.log(g.user, g.role, "admin.user_delete", username)
+    return jsonify(res)
+
+
+@api.get("/audit/logs")
+@auth.auth_required
+def audit_logs():
+    ok, msg = rbac.require_action(g.role, "audit_view")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    q = request.args.get("q", "").lower().strip()
+    limit = int(request.args.get("limit", "200"))
+    entries = audit.audit.recent(limit)
+    if q:
+        entries = [e for e in entries
+                   if q in e.get("action", "").lower()
+                   or q in e.get("user", "").lower()
+                   or q in e.get("detail", "").lower()
+                   or q in e.get("trace_id", "").lower()]
+    return jsonify(entries)
+
+
+SSH_KEY_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "data", "ssh_keys")
+SSH_KEY_PATH = os.path.join(SSH_KEY_DIR, "id_rsa")
+
+
+@api.get("/settings/ssh-key")
+@auth.auth_required
+def ssh_key_status():
+    return jsonify({
+        "configured": os.path.isfile(SSH_KEY_PATH),
+        "path": SSH_KEY_PATH,
+    })
+
+
+@api.post("/settings/ssh-key")
+@auth.auth_required
+def ssh_key_upload():
+    ok, msg = rbac.require_action(g.role, "settings_ssh")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    data = request.get_json(silent=True) or {}
+    key = str(data.get("key") or "")
+    if not key or "PRIVATE KEY" not in key:
+        return jsonify({"type": "error", "code": "BAD_REQUEST",
+                        "message": "Privater SSH-Key (PEM) erwartet"}), 400
+    os.makedirs(SSH_KEY_DIR, exist_ok=True)
+    with open(SSH_KEY_PATH, "w", encoding="utf-8") as f:
+        f.write(key.rstrip() + "\n")
+    try:
+        os.chmod(SSH_KEY_PATH, 0o600)
+    except OSError:
+        pass
+    audit.audit.log(g.user, g.role, "settings.ssh_key", "Privater SSH-Key hinterlegt")
+    return jsonify({"ok": True, "configured": True})
+
+
+WEBAUTHN_CRED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "data", "webauthn.json")
+
+
+def _load_webauthn_creds() -> dict:
+    try:
+        with open(WEBAUTHN_CRED_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return {}
+
+
+def _save_webauthn_creds(creds: dict) -> None:
+    os.makedirs(os.path.dirname(WEBAUTHN_CRED_FILE), exist_ok=True)
+    with open(WEBAUTHN_CRED_FILE, "w", encoding="utf-8") as f:
+        json.dump(creds, f, indent=2)
+
+
+@api.get("/webauthn/register/challenge")
+@auth.auth_required
+def webauthn_register_challenge():
+    import base64
+
+    challenge = auth.webauthn_challenge(g.role)  # signiert, rollengebunden
+    return jsonify({
+        "challenge": challenge,
+        "challenge_b64": base64.b64encode(challenge.encode()).decode(),
+        "username": g.user,
+        "user_id_b64": base64.b64encode(g.user.encode()).decode(),
+        "rp": "NEXUS-BUILDER",
+    })
+
+
+@api.post("/webauthn/register")
+@auth.auth_required
+def webauthn_register():
+    data = request.get_json(silent=True) or {}
+    credential_id = str(data.get("credentialId") or "")
+    device_name = str(data.get("deviceName") or "Sicherheitsschlüssel")
+    if not credential_id:
+        return jsonify({"type": "error", "code": "BAD_REQUEST"}), 400
+    creds = _load_webauthn_creds()
+    creds[credential_id] = {
+        "user": g.user,
+        "deviceName": device_name,
+        "registeredAt": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    _save_webauthn_creds(creds)
+    audit.audit.log(g.user, g.role, "webauthn.register", device_name)
+    return jsonify({"ok": True, "credentialId": credential_id})
+
+
+@api.get("/webauthn/credentials")
+@auth.auth_required
+def webauthn_credentials():
+    creds = _load_webauthn_creds()
+    mine = [{"credentialId": cid, **meta}
+            for cid, meta in creds.items() if meta.get("user") == g.user]
+    required = os.environ.get("NEXUS_WEBAUTHN_REQUIRED", "true").lower() == "true"
+    return jsonify({"credentials": mine, "required": required})
+
+
+@api.delete("/webauthn/credentials/<credential_id>")
+@auth.auth_required
+def webauthn_credential_delete(credential_id: str):
+    creds = _load_webauthn_creds()
+    meta = creds.get(credential_id)
+    if not meta or meta.get("user") != g.user:
+        return jsonify({"type": "error", "code": "NOT_FOUND"}), 404
+    del creds[credential_id]
+    _save_webauthn_creds(creds)
+    audit.audit.log(g.user, g.role, "webauthn.unregister", credential_id[:8])
+    return jsonify({"ok": True})
+
+
+# ----------------------------------------------------------------------
 # Desktop-Konsole (REST-Vertrag aus openapi.yaml: /api/clients, /api/workflows …)
 # ----------------------------------------------------------------------
 @api.get("/clients")

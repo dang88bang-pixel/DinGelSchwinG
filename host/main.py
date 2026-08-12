@@ -30,7 +30,10 @@ def create_app() -> Flask:
 # ----------------------------------------------------------------------
 def _query_params(ws) -> dict[str, str]:
     """Query-Parameter robust auslesen (websockets ≥13: request.path inkl.
-    Query; ältere Versionen: ws.query / ws.query_string)."""
+    Query; ältere Versionen: ws.query / ws.query_string). Werte werden
+    URL-dekodiert (Clients escapen ':' etc. zu %3A)."""
+    from urllib.parse import unquote
+
     raw = ""
     try:
         path = ws.request.path  # z. B. "/?token=…&kind=…"
@@ -39,13 +42,20 @@ def _query_params(ws) -> dict[str, str]:
     except AttributeError:
         try:
             q = ws.query  # multidict mapping
-            return {k: (v[0] if isinstance(v, list) else str(v)) for k, v in q.items()}
+            return {k: unquote(v[0] if isinstance(v, list) else str(v))
+                    for k, v in q.items()}
         except AttributeError:
             try:
                 raw = ws.query_string.decode()  # websockets <14
             except AttributeError:
                 raw = ""
-    return dict(x.split("=", 1) for x in raw.split("&") if "=" in x)
+    out: dict[str, str] = {}
+    for part in raw.split("&"):
+        if "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        out[k] = unquote(v)
+    return out
 
 
 async def _ws_discovery(websocket):
@@ -121,7 +131,8 @@ async def _ws_terminal(websocket):
     target = qs.get("target", "")
 
     action = {"hardware": "terminal_hardware", "dongle": "terminal_dongle",
-              "network": "terminal_network"}.get(kind, "terminal_hardware")
+              "network": "terminal_network", "ssh": "terminal_network",
+              "serial": "terminal_hardware"}.get(kind, "terminal_hardware")
     ok, msg = rbac_mod.require_action(role, action)
     if not ok:
         await websocket.send(json.dumps({"type": "error", "code": FEHLERCODE_RBAC,

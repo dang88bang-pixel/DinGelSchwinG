@@ -24,6 +24,7 @@ import {
 import { useBleStore } from './useBleStore';
 import { api } from '../../lib/api/client';
 import BleScanner from './BleScanner';
+import DiscoveryDashboard from './DiscoveryDashboard';
 import GattExplorer from './GattExplorer';
 import MeshBuilder from './MeshBuilder';
 import TestSuitePanel from './TestSuitePanel';
@@ -33,11 +34,12 @@ import BleAuditPanel from './BleAuditPanel';
 import { StatCard, Chip } from './BleCharts';
 import { BleDeviceClass, BleRole } from '../../lib/ble/types';
 
-type TabKey = 'overview' | 'scanner' | 'gatt' | 'mesh' | 'tests' | 'simulator' | 'profiles' | 'audit';
+type TabKey = 'overview' | 'devices' | 'scanner' | 'gatt' | 'mesh' | 'tests' | 'simulator' | 'profiles' | 'audit';
 
 const TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
   { key: 'overview', label: 'Übersicht', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
-  { key: 'scanner', label: 'Discovery', icon: <Radar className="w-3.5 h-3.5" /> },
+  { key: 'devices', label: 'Geräte', icon: <Radar className="w-3.5 h-3.5" /> },
+  { key: 'scanner', label: 'Scan & Klassifizierung', icon: <Radar className="w-3.5 h-3.5" /> },
   { key: 'gatt', label: 'GATT-Explorer', icon: <ListTree className="w-3.5 h-3.5" /> },
   { key: 'mesh', label: 'Mesh', icon: <Network className="w-3.5 h-3.5" /> },
   { key: 'tests', label: 'Tests & Debug', icon: <FlaskConical className="w-3.5 h-3.5" /> },
@@ -357,6 +359,7 @@ export default function BleProfessionalSuite({
       <main className="flex-1 overflow-y-auto px-4 md:px-6 py-5">
         <div className="max-w-[1400px] mx-auto">
           {tab === 'overview' && <OverviewTab />}
+          {tab === 'devices' && <DiscoveryDashboard />}
           {tab === 'scanner' && <BleScanner />}
           {tab === 'gatt' && <GattExplorer />}
           {tab === 'mesh' && <MeshBuilder />}

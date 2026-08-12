@@ -9,7 +9,8 @@ import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
 import AgentConsole from './AgentConsole';
 import BleProfessionalSuite from './ble/BleProfessionalSuite';
-import AccessConsole from './AccessConsole';
+import TerminalController from './TerminalController';
+import AdminHub from './AdminHub';
 import { useSensors } from '../hooks/useSensors';
 import { useDiscovery, DiscoveryNode } from '../hooks/useDiscovery';
 import { useStatusBoard, StatusClient } from '../hooks/useStatusBoard';
@@ -39,6 +40,7 @@ export default function NetworkDashboard() {
   const [agentOpen, setAgentOpen] = useState(false);
   const [bleSuiteOpen, setBleSuiteOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [hostOnline, setHostOnline] = useState(false);
 
   // Host-Anbindung: REST + WS-Kanäle (Discovery :8766, Status :8767)
@@ -154,9 +156,16 @@ export default function NetworkDashboard() {
           <button
             onClick={() => setTerminalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-amber-600 to-orange-700 text-white ring-1 ring-amber-300/40 shadow-xl hover:brightness-110 transition"
-            title="Access Console öffnen – sicheres Terminal (xterm.js + WS-PTY-Bridge)"
+            title="Terminal Controller – SSH/Seriell/Konsole mit Verbindungssteuerung"
           >
             <TerminalSquare className="w-3.5 h-3.5" /> Terminal
+          </button>
+          <button
+            onClick={() => setAdminOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-slate-600 to-slate-800 text-white ring-1 ring-slate-300/40 shadow-xl hover:brightness-110 transition"
+            title="Admin & Compliance – Benutzer, Audit, SSH-Key, WebAuthn"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" /> Admin
           </button>
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
@@ -373,7 +382,8 @@ export default function NetworkDashboard() {
           initialRole="developer"
         />
       )}
-      {terminalOpen && <AccessConsole onClose={() => setTerminalOpen(false)} />}
+      {terminalOpen && <TerminalController onClose={() => setTerminalOpen(false)} />}
+      {adminOpen && <AdminHub onClose={() => setAdminOpen(false)} />}
     </div>
   );
 }

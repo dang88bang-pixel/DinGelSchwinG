@@ -130,3 +130,30 @@ Zuordnung und Ergebnis:
 - `scan_ble_devices()` → echte/lokal verwaltete MACs, keine Zufalls-Fakes ✅
 - WebAuthn: ohne Token 428, mit signiertem Token 200, manipuliert 428 ✅
 - Host 40 Tests · Desktop 46 · Web tsc/lint/build · Mobile 80 · SSH-Bridge ✅
+
+---
+
+## 6. UI-Ergänzung: 6 fehlende Bedienoberflächen → aktive React-Komponenten
+
+Die ent-mockte Backend-Power ist jetzt vollständig über die React-UI bedienbar
+(alle Pfade gegen die Host-API, keine Mocks):
+
+| # | UI-Part | Komponente (tatsächliche Datei) | Backend-Endpunkt |
+|---|---|---|---|
+| 1 | Geräte-Discovery & Binding | `src/components/ble/DiscoveryDashboard.tsx` (Tab „Geräte“ in BLE Pro) – Kacheln mit Live-RSSI, Bind/Trennen, Auto-Refresh 5 s, Import in SuiteStore | `/api/ble/scan`, `/api/ble/virtual`, `/api/ble/devices/<id>/connect` |
+| 2 | Terminal-Connection-Manager | `src/components/TerminalController.tsx` (Header-Button „Terminal“) – SSH/Seriell/Konsole-Umschaltung, Ziel, Verbinden/Trennen/Reconnect, Statusleiste | WS-PTY-Bridge `/api/ws/terminal` (kind ssh/serial/hardware) |
+| 3 | Admin-Benutzerverwaltung (RBAC) | `src/components/AdminHub.tsx` Tab „Benutzer“ – anlegen/löschen, Rollen guest…emergency, gehashte Passwörter (PBKDF2) | `/api/admin/users` (nur admin, config_write) |
+| 4 | SSH-Key-Upload | `AdminHub` Tab „SSH-Key“ – PEM-Key hinterlegen (chmod 600), Terminal-Bridge nutzt ihn | `/api/settings/ssh-key` |
+| 5 | Audit-Log-Viewer (Trace-ID) | `AdminHub` Tab „Audit-Log“ – Filter, CSV-Export, Trace-ID | `/api/audit/logs?q=` |
+| 6 | WebAuthn/FIDO2-Registrierung | `AdminHub` Tab „WebAuthn“ – echte `navigator.credentials.create`-Passkey-Registrierung, Credential-Verwaltung; kritische Aktionen erfordern registriertes Credential (428 sonst) | `/api/webauthn/register/challenge`, `/register`, `/credentials` |
+
+**Zusätzliche Backend-Teile:** `auth.py` (users.json-Persistenz, PBKDF2-Hash,
+create/delete/list, webauthn_registered), `api_routes.py` (Admin/SSH-Key/Audit/
+WebAuthn-Routen, `settings_ssh`/`webauthn_manage`-RBAC), `main.py`
+(`_query_params` mit unquote – URLSearchParams-Encoding), Terminal-Bridge
+(kind ssh/serial).
+
+**Verifikation (live):** Admin-Users CRUD ✅ · SSH-Key Upload/Status ✅ ·
+Audit-Filter + trace_id ✅ · WebAuthn Challenge/Register/Credentials ✅ ·
+Discovery Bind/Connect ✅ · Terminal SSH über URLSearchParams-Pfad ✅ ·
+Host 44 Tests · Web tsc/lint/build · Desktop 46 · Mobile 80 · py_compile ✅

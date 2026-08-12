@@ -128,7 +128,7 @@ class TestApi(unittest.TestCase):
         self.assertTrue(ass.get_json()["ok"])
 
     def test_mesh_delete_requires_webauthn_token(self) -> None:
-        """Kritische Aktion: Mesh-Delete ohne WebAuthn-Token → 428."""
+        """Kritische Aktion: Mesh-Delete braucht Token UND registriertes Credential."""
         from host import ble_service
         ble_service.ble_host.backend = "virtual"
         created = ble_service.ble_host.mesh_create("WAuthn-Test", "developer")
@@ -137,17 +137,90 @@ class TestApi(unittest.TestCase):
                                  headers=self.headers)
         self.assertEqual(res.status_code, 428, res.get_json())
         self.assertEqual(res.get_json()["code"], "WEBAUTHN_REQUIRED")
+        # Credential registrieren (FIDO2-Registrierung)
+        reg = self.client.post("/api/webauthn/register",
+                               headers=self.headers,
+                               json={"credentialId": "test-cred-abc",
+                                     "deviceName": "Test-Key"})
+        self.assertEqual(reg.status_code, 200, reg.get_json())
+        creds = self.client.get("/api/webauthn/credentials",
+                                headers=self.headers).get_json()
+        self.assertEqual(len(creds["credentials"]), 1)
+        # Token + registriertes Credential → Erfolg
         ch = self.client.post("/api/webauthn/challenge", headers=self.headers)
         challenge = ch.get_json()["challenge"]
         ass = self.client.post("/api/webauthn/assert", headers=self.headers,
                                json={"challenge": challenge})
-        self.assertEqual(ass.status_code, 200)
         token = ass.get_json()["token"]
         res2 = self.client.delete(
             f"/api/ble/mesh/networks/{nid}",
             headers={**self.headers, "X-WebAuthn-Token": token})
         self.assertEqual(res2.status_code, 200, res2.get_json())
         self.assertTrue(res2.get_json()["ok"])
+        # Aufräumen
+        cid = creds["credentials"][0]["credentialId"]
+        self.client.delete(f"/api/webauthn/credentials/{cid}",
+                           headers=self.headers)
+
+    def test_admin_users_crud(self) -> None:
+        # Nur admin darf Nutzer anlegen (developer → RBAC_DENIED)
+        dev = self.client.post("/api/login",
+                               json={"email": "developer", "password": "dev123"})
+        dev_h = {"Authorization": f"Bearer {dev.get_json()['token']}"}
+        res = self.client.post("/api/admin/users", headers=dev_h,
+                               json={"username": "x", "password": "12345678",
+                                     "role": "service"})
+        self.assertEqual(res.status_code, 403)
+        # Admin legt an, listet, löscht
+        admin = self.client.post("/api/login",
+                                 json={"email": "admin", "password": "admin"})
+        admin_h = {"Authorization": f"Bearer {admin.get_json()['token']}"}
+        res = self.client.post("/api/admin/users", headers=admin_h,
+                               json={"username": "tester", "password": "geheim123",
+                                     "role": "developer"})
+        self.assertEqual(res.status_code, 201, res.get_json())
+        lst = self.client.get("/api/admin/users", headers=admin_h).get_json()
+        self.assertTrue(any(u["username"] == "tester" for u in lst))
+        res = self.client.delete("/api/admin/users/tester", headers=admin_h)
+        self.assertEqual(res.status_code, 200)
+
+    def test_audit_logs_filter(self) -> None:
+        res = self.client.get("/api/audit/logs?q=login", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertIsInstance(res.get_json(), list)
+        # trace_id vorhanden
+        logs = res.get_json()
+        self.assertTrue(all("trace_id" in l for l in logs))
+
+    def test_ssh_key_upload(self) -> None:
+        key = ("-----BEGIN PRIVATE KEY-----\n"
+               "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ=="
+               "\n-----END PRIVATE KEY-----")
+        res = self.client.post("/api/settings/ssh-key", headers=self.headers,
+                               json={"key": key})
+        self.assertEqual(res.status_code, 200, res.get_json())
+        status = self.client.get("/api/settings/ssh-key",
+                                 headers=self.headers).get_json()
+        self.assertTrue(status["configured"])
+
+    def test_webauthn_register_flow(self) -> None:
+        ch = self.client.get("/api/webauthn/register/challenge",
+                             headers=self.headers).get_json()
+        self.assertIn("challenge_b64", ch)
+        res = self.client.post("/api/webauthn/register", headers=self.headers,
+                               json={"credentialId": "cred-xyz",
+                                     "deviceName": "YubiKey"})
+        self.assertEqual(res.status_code, 200)
+        creds = self.client.get("/api/webauthn/credentials",
+                                headers=self.headers).get_json()
+        self.assertEqual(len(creds["credentials"]), 1)
+        self.assertTrue(creds["required"])
+        cid = creds["credentials"][0]["credentialId"]
+        self.client.delete(f"/api/webauthn/credentials/{cid}",
+                           headers=self.headers)
+        creds2 = self.client.get("/api/webauthn/credentials",
+                                 headers=self.headers).get_json()
+        self.assertEqual(len(creds2["credentials"]), 0)
 
     def test_metrics(self) -> None:
         res = self.client.get("/api/metrics", headers=self.headers)

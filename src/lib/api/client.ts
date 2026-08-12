@@ -197,6 +197,50 @@ export const api = {
       method: 'POST', body: JSON.stringify({ kind }),
     });
   },
+
+  // Admin-Benutzerverwaltung (RBAC)
+  async adminUsers(): Promise<Array<{ username: string; role: string; source: string }>> {
+    return request('/admin/users');
+  },
+
+  async adminCreateUser(username: string, password: string, role: string): Promise<{ ok: boolean; username?: string; error?: string }> {
+    return request('/admin/users', { method: 'POST', body: JSON.stringify({ username, password, role }) });
+  },
+
+  async adminDeleteUser(username: string): Promise<{ ok: boolean; error?: string }> {
+    return request(`/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+  },
+
+  // Audit-Logs mit Trace-ID
+  async auditLogs(q = '', limit = 200): Promise<Array<{ ts: string; user: string; role: string; action: string; detail: string; critical?: boolean; trace_id: string }>> {
+    return request(`/audit/logs?q=${encodeURIComponent(q)}&limit=${limit}`);
+  },
+
+  // SSH-Key hinterlegen
+  async sshKeyStatus(): Promise<{ configured: boolean; path: string }> {
+    return request('/settings/ssh-key');
+  },
+
+  async sshKeyUpload(key: string): Promise<{ ok: boolean; configured?: boolean; error?: string }> {
+    return request('/settings/ssh-key', { method: 'POST', body: JSON.stringify({ key }) });
+  },
+
+  // WebAuthn/FIDO2-Registrierung
+  async webauthnRegisterChallenge(): Promise<{ challenge: string; challenge_b64: string; username: string; user_id_b64: string; rp: string }> {
+    return request('/webauthn/register/challenge');
+  },
+
+  async webauthnRegister(credentialId: string, deviceName: string): Promise<{ ok: boolean; credentialId?: string; error?: string }> {
+    return request('/webauthn/register', { method: 'POST', body: JSON.stringify({ credentialId, deviceName }) });
+  },
+
+  async webauthnCredentials(): Promise<{ credentials: Array<{ credentialId: string; deviceName: string; registeredAt: string }>; required: boolean }> {
+    return request('/webauthn/credentials');
+  },
+
+  async webauthnDelete(credentialId: string): Promise<{ ok: boolean }> {
+    return request(`/webauthn/credentials/${encodeURIComponent(credentialId)}`, { method: 'DELETE' });
+  },
 };
 
 export interface VirtualPeripheral {

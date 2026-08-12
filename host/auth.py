@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime
 import functools
 import hmac
+import os
 import secrets
 from typing import Any, Callable
 
@@ -12,14 +13,21 @@ from flask import Flask, g, jsonify, request
 
 from . import config, rbac
 
-def _load_users() -> dict[str, dict[str, str]]:
-    """Aktive Zugänge aus Umgebungsvariablen (keine hartkodierten Demo-Zugänge).
+_USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "data", "users.json")
 
-    NEXUS_USER_<NAME>="<passwort>:<rolle>" – z. B.
-      NEXUS_USER_admin="starkes-passwort:admin"
-      NEXUS_USER_developer="dev-passwort:developer"
-      NEXUS_USER_service="service-passwort:service"
-    Ohne Konfiguration: keine Zugänge (Login gesperrt) – klar protokolliert.
+
+def _hash_password(password: str, salt: str) -> str:
+    import hashlib
+
+    return hashlib.pbkdf2_hmac(
+        "sha256", password.encode(), salt.encode(), 120_000).hex()
+
+
+def _load_users() -> dict[str, dict[str, str]]:
+    """Aktive Zugänge: ENV (NEXUS_USER_*) + persistierte users.json (Admin-UI).
+
+    Keine hartkodierten Demo-Zugänge – Passwörter werden gehasht gespeichert.
     """
     import os
 
@@ -31,11 +39,82 @@ def _load_users() -> dict[str, dict[str, str]]:
         name = key[len(prefix):].lower()
         if ":" in value:
             password, role = value.split(":", 1)
-            users[name] = {"password": password, "role": role.strip()}
+            users[name] = {"password": password, "role": role.strip(),
+                           "env": True}
+    # Persistierte Nutzer aus der Admin-Benutzerverwaltung
+    try:
+        if os.path.isfile(_USERS_FILE):
+            import json
+            with open(_USERS_FILE, "r", encoding="utf-8") as f:
+                stored = json.load(f)
+            for name, rec in stored.items():
+                users[name] = {"password": rec.get("password", ""),
+                               "role": rec.get("role", "service"),
+                               "salt": rec.get("salt", ""),
+                               "env": False}
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass
     return users
 
 
 _USERS = _load_users()
+
+
+def list_users() -> list[dict]:
+    """Alle Benutzer (für die Admin-UI) ohne Passwort-Hashes."""
+    return [{"username": n, "role": u.get("role", "service"),
+             "source": "env" if u.get("env") else "db"}
+            for n, u in sorted(_USERS.items())]
+
+
+def create_user(username: str, password: str, role: str) -> dict:
+    """Legt einen Nutzer an (Admin-UI) und persistiert ihn gehasht."""
+    import json
+
+    if username in _USERS:
+        return {"ok": False, "error": "Benutzername existiert bereits"}
+    salt = secrets.token_hex(16)
+    _USERS[username] = {"password": _hash_password(password, salt),
+                        "role": role, "salt": salt, "env": False}
+    _persist_users()
+    return {"ok": True, "username": username, "role": role}
+
+
+def delete_user(username: str) -> dict:
+    import json
+
+    user = _USERS.get(username)
+    if not user:
+        return {"ok": False, "error": "Benutzer nicht gefunden"}
+    if user.get("env"):
+        return {"ok": False, "error": "ENV-Benutzer kann nicht gelöscht werden"}
+    del _USERS[username]
+    _persist_users()
+    return {"ok": True, "username": username}
+
+
+def _persist_users() -> None:
+    """Persistiert NUR verwaltete Nutzer (env-User kommen aus der ENV und
+    werden nie in users.json geschrieben)."""
+    import json
+
+    os.makedirs(os.path.dirname(_USERS_FILE), exist_ok=True)
+    managed = {n: {k: v for k, v in u.items() if k != "env"}
+               for n, u in _USERS.items() if not u.get("env")}
+    with open(_USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(managed, f, indent=2)
+
+
+def check_password(username: str, password: str) -> bool:
+    import hmac as hmac_mod
+
+    user = _USERS.get(username)
+    if not user:
+        return False
+    if user.get("env"):
+        return hmac_mod.compare_digest(user["password"], password)
+    return hmac_mod.compare_digest(
+        user["password"], _hash_password(password, user.get("salt", "")))
 
 # WebAuthn: kryptographisch signierte Assertion (HMAC-SHA256 mit dem
 # Server-Secret). Eine Assertion ist NUR vom Server ausstellbar und wird bei
@@ -71,10 +150,10 @@ def login(username: str, password: str) -> dict[str, Any] | None:
     if not _USERS:
         return {"token": None, "role": None, "error":
                 "Keine Zugänge konfiguriert – NEXUS_USER_<name>=<passwort>:<rolle> setzen"}
-    user = _USERS.get(username)
-    if not user or not hmac.compare_digest(user["password"], password):
+    if not check_password(username, password):
         return None
-    return {"token": _create_token(username, user["role"]), "role": user["role"]}
+    return {"token": _create_token(username, _USERS[username]["role"]),
+            "role": _USERS[username]["role"]}
 
 
 def decode_token(token: str) -> dict[str, Any]:
@@ -138,6 +217,22 @@ def webauthn_token_valid(role: str) -> bool:
     return webauthn_assert(token, role)
 
 
+_WEBAUTHN_CRED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "data", "webauthn.json")
+
+
+def webauthn_registered(user: str) -> bool:
+    """true, wenn der Nutzer mindestens einen Sicherheitsschlüssel registriert hat."""
+    try:
+        import json
+
+        with open(_WEBAUTHN_CRED_FILE, "r", encoding="utf-8") as f:
+            creds = json.load(f)
+        return any(meta.get("user") == user for meta in creds.values())
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+
+
 def require_action(action: str):
     """RBAC-Guard als Decorator."""
 
@@ -154,6 +249,13 @@ def require_action(action: str):
                 if not webauthn_token_valid(g.role):
                     return jsonify({"type": "error", "code": "WEBAUTHN_REQUIRED",
                                     "message": "X-WebAuthn-Token fehlt/ungültig"}), 428
+                # Härtung: registrierter Sicherheitsschlüssel erforderlich
+                import os as _os
+                if _os.environ.get("NEXUS_WEBAUTHN_REQUIRED", "true").lower() == "true" \
+                        and not webauthn_registered(g.user):
+                    return jsonify({"type": "error", "code": "WEBAUTHN_NOT_REGISTERED",
+                                    "message": "Sicherheitsschlüssel registrieren: "
+                                               "/webauthn/register (Admin-Hub)"}), 428
             return fn(*args, **kwargs)
 
         return wrapper

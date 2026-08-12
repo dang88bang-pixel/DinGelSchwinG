@@ -11,7 +11,7 @@ export interface TerminalStatus {
 }
 
 export function useTerminal(
-  kind: 'hardware' | 'dongle' | 'network' | 'ble',
+  kind: 'hardware' | 'dongle' | 'network' | 'ble' | 'ssh' | 'serial',
   target: string,
   token: string | null,
   enabled: boolean,
