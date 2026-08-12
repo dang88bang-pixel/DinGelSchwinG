@@ -62,6 +62,13 @@ Alle UI-Bedienelemente wirken jetzt **live** auf das Backend (keine „Deko-Butt
 Orchestrator) spricht **gebundene Geräte** gezielt an – „Status alle“, „Zeige Batterie der
 Kopfhörer“, „Reboot Server-1“ – und wertet Ausgaben aus (Last/RAM/Platte/Fehler).
 
+**Grafische Bedienoberfläche:** Button **„Geräte“** im Header öffnet das Device-Dashboard
+(`src/components/DeviceDashboard.tsx`) mit Statistik-Kacheln, **adaptiven Device-Cards**
+(`DeviceCard.tsx`: Volume-Slider, Play/Pause, Reboot, Status, Batterie), **Activity-Feed**
+(`ActivityFeed.tsx`, 5-s-Poll) und **Discovery-Center** (`DiscoveryCenter.tsx`, Ein-Klick-Binden
+ungebundener Geräte) plus **Bind-Wizard** (`BindWizard.tsx`, protokollspezifische Felder).
+Backend: `POST /api/devices/<id>/control`, `POST /api/discovery/scan`, `GET /api/audit/activity`.
+
 **Drahtlose Geräte:** `host/connectors/` (SSH, HTTP/HTTPS inkl. Fritzbox TR-064, Ping,
 BLE-GATT, Bluetooth Classic, Seriell) + `host/device_registry.py` (gebundene Geräte mit
 Protokoll-Ableitung) + HTTP-Probe im Scanner (`kind: network_http`). Details: `docs/audit-mocks.md` §7.

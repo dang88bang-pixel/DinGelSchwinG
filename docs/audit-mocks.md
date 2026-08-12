@@ -206,3 +206,30 @@ Alle wurden geschlossen – Änderungen wirken live, keine Platzhalter:
 - Mobile `check_project.py` 77 Dart-Dateien ✅ · `py_compile` host+desktop ✅
 - Live-E2E: RBAC-PATCH 428→200 · Feature-Toggle stoppt BLE-Nodes · SSH-Key pro User ·
   Agent „Status alle“ mit echtem Ping · Metrics-Live-Poll · WebAuthn-Critical-Flow ✅
+
+---
+
+## 8. Grafische Bedienoberfläche (Device-Cards, Discovery-Center, Bind-Wizard, Activity-Feed)
+
+Nachdem Backend, Agent und Chat vollständig aktiv sind, spiegelt jetzt auch die
+**grafische UI** alle Gerätetypen visuell wider – jede Kachel/Button hat einen
+echten Draht ins Backend (keine Deko):
+
+| UI-Element | Datei (tatsächlich) | Backend-Endpunkt | Funktion |
+|---|---|---|---|
+| Adaptive Device-Card | `src/components/DeviceCard.tsx` | `POST /api/devices/<id>/control` | Icon/Farbe je Protokoll, Status-Punkt, IP/MAC/Batterie, Volume-Slider, Play/Pause, Reboot, Status, Entbinden |
+| Discovery-Center | `src/components/DiscoveryCenter.tsx` | `POST /api/discovery/scan` + `/devices/bind` | ungebundene Geräte (ARP+BLE+HTTP-Probe), Ein-Klick-Binden, Filter |
+| Bind-Wizard | `src/components/BindWizard.tsx` | `POST /api/devices/bind` (address) | 2-Schritte: Protokollwahl → protokollspezifische Felder; SSH als `host:port:user:pass` |
+| Activity-Feed | `src/components/ActivityFeed.tsx` | `GET /api/audit/activity` | Live-Timeline (5 s-Poll): Bind/Status/Fehler/Jobs |
+| Geräte-Dashboard | `src/components/DeviceDashboard.tsx` | bound + metrics/live + activity | Tabs „Übersicht“ (Statistik-Kacheln Gesamt/Online/Offline/Protokoll, Cards, Feed) / „Discovery“; Header-Button „Geräte“ |
+
+**Backend-Ergänzungen:** `device_control`/`discovery_scan` (RBAC L2),
+`_CONTROL_COMMANDS`-Mapping (status/ping/battery/volume/play/pause/reboot →
+echte Connectors), `unbind`/`reboot` als *critical* auditiert, `/audit/activity`
+(Timeline-Aufbereitung aus dem Audit-Log mit Trace-ID).
+
+**Verifikation (live):** Discovery-Scan ✅ · manuelle SSH-Bindung ✅ ·
+Control `status` mit echter SSH-Ausführung (Last/RAM/Platte) ✅ · Reboot gegen
+unerreichbares Ziel → klarer Connector-Fehler ✅ · Bluetooth ohne playerctl →
+klarer Fehler (kein Mock) ✅ · Activity-Feed ✅ · Unbind via Control ✅ ·
+Vite-Proxy ✅ · Host 69 Tests · Desktop 46 · Web tsc/lint(0)/build · Mobile 77.
