@@ -36,7 +36,7 @@ DEFAULT_BUTTON_ACTIONS = ["attach", "export", "audit", "workflow:scan", "stop", 
 
 MODE_LABELS = {
     "chat": "A: Normaler Chat",
-    "adb": "B: ADB-Aktion (USB/WiFi · Pentest · Rescue · Backup)",
+    "adb": "B: ADB-Wartung (USB/WiFi · Diagnose · Rescue · Backup)",
     "custom": "Benutzerdefiniert",
 }
 
@@ -258,13 +258,13 @@ class Agent:
                                   "4. Workflow: Geräteprüfung → Zielverzeichnis → pull von DCIM/Download/Documents → Checksummen\n"
                                   "5. Compliance: DSGVO; nur autorisierte Geräte\n\n"
                                   "Risikohinweis: Rescue liest nur Daten (kein Bricking-Risiko).")
-        if re.search(r"\b(pentest|sicherheitscheck|auditiere|schwachstellen)\b", t):
-            return self._plan_adb("pentest",
-                                  "1. Analyse: Rechtliche Zulässigkeit (eigenes Gerät / schriftliche Genehmigung)\n"
-                                  "2. Zielgruppe: Penetrationstester (autorisiert)\n"
-                                  "3. Tools: adb + optionale Analyse (Frida/Objection NUR nach Freigabe)\n"
+        if re.search(r"\b(pentest|integrit[aä]tspr[uü]fung|sicherheits(check|überwachung)|auditiere|schwachstellen|compliance)\b", t):
+            return self._plan_adb("audit",
+                                  "1. Analyse: Autorisierung (eigenes Gerät / schriftlicher Auftrag in der eigenen IT-Umgebung)\n"
+                                  "2. Zielgruppe: IT-Administratoren / Compliance / Service\n"
+                                  "3. Tools: adb (read-only Inventur: Pakete, Berechtigungen, Gerätestatus)\n"
                                   "4. Workflow: Geräteinfo → Paketliste → Berechtigungen → Logs → Bericht\n"
-                                  "5. Compliance: Keine rechtswidrigen Zugriffe, kein Datendiebstahl")
+                                  "5. Compliance: Nur autorisierte Geräte; Bericht DSGVO-konform aufbewahren")
         if re.search(r"\b(logcat|gerätelogs|logdaten|logs)\b", t):
             return self._plan_adb("logs",
                                   "1. Analyse: Gerät verbunden und autorisiert\n"
@@ -275,7 +275,7 @@ class Agent:
         if re.search(r"(wifi|tcpip|kabellos)", t) and re.search(r"(verbind|connect)", t):
             return self._plan_adb("connect",
                                   "1. Analyse: USB-Debugging aktiv, Gerät autorisiert\n"
-                                  "2. Zielgruppe: Admin / Pentester (autorisiert)\n"
+                                  "2. Zielgruppe: IT-Administratoren / Service-Teams\n"
                                   "3. Tools: adb tcpip + adb connect\n"
                                   "4. Workflow: USB-Status → tcpip <port> → connect <ip>:<port> → Verifikation\n"
                                   "5. Compliance: Keine sensiblen Daten über unverschlüsselte öffentliche Netze\n\n"
@@ -312,7 +312,7 @@ class Agent:
         scripts = {
             "backup": ADB_BACKUP_SCRIPT,
             "rescue": ADB_RESCUE_SCRIPT,
-            "pentest": ADB_PENTEST_SCRIPT,
+            "audit": ADB_AUDIT_SCRIPT,
             "logs": ADB_LOGS_SCRIPT,
             "connect": ADB_CONNECT_SCRIPT,
             "shell": ADB_SHELL_SCRIPT,
@@ -684,14 +684,14 @@ echo "==> Rescue abgeschlossen: $OUT"
 echo "Hinweis: Rescue ist rein lesend – kein Bricking-/Datenverlustrisiko."
 """
 
-ADB_PENTEST_SCRIPT = """#!/usr/bin/env bash
-# DinGelSchwinG – ADB-Sicherheitscheck (Modus B, NUR autorisierte Geräte)
+ADB_AUDIT_SCRIPT = """#!/usr/bin/env bash
+# NEXUS Manager – ADB-Integritätsprüfung (Modus B, nur autorisierte Geräte)
 # Voraussetzungen: eigenes Gerät ODER schriftliche Genehmigung des Besitzers.
-# Nutzung:         bash adb_pentest_*.sh [paketname]
+# Nutzung:         bash adb_audit_*.sh [paketname]
 set -euo pipefail
 ADB="${ADB:-adb}"
 PKG="${1:-}"
-OUT="./adb_pentest_$(date +%Y%m%d_%H%M%S).txt"
+OUT="./adb_audit_$(date +%Y%m%d_%H%M%S).txt"
 : > "$OUT"
 
 echo "==> [1/5] Geräteinformationen" | tee -a "$OUT"
@@ -715,7 +715,7 @@ echo "==> [4/5] Berechtigungen (Auswahl)" | tee -a "$OUT"
   | grep -oE "android.permission.[A-Z_]+" | sort -u | head -30 | tee -a "$OUT"
 
 echo "==> [5/5] Bericht: $OUT"
-echo "Compliance: Nur für autorisierte Penetrationstests. Bericht DSGVO-konform aufbewahren."
+echo "Compliance: Nur auf autorisierten Geräten der eigenen IT-Umgebung. Bericht DSGVO-konform aufbewahren."
 """
 
 ADB_LOGS_SCRIPT = """#!/usr/bin/env bash

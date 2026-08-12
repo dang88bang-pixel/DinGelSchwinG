@@ -23,9 +23,9 @@ Beschreibung: Rettet Daten von einem nicht mehr startenden Gerät (adb pull).
 Aufruf: "datenrettung" | "rescue" | "ziehe daten vom gerät"
 Parameter: --out <verzeichnis>
 
-## adb_pentest
-Beschreibung: Autorisierter Sicherheitscheck (Pakete, Laufzeit, Berechtigungen).
-Aufruf: "pentest" | "sicherheitscheck" | "auditiere pakete"
+## adb_audit
+Beschreibung: Integritäts- und Berechtigungsprüfung (Pakete, Laufzeit, Berechtigungen) auf autorisierten Geräten.
+Aufruf: "integritätsprüfung" | "sicherheitsüberwachung" | "auditiere pakete" | "compliance check"
 Parameter: --package <paketname>
 
 ## adb_logs

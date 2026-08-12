@@ -285,13 +285,13 @@ export class AgentEngine {
         '5. Compliance: DSGVO; nur autorisierte Geräte\n\n' +
         'Risikohinweis: Rescue liest nur Daten (kein Bricking-Risiko).');
     }
-    if (/\b(pentest|sicherheitscheck|auditiere|schwachstellen)\b/.test(t)) {
-      return this.planAdb('pentest',
-        '1. Analyse: Rechtliche Zulässigkeit (eigenes Gerät / schriftliche Genehmigung)\n' +
-        '2. Zielgruppe: Penetrationstester (autorisiert)\n' +
-        '3. Tools: adb + optionale Analyse (Frida/Objection NUR nach Freigabe)\n' +
+    if (/\b(pentest|integrit[aä]tspr[uü]fung|sicherheits(check|überwachung)|auditiere|schwachstellen|compliance)\b/.test(t)) {
+      return this.planAdb('audit',
+        '1. Analyse: Autorisierung (eigenes Gerät / schriftlicher Auftrag in der eigenen IT-Umgebung)\n' +
+        '2. Zielgruppe: IT-Administratoren / Compliance / Service\n' +
+        '3. Tools: adb (read-only Inventur: Pakete, Berechtigungen, Gerätestatus)\n' +
         '4. Workflow: Geräteinfo → Paketliste → Berechtigungen → Logs → Bericht\n' +
-        '5. Compliance: Keine rechtswidrigen Zugriffe, kein Datendiebstahl');
+        '5. Compliance: Nur autorisierte Geräte; Bericht DSGVO-konform aufbewahren');
     }
     if (/\b(logcat|gerätelogs|logdaten|logs)\b/.test(t)) {
       return this.planAdb('logs',
@@ -304,7 +304,7 @@ export class AgentEngine {
     if (/(wifi|tcpip|kabellos)/.test(t) && /(verbind|connect)/.test(t)) {
       return this.planAdb('connect',
         '1. Analyse: USB-Debugging aktiv, Gerät autorisiert\n' +
-        '2. Zielgruppe: Admin / Pentester (autorisiert)\n' +
+        '2. Zielgruppe: IT-Administratoren / Service-Teams\n' +
         '3. Tools: adb tcpip + adb connect\n' +
         '4. Workflow: USB-Status → tcpip <port> → connect <ip>:<port> → Verifikation\n' +
         '5. Compliance: Keine sensiblen Daten über unverschlüsselte öffentliche Netze\n\n' +

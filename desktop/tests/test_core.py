@@ -40,7 +40,7 @@ class TestSkillLoader(unittest.TestCase):
         adb = load_system_instruction("adb")
         self.assertIn("Systemanweisung", chat)
         self.assertIn("ADB", adb)
-        self.assertIn("Penetrationstesting", adb)
+        self.assertIn("Integritätsprüfung", adb)
 
 
 class TestScriptExecutor(unittest.TestCase):
@@ -199,7 +199,7 @@ class TestAgentModes(unittest.TestCase):
         self.assertIn("ADB", agent.system_instruction)
         names = {s.name for s in agent.skills}
         self.assertIn("adb_backup", names)
-        self.assertIn("adb_pentest", names)
+        self.assertIn("adb_audit", names)
 
     def test_adb_approval_flow(self) -> None:
         agent = Agent(role="admin", config={"engine": "none", "agent_mode": "adb"})
@@ -223,8 +223,8 @@ class TestAgentModes(unittest.TestCase):
         agent.ask("backup des geräts")
         agent.ask("zeige alle Geräte")  # unabhängige Anfrage löscht den Plan nicht
         self.assertIsNotNone(agent._pending_plan)
-        agent.ask("erstelle einen pentest")  # neuer Plan ersetzt alten
-        self.assertEqual(agent._pending_plan[0], "pentest")
+        agent.ask("erstelle eine integritätsprüfung")  # neuer Plan ersetzt alten
+        self.assertEqual(agent._pending_plan[0], "audit")
 
     def test_set_mode_switch(self) -> None:
         agent = Agent(role="admin", config={"engine": "none"})

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# MoE Agent Chat - Complete Build Script
+# NEXUS Manager - Complete Build Script
 # Builds APK with all dependencies and configurations
 
 set -e
 
-echo "🔨 MoE Agent Chat - APK Build Script"
+echo "🔨 NEXUS Manager - APK Build Script"
 echo "====================================="
 echo ""
 

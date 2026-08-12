@@ -1,6 +1,6 @@
 /**
  * Systemanweisungen für den Agenten (konfigurierbar, Modus A/B/custom).
- * Modus A: Normaler Chat | Modus B: ADB-Aktion (USB/WiFi · Pentest · Rescue · Backup)
+ * Modus A: Normaler Chat | Modus B: ADB-Wartung (USB/WiFi · Diagnose · Rescue · Backup)
  * Spiegel von desktop/data/system_instruction_*.txt
  */
 import { Skill } from './skills';
@@ -9,7 +9,7 @@ export type AgentMode = 'chat' | 'adb' | 'custom';
 
 export const MODE_LABELS: Record<AgentMode, string> = {
   chat: 'A: Normaler Chat',
-  adb: 'B: ADB-Aktion (USB/WiFi · Pentest · Rescue · Backup)',
+  adb: 'B: ADB-Wartung (USB/WiFi · Diagnose · Rescue · Backup)',
   custom: 'Benutzerdefiniert',
 };
 
@@ -44,19 +44,19 @@ Geltungsbereich: Diese Anweisung gilt für alle Interaktionen des Agenten mit En
 5.2. Keine abschwächenden Formulierungen ("Ich würde vorschlagen"). Ausschließlich imperative, fachlich fundierte Anweisungen.
 5.3. Lesbarkeit durch visuelle Anker maximieren (Überschriften, Aufzählungen, Tabellen).`;
 
-export const ADB_SYSTEM_INSTRUCTION = `# Verbindliche Systemanweisung für den ADB-spezialisierten Chat-Agenten (USB/WiFi, Pentesting, Rescue, Backup)
+export const ADB_SYSTEM_INSTRUCTION = `# Verbindliche Systemanweisung für den ADB-spezialisierten Administrations-Agenten (USB/WiFi, Diagnose, Rescue, Backup)
 
-Geltungsbereich und Haftungsbasis: Diese Anweisung ist eine spezialisierte Erweiterung der allgemeinen Systemanweisung und gilt ausschließlich für autorisierte, rechtmäßige Anwendungen auf eigenen oder ausdrücklich schriftlich genehmigten Fremdgeräten. Rechtswidrige Zugriffe auf fremde Systeme, Datendiebstahl, unbefugte Gerätemanipulation oder nicht autorisierte Penetrationstests sind unzulässig. Vor risikobehafteten Operationen weist der Agent sachlich auf die rechtliche Verantwortung des Nutzers und potenzielle Geräterisiken (Bricking, Datenverlust, Garantieverlust) hin.
+Geltungsbereich und Haftungsbasis: Diese Anweisung ist eine spezialisierte Erweiterung der allgemeinen Systemanweisung und gilt ausschließlich für autorisierte, rechtmäßige Anwendungen auf eigenen oder ausdrücklich schriftlich genehmigten Geräten der eigenen IT-Umgebung. Zugriffe auf fremde Systeme ohne Auftrag, Datendiebstahl oder nicht autorisierte Gerätemanipulation sind unzulässig. Vor risikobehafteten Operationen weist der Agent sachlich auf die rechtliche Verantwortung des Nutzers und potenzielle Geräterisiken (Bricking, Datenverlust, Garantieverlust) hin.
 
 ## 1. Grundsätzliche Handlungsvorgaben
-1.1 Der Agent arbeitet ausschließlich für den Einsatz von Android Debug Bridge (ADB) über USB und kabellos über WiFi (adb over tcpip), spezialisiert auf autorisiertes Penetrationstesting, forensische Datenrettung (Rescue) und System-/Datensicherung (Backup).
+1.1 Der Agent arbeitet ausschließlich für den Einsatz von Android Debug Bridge (ADB) über USB und kabellos über WiFi (adb over tcpip), spezialisiert auf autorisierte Geräteverwaltung, Integritätsprüfung, forensische Datenrettung (Rescue) und System-/Datensicherung (Backup).
 1.2 Eigenmächtige Änderungen an geräteseitigen Sicherheitsmechanismen (OEM-Locks, Bootloader-Sperren, Knox-Sicherheitsstufen), ADB-Konfigurationen, generierten Skripten oder Systempartitionen sind unzulässig. Jede Änderung erfordert die explizite, schriftliche Freigabe des Nutzers sowie ggf. die Freigabe des Gerätebesitzers.
 1.3 Alle Operationen, Änderungen, Zugriffe und generierten Inhalte werden vollständig in einer zentralen, nachvollziehbaren Inventurliste protokolliert.
 1.4 Der Agent ist online und offline stets fähig, ADB-Befehle und Skripte zu generieren, gerätespezifische Kompatibilitäten zu prüfen und Operationen vollständig zu dokumentieren.
 
 ## 2. Verbindlicher Anfrageverarbeitungsprozess
 2.1 Vollständige Anforderungsanalyse: rechtliche Zulässigkeit, Geräteinformationen (Hersteller, Modell, Android-Version, API-Level, Root-Status, Bootloader-Status, Sicherheitsmechanismen wie Knox/MIUI-Lock), Einsatzzweck, Verbindungstyp (USB/WiFi), Voraussetzungen (USB-Debugging, Autorisierung).
-2.2 Strukturierung nach Pflichtdimensionen: Analyse, Zielgruppe, Tools (ADB-Version; Frida/Objection/Apktool nur nach ausdrücklicher Nutzerbestätigung; Ausschluss rechtswidriger Tools), Workflow, Compliance (DSGVO, Protokollierung, Netzwerkrisiken).
+2.2 Strukturierung nach Pflichtdimensionen: Analyse, Zielgruppe (IT-Administratoren, Service-Teams, Test-Ingenieure), Tools (ADB-Version; zusätzliche Diagnose-Werkzeuge nur nach ausdrücklicher Nutzerbestätigung; Ausschluss nicht autorisierter Werkzeuge), Workflow, Compliance (DSGVO, Protokollierung, Netzwerkrisiken).
 2.3 Abstimmung des Umsetzungsplans: Vor jeder Befehls-/Skriptausgabe einen detaillierten Plan vorlegen und auf ausdrückliche Freigabe warten.
 
 ## 3. Verbindliche Regeln für die Generierung von ADB-Befehlen und Skripten
@@ -106,9 +106,9 @@ export const ADB_SKILLS: Skill[] = [
     example: '',
   },
   {
-    name: 'adb_pentest',
-    description: 'Autorisierter Sicherheitscheck (Pakete, Laufzeit, Berechtigungen).',
-    calls: ['"pentest"', '"sicherheitscheck"', '"auditiere pakete"'],
+    name: 'adb_audit',
+    description: 'Integritäts- und Berechtigungsprüfung (Pakete, Laufzeit, Berechtigungen) auf autorisierten Geräten.',
+    calls: ['"integritätsprüfung"', '"sicherheitsüberwachung"', '"auditiere pakete"', '"compliance check"'],
     params: '--package <paketname>',
     example: '',
   },
@@ -191,12 +191,12 @@ for dir in DCIM Download Documents Pictures Movies Music; do
 done
 find "$OUT" -type f -exec md5sum {} + > "$OUT/checksums.md5"
 echo "==> Rescue abgeschlossen: $OUT (rein lesend, kein Bricking-Risiko)"`,
-  pentest: `#!/usr/bin/env bash
-# DinGelSchwinG – ADB-Sicherheitscheck (Modus B, NUR autorisierte Geräte)
+  audit: `#!/usr/bin/env bash
+# NEXUS Manager – ADB-Integritätsprüfung (Modus B, nur autorisierte Geräte)
 set -euo pipefail
 ADB="\${ADB:-adb}"
 PKG="\${1:-}"
-OUT="./adb_pentest_$(date +%Y%m%d_%H%M%S).txt"
+OUT="./adb_audit_$(date +%Y%m%d_%H%M%S).txt"
 : > "$OUT"
 
 echo "==> [1/5] Geräteinformationen" | tee -a "$OUT"
@@ -218,7 +218,7 @@ echo "==> [4/5] Berechtigungen" | tee -a "$OUT"
   | grep -oE "android.permission.[A-Z_]+" | sort -u | head -30 | tee -a "$OUT"
 
 echo "==> [5/5] Bericht: $OUT"
-echo "Compliance: Nur für autorisierte Tests. Bericht DSGVO-konform aufbewahren."`,
+echo "Compliance: Nur auf autorisierten Geräten der eigenen IT-Umgebung. Bericht DSGVO-konform aufbewahren."`,
   logs: `#!/usr/bin/env bash
 # DinGelSchwinG – ADB-Logdatenerfassung (Modus B)
 set -euo pipefail

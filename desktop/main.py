@@ -24,7 +24,7 @@ from views.scripts import ScriptsView
 from views.settings import SettingsView
 from views.status_panel import StatusPanel
 
-APP_TITLE = "DinGelSchwinG v3.0 – Agent Console"
+APP_TITLE = "NEXUS Manager v3.0 – Admin Console"
 ROLES = ["admin", "service", "user"]
 
 
@@ -37,13 +37,13 @@ class LoginDialog(ctk.CTkToplevel):
     def __init__(self, master, on_login) -> None:
         super().__init__(master)
         self.on_login = on_login
-        self.title("Login – DinGelSchwinG")
+        self.title("Login – NEXUS Manager")
         self.geometry("360x320")
         self.resizable(False, False)
         self.transient(master)
 
-        ctk.CTkLabel(self, text="🔐 DinGelSchwinG", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(24, 2))
-        ctk.CTkLabel(self, text="Agent Console – Anmeldung", text_color="#94a3b8").pack(pady=(0, 16))
+        ctk.CTkLabel(self, text="🔐 NEXUS Manager", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(24, 2))
+        ctk.CTkLabel(self, text="Admin Console – Anmeldung", text_color="#94a3b8").pack(pady=(0, 16))
 
         self.name_entry = ctk.CTkEntry(self, placeholder_text="Benutzername")
         self.name_entry.pack(fill="x", padx=30, pady=6)
@@ -112,7 +112,7 @@ class MainWindow(ctk.CTk):
         header = ctk.CTkFrame(self, fg_color="#0b1220", corner_radius=0, height=54)
         header.grid(row=0, column=0, columnspan=2, sticky="ew")
         header.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(header, text="⚡ DinGelSchwinG v3.0 – Agent Console",
+        ctk.CTkLabel(header, text="⚡ NEXUS Manager – Enterprise Device Control",
                      font=ctk.CTkFont(size=16, weight="bold")).grid(row=0, column=0, sticky="w", padx=14)
         ctk.CTkLabel(header, text=f"👤 {self.user_name} ({self.role})",
                      font=ctk.CTkFont(size=13)).grid(row=0, column=1, padx=6)

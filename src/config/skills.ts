@@ -35,7 +35,7 @@ export const SKILLS: Skill[] = [
   {
     name: 'show_workflows',
     description: 'Zeigt laufende Workflows/Tasks mit Fortschritt und Status.',
-    calls: ['"welche workflows laufen?"', '"status der angriffe"', '"show workflows"'],
+    calls: ['"welche workflows laufen?"', '"status der aufgaben"', '"show workflows"'],
     params: 'keine',
     example: '',
   },

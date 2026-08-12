@@ -1,7 +1,19 @@
-# HackGPT-CPS — NEXUS-BUILDER v2.2
-## Erweiterung: Service-/Developer-Zugriff & Sicheres Terminal
+# NEXUS Manager – Enterprise Device Control v2.2
 
-Berechtigungserweiterung (Rollen Service L2 / Developer L3) plus gesichertes Terminal für Hardware-, Netzwerkgeräte und USB-C-Dongles. Zielrollen: Anwender Service / Entwickler — genau dafür ist der neue Zugriffsweg gebaut.
+Professionelle Lösung für Administratoren und Service-Teams, um vernetzte
+Geräte und USB-Peripherie zentral zu **verwalten, diagnostizieren und warten**.
+
+| Store-Name | Kurzbeschreibung |
+|---|---|
+| **NEXUS Manager** | Secure Device Management & Diagnostics |
+
+Interne Codebase: DinGelSchwinG. Store-Texte und Prüferhinweise:
+[`docs/store-listing.md`](docs/store-listing.md),
+[`docs/store-compliance.md`](docs/store-compliance.md).
+
+Berechtigungserweiterung (Rollen Service L2 / Developer L3) plus gesichertes
+Terminal für Hardware, Netzwerkgeräte und USB-C-Dongles. Zielrollen:
+Service-Mitarbeitende und Entwickler — genau dafür ist der Zugriffsweg gebaut.
 
 ---
 
@@ -293,8 +305,7 @@ Beispiel-Rechte: service kann Pairing aus hardware/dongle erstellen (write), abe
 ### Schnellstart (Entwicklung)
 
 ```bash
-# 1. Frontend
-cd hackgpt-extended
+# 1. Frontend (Repository-Wurzel)
 npm install
 npm run dev            # http://localhost:5173 (proxied /api -> Flask)
 

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: DinGelSchwinG / NEXUS-BUILDER Backend-API
+  title: NEXUS Manager Backend-API
   version: "2.2"
   description: |
     REST-Oberfläche des Server-Backends (Architektur gemäß README v2.2).

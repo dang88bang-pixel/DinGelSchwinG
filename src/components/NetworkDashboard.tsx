@@ -29,7 +29,7 @@ export default function NetworkDashboard() {
     { id: 'master-1', name: 'MASTER-Gold', x: 0, y: 0, z: 0, type: 'master', rssi: -42, txPower: -59 },
     { id: 'client-1', name: 'Client-A', x: 1.8, y: 0.9, z: 0.7, type: 'client', rssi: -62, txPower: -59 },
     { id: 'client-2', name: 'Client-B', x: -2.1, y: 0.6, z: 1.4, type: 'client', rssi: -68, txPower: -59 },
-    { id: 'target-1', name: 'Target-X', x: -1.4, y: 0.4, z: -2.2, type: 'target', rssi: -74, txPower: -59 },
+    { id: 'target-1', name: 'Endpoint-X', x: -1.4, y: 0.4, z: -2.2, type: 'target', rssi: -74, txPower: -59 },
     { id: 'other-1', name: 'WiFi-AP-01', x: 3.2, y: 0.3, z: -1.0, type: 'other', rssi: -81, txPower: -55 },
     { id: 'other-2', name: 'BLE-Beacon-3', x: 0.6, y: 1.2, z: -2.5, type: 'other', rssi: -76, txPower: -59 },
   ]);
@@ -80,11 +80,11 @@ export default function NetworkDashboard() {
         <div className="flex items-center gap-4">
           <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-200 border border-white/10 transition"><Menu className="w-5 h-5" /></button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-cyan-200 to-violet-200 leading-none glow-text">DinGelSchwinG <span className="text-sm font-medium text-slate-400 align-top ml-1">NEXUS-BUILDER</span></h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-cyan-200 to-violet-200 leading-none glow-text">NEXUS Manager <span className="text-sm font-medium text-slate-400 align-top ml-1">Enterprise Device Control</span></h1>
             <div className="flex items-center gap-3 mt-1.5 text-[11px] font-mono text-slate-400">
               <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-amber-400" /> Master</span>
               <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-emerald-400" /> Client</span>
-              <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-rose-400" /> Ziel</span>
+              <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-rose-400" /> Endpunkt</span>
               <span className="text-slate-600">| WASM · BLE · 3D · Sensoren</span>
             </div>
           </div>
@@ -93,7 +93,7 @@ export default function NetworkDashboard() {
           <button
             onClick={() => setAgentOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-violet-600 to-fuchsia-700 text-white ring-1 ring-violet-300/40 shadow-xl hover:brightness-110 transition"
-            title="Chat-zentrierte Agenten-Steuerung öffnen"
+            title="Administrations-Assistent öffnen"
           >
             🤖 Agent
           </button>
@@ -266,7 +266,7 @@ export default function NetworkDashboard() {
       </main>
 
       <footer className="border-t border-white/10 mt-auto py-4 text-center text-[11px] text-slate-600 font-mono tracking-wide bg-[#020617]/60 backdrop-blur-md">
-        DinGelSchwinG • NEXUS-BUILDER • WASM BLE Modul • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
+        NEXUS Manager • Enterprise Device Control • WASM BLE • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
       </footer>
 
       {agentOpen && <AgentConsole role="admin" onClose={() => setAgentOpen(false)} />}

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# MoE Agent Chat - Release APK Build Script
+# NEXUS Manager - Release APK Build Script
 # Creates optimized, signed release APK
 
 set -e
 
-echo "🔨 MoE Agent Chat - Release APK Build"
+echo "🔨 NEXUS Manager - Release APK Build"
 echo "======================================"
 echo ""
 

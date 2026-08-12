@@ -1,7 +1,7 @@
 {
   "name": "dingelschwinng-moe-agent",
   "version": "1.0.0",
-  "description": "MoE Agent Chat with System-Critical Permission Guards - Android APK",
+  "description": "NEXUS Manager – Enterprise Device Control & Diagnostics",
   "private": true,
   "scripts": {
     "dev": "vite",

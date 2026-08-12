@@ -115,7 +115,7 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
   useEffect(() => {
     addMessage(
       'system',
-      'Willkommen bei der DinGelSchwinG Agent Console v3.0.\nIch steuere Geräte, Clients und Workflows per Chat.\nTippe „hilfe“, um meine Fähigkeiten zu sehen.',
+      'Willkommen bei NEXUS Manager.\nZentrale Steuerung für autorisierte Geräteverwaltung, Diagnose und Wartung.\nTippe „hilfe“, um meine Fähigkeiten zu sehen.',
     );
   }, [addMessage]);
 
@@ -218,7 +218,7 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
       <header className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-[#050a18]/90">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-xl">💬</span>
-          <h2 className="text-lg font-black text-white truncate">Agent Console <span className="text-xs font-medium text-slate-500">v3.0 · {role}</span></h2>
+          <h2 className="text-lg font-black text-white truncate">NEXUS Manager <span className="text-xs font-medium text-slate-500">Admin Console · {role}</span></h2>
         </div>
 
         <span className="hidden md:inline px-2 py-1 rounded-full text-[10px] font-black border border-violet-500/40 bg-violet-950/40 text-violet-300">

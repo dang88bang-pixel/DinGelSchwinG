@@ -1,6 +1,6 @@
-# DinGelSchwinG v3.0 – Agent Console (Desktop, Python/CustomTkinter)
+# NEXUS Manager v3.0 – Admin Console (Desktop, Python/CustomTkinter)
 
-Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration:
+Chat-zentrierte Steuerung für autorisierte Geräteverwaltung, Diagnose und Wartung:
 
 - 💬 **Chat-Bereich** – Messenger-Stil, Markdown-lite (fett/kursiv/Code/Listen), Enter zum Senden
 - 🔘 **6 frei belegbare Aktionsbuttons** – per Chat belegen (`"Belege Button 3 mit dem Skript network_scan.py"`) oder manuell in den Einstellungen
@@ -24,7 +24,7 @@ Der Agent arbeitet in **konfigurierbaren Modi** – Wechsel unter
 | Modus | Beschreibung |
 |---|---|
 | **A: Normaler Chat** | Allgemeine verbindliche Systemanweisung (Anforderungsanalyse, Pflichtprozess, Code-Regeln, Kommunikation) |
-| **B: ADB-Aktion** | ADB-spezialisierte Anweisung (USB/WiFi · Pentesting · Rescue · Backup). Eigene ADB-Skills (`skillz_adb.md`). **Pflicht-Freigabeprozess:** Bei risikobehafteten Aktionen wird zuerst ein Umsetzungsplan vorgelegt – erst nach „freigeben“ wird das vollständige, ausführbare Skript erzeugt (in `data/scripts/adb_*.sh`). |
+| **B: ADB-Wartung** | ADB-spezialisierte Anweisung (USB/WiFi · Diagnose · Rescue · Backup). Eigene ADB-Skills (`skillz_adb.md`). **Pflicht-Freigabeprozess:** Bei risikobehafteten Aktionen wird zuerst ein Umsetzungsplan vorgelegt – erst nach „freigeben“ wird das vollständige, ausführbare Skript erzeugt (in `data/scripts/adb_*.sh`). |
 | **Benutzerdefiniert** | Eigene Anweisung frei definierbar |
 
 Dateien: `data/system_instruction_chat.txt`, `data/system_instruction_adb.txt`,

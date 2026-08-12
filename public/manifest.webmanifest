@@ -1,12 +1,12 @@
 {
-  "name": "DinGelSchwinG – Agent Console",
-  "short_name": "DinGelSchwinG",
+  "name": "NEXUS Manager – Enterprise Device Control",
+  "short_name": "NEXUS Manager",
   "lang": "de",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#1e40af",
-  "description": "Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration",
+  "description": "Secure Device Management & Diagnostics für autorisierte IT-Teams",
   "icons": [
     {
       "src": "vite.svg",

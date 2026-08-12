@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, Lock, AlertCircle, Plus, Send, CheckCircle } from 'lucide-react';
 
 /**
- * MoE Agent Chat Interface mit System-Critical Permission Guards
- * - Nutzer-bestätigte Permissions für kritische Aktionen
+ * NEXUS Manager – Administrations-Chat mit Berechtigungsfreigaben
+ * - Nutzer-bestätigte Permissions für kritische Wartungsaktionen
  * - Vollständig erweiterbar & anpassbar (Attribute, Actions, Rules)
  * - Netzwerk/USB-C Zugriff mit explizitem Consent
  */
@@ -306,7 +306,7 @@ export default function MoEChatInterface() {
     {
       id: '0',
       role: 'system',
-      content: 'MoE Agent Chat initialized. System-critical permissions require explicit user confirmation.',
+      content: 'NEXUS Manager ready. Privileged maintenance actions require explicit administrator confirmation.',
       timestamp: Date.now()
     }
   ]);
@@ -496,8 +496,8 @@ export default function MoEChatInterface() {
           <div className="flex items-center gap-3">
             <MessageCircle className="w-8 h-8" />
             <div>
-              <h1 className="text-2xl font-bold">MoE Agent Chat</h1>
-              <p className="text-xs opacity-90">System-Critical Permission Guard Enabled</p>
+              <h1 className="text-2xl font-bold">NEXUS Manager</h1>
+              <p className="text-xs opacity-90">Authorized Device Management · Permission Guard</p>
             </div>
           </div>
           <div className="text-right text-sm">
@@ -553,7 +553,7 @@ export default function MoEChatInterface() {
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask the MoE agent... (try 'flash dongle' for permission demo)"
+                  placeholder="Ask the admin assistant… (try 'flash dongle' for a firmware-approval demo)"
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                 />
                 <button
