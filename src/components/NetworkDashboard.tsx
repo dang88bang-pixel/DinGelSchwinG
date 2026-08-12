@@ -11,6 +11,7 @@ import AgentConsole from './AgentConsole';
 import BleProfessionalSuite from './ble/BleProfessionalSuite';
 import TerminalController from './TerminalController';
 import AdminHub from './AdminHub';
+import DeviceDashboard from './DeviceDashboard';
 import { useSensors } from '../hooks/useSensors';
 import { useDiscovery, DiscoveryNode } from '../hooks/useDiscovery';
 import { useStatusBoard, StatusClient } from '../hooks/useStatusBoard';
@@ -105,6 +106,7 @@ export default function NetworkDashboard() {
   const [bleSuiteOpen, setBleSuiteOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   const [hostOnline, setHostOnline] = useState(false);
 
   // Host-Anbindung: REST + WS-Kanäle (Discovery :8766, Status :8767)
@@ -230,6 +232,13 @@ export default function NetworkDashboard() {
             title="Admin & Compliance – Benutzer, Audit, SSH-Key, WebAuthn"
           >
             <ShieldCheck className="w-3.5 h-3.5" /> Admin
+          </button>
+          <button
+            onClick={() => setDevicesOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-emerald-600 to-teal-700 text-white ring-1 ring-emerald-300/40 shadow-xl hover:brightness-110 transition"
+            title="Geräteübersicht – Karten, Steuerung, Discovery, Aktivitäten"
+          >
+            <CircleDot className="w-3.5 h-3.5" /> Geräte
           </button>
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
@@ -463,6 +472,7 @@ export default function NetworkDashboard() {
       )}
       {terminalOpen && <TerminalController onClose={() => setTerminalOpen(false)} />}
       {adminOpen && <AdminHub onClose={() => setAdminOpen(false)} />}
+      {devicesOpen && <DeviceDashboard onClose={() => setDevicesOpen(false)} />}
     </div>
   );
 }

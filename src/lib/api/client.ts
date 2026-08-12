@@ -328,15 +328,41 @@ export const api = {
   // ------------------------------------------------------------------
   async boundDevices(): Promise<BoundDevice[]> {
     const body = await request<{ devices: BoundDevice[] }>('/devices/bound');
-    return body.devices;
+    return body.devices.map((d) => ({ ...d, status: d.online ? 'online' : 'offline' as const }));
   },
 
-  async deviceBind(nodeId: string, alias = '', protocol = ''): Promise<{ ok: boolean; device?: BoundDevice }> {
-    return request('/devices/bind', { method: 'POST', body: JSON.stringify({ nodeId, alias, protocol }) });
+  async deviceBind(nodeId: string, alias = '', protocol = '', address = ''): Promise<{ ok: boolean; device?: BoundDevice; error?: string }> {
+    return request('/devices/bind', { method: 'POST', body: JSON.stringify({ nodeId, alias, protocol, address }) });
   },
 
   async deviceUnbind(deviceId: string): Promise<{ ok: boolean }> {
     return request(`/devices/bind/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+  },
+
+  // Grafische Gerätesteuerung (Device-Cards): Volume/Play/Pause/Reboot/Status
+  async deviceControl(deviceId: string, action: string, value?: number): Promise<{
+    ok: boolean;
+    action: string;
+    alias?: string;
+    output?: string;
+    error?: string;
+    battery?: number;
+    analysis?: { summary?: string; status?: string; metrics?: Record<string, unknown> };
+  }> {
+    return request(`/devices/${encodeURIComponent(deviceId)}/control`, {
+      method: 'POST',
+      body: JSON.stringify({ action, value }),
+    });
+  },
+
+  // Discovery-Center: ungebundene Geräte scannen
+  async discoveryScan(): Promise<{ devices: DiscoveredNode[]; count: number }> {
+    return request('/discovery/scan', { method: 'POST' });
+  },
+
+  // Activity-Feed: letzte Aktionen
+  async auditActivity(limit = 20): Promise<ActivityEntry[]> {
+    return request(`/audit/activity?limit=${limit}`);
   },
 
   async agentExecute(command: string, target: string): Promise<AgentExecuteResult> {
@@ -422,6 +448,31 @@ export interface BoundDevice {
   capabilities: string[];
   online: boolean;
   connected: boolean;
+  battery?: number;
+  http?: boolean;
+  status: 'online' | 'offline' | 'unknown';
+}
+
+export interface DiscoveredNode {
+  id: string;
+  name: string;
+  ip: string;
+  mac: string;
+  protocol: string;
+  kind: string;
+  rssi?: number;
+  http?: boolean;
+  is_bindable: boolean;
+}
+
+export interface ActivityEntry {
+  id: string;
+  type: 'job' | 'status' | 'bind' | 'error';
+  device: string;
+  action: string;
+  result: 'success' | 'failed' | 'pending';
+  timestamp: string;
+  message: string;
 }
 
 export interface AgentExecuteResult {

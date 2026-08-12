@@ -144,6 +144,151 @@ def device_unbind(device_id: str):
 
 
 # ----------------------------------------------------------------------
+# Grafische Gerätesteuerung (Device-Cards: Volume/Play/Pause/Reboot/Status)
+# ----------------------------------------------------------------------
+_CONTROL_COMMANDS = {
+    "status": {
+        "ssh": "uptime && echo '---' && free -h && echo '---' && df -h /",
+        "http": "GET /login_sid.lua",
+        "https": "GET /login_sid.lua",
+        "ping": "ping",
+        "ble": "status",
+        "bluetooth": "status",
+        "serial": "status",
+        "custom": "status",
+    },
+    "ping": {"ssh": "echo online", "http": "GET /", "https": "GET /",
+             "ping": "ping", "ble": "status", "bluetooth": "status",
+             "serial": "status"},
+    "battery": {"ble": "battery", "bluetooth": "status"},
+    "play": {"bluetooth": "play"},
+    "pause": {"bluetooth": "pause"},
+    "volume": {"bluetooth": "volume"},
+    "reboot": {"ssh": "sudo reboot"},
+}
+
+
+@api.post("/devices/<device_id>/control")
+@auth.auth_required
+def device_control(device_id: str):
+    ok, msg = rbac.require_action(g.role, "device_control")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    from .device_registry import registry
+    from .connectors import execute_on_device
+    from .agent.result_analyzer import ResultAnalyzer
+    data = request.get_json(silent=True) or {}
+    action = str(data.get("action") or "status")
+    value = data.get("value")
+    dev = registry.get(device_id)
+    if dev is None:
+        return jsonify({"type": "error", "code": "NOT_FOUND",
+                        "message": f"Gerät '{device_id}' nicht gebunden"}), 404
+    # Entbinden als Sonderfall (kein Connector nötig)
+    if action == "unbind":
+        registry.unbind(device_id)
+        audit.audit.log(g.user, g.role, "device.unbind",
+                        f"{dev['alias']} ({dev['protocol']})", critical=True)
+        return jsonify({"ok": True, "action": "unbind"})
+    command = _CONTROL_COMMANDS.get(action, {}).get(str(dev.get("protocol")))
+    if command is None:
+        return jsonify({"ok": False,
+                        "error": f"Aktion '{action}' wird von Protokoll "
+                                 f"'{dev.get('protocol')}' nicht unterstützt"}), 400
+    params = {}
+    if action == "volume":
+        if value is None:
+            return jsonify({"ok": False,
+                            "error": "value (Lautstärke 0–1) nötig"}), 400
+        params["value"] = float(value)
+    critical = action in ("reboot", "unbind")
+    audit.audit.log(g.user, g.role, f"device.control.{action}",
+                    f"{dev['alias']} ({dev['protocol']})", critical=critical)
+    res = execute_on_device(dev, command, params, user=g.user, role=g.role)
+    out = res.get("output", "")
+    analysis = None
+    if res.get("ok"):
+        try:
+            analysis = ResultAnalyzer.analyze(command, out, dev.get("alias", ""),
+                                              res.get("exit_code"))
+        except Exception:  # noqa: BLE001
+            analysis = None
+    return jsonify({
+        "ok": res.get("ok"),
+        "action": action,
+        "alias": dev.get("alias"),
+        "protocol": dev.get("protocol"),
+        "output": out[:1500],
+        "error": res.get("error"),
+        "analysis": analysis,
+        "battery": res.get("battery_percent"),
+    })
+
+
+@api.post("/discovery/scan")
+@auth.auth_required
+def discovery_scan():
+    ok, msg = rbac.require_action(g.role, "discovery_scan")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    from .device_registry import registry, detect_protocol
+    from . import scanner as scanner_mod
+    nodes = scanner_mod.scanner.snapshot()
+    bound_ids = set(registry.all_ids())
+    out = []
+    for n in nodes:
+        if n["id"] in bound_ids:
+            continue
+        signal = n.get("signal") or {}
+        out.append({
+            "id": n["id"],
+            "name": n.get("label") or n["id"],
+            "ip": n.get("address") or n.get("ip") or n.get("mac") or "",
+            "mac": n.get("mac") or n.get("address") or "",
+            "protocol": detect_protocol(n),
+            "kind": n.get("kind"),
+            "rssi": signal.get("rssi"),
+            "http": bool(n.get("http")),
+            "is_bindable": True,
+        })
+    audit.audit.log(g.user, g.role, "discovery.scan",
+                    f"{len(out)} ungebundene Geräte gefunden")
+    return jsonify({"devices": out, "count": len(out)})
+
+
+@api.get("/audit/activity")
+@auth.auth_required
+def audit_activity():
+    ok, msg = rbac.require_action(g.role, "audit_view")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    limit = int(request.args.get("limit", "20"))
+    entries = audit.audit.recent(limit)
+    out = []
+    for e in entries:
+        action = str(e.get("action") or "")
+        detail = str(e.get("detail") or "")
+        act_type = "job"
+        if "bind" in action:
+            act_type = "bind"
+        elif "error" in action or "fail" in action:
+            act_type = "error"
+        elif "control" in action or "status" in action:
+            act_type = "status"
+        result = "failed" if (act_type == "error" or e.get("critical")) else "success"
+        out.append({
+            "id": e.get("trace_id"),
+            "type": act_type,
+            "device": e.get("user") or "system",
+            "action": action,
+            "result": result,
+            "timestamp": e.get("ts"),
+            "message": detail,
+        })
+    return jsonify(out)
+
+
+# ----------------------------------------------------------------------
 # BLE-Suite (echte Hardware via bleak, sonst sim)
 # ----------------------------------------------------------------------
 @api.post("/ble/scan")

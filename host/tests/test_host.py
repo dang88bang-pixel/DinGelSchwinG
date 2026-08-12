@@ -857,3 +857,109 @@ class TestSshKeyStore(unittest.TestCase):
             st = ssh_key_store.status("tester")
             self.assertTrue(st["userKey"])
             self.assertEqual(st["activePath"], path)
+
+
+class TestDeviceControlApi(unittest.TestCase):
+    """Grafische Gerätesteuerung: /devices/<id>/control (Volume/Play/Reboot/Status)."""
+
+    def setUp(self) -> None:
+        import tempfile
+        from host.device_registry import DeviceRegistry
+        self._tmp = tempfile.TemporaryDirectory()
+        self.app = create_app()
+        self.client = self.app.test_client()
+        login = self.client.post("/api/login",
+                                 json={"email": "developer", "password": "dev123"})
+        self.headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        self._reg_module = __import__("host.device_registry", fromlist=["registry"])
+        self._old_reg = self._reg_module.registry
+        self._reg_module.registry = DeviceRegistry(path=f"{self._tmp.name}/devices.json")
+
+    def tearDown(self) -> None:
+        self._reg_module.registry = self._old_reg
+        self._tmp.cleanup()
+
+    def _bind(self, node_id: str, alias: str, protocol: str, address: str) -> str:
+        res = self.client.post("/api/devices/bind", headers=self.headers,
+                               json={"nodeId": node_id, "alias": alias,
+                                     "protocol": protocol, "address": address})
+        self.assertEqual(res.status_code, 201, res.get_json())
+        return res.get_json()["device"]["id"]
+
+    def test_control_unbind(self) -> None:
+        dev_id = self._bind("t:1", "Test-Gerät", "ping", "127.0.0.1")
+        res = self.client.post(f"/api/devices/{dev_id}/control",
+                               headers=self.headers, json={"action": "unbind"})
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.get_json()["ok"])
+        bound = self.client.get("/api/devices/bound", headers=self.headers).get_json()
+        self.assertFalse(any(d["id"] == dev_id for d in bound["devices"]))
+
+    def test_control_ping_status(self) -> None:
+        dev_id = self._bind("t:2", "Lokal-Ping", "ping", "127.0.0.1")
+        res = self.client.post(f"/api/devices/{dev_id}/control",
+                               headers=self.headers, json={"action": "status"})
+        body = res.get_json()
+        self.assertTrue(body["ok"], body)
+        self.assertEqual(body["action"], "status")
+        self.assertIsNotNone(body["analysis"])
+
+    def test_control_unsupported_action(self) -> None:
+        dev_id = self._bind("t:3", "Box", "bluetooth", "AA:BB:CC:DD:EE:FF")
+        # playerctl fehlt in der Sandbox → klarer Fehler, keine Simulation
+        res = self.client.post(f"/api/devices/{dev_id}/control",
+                               headers=self.headers, json={"action": "play"})
+        body = res.get_json()
+        self.assertEqual(res.status_code, 200)  # 200 mit ok:false + Fehlermeldung
+        self.assertFalse(body["ok"])
+        self.assertIn("playerctl", body.get("error", ""))
+
+    def test_control_volume_requires_value(self) -> None:
+        dev_id = self._bind("t:4", "Box2", "bluetooth", "AA:BB:CC:DD:EE:FF")
+        res = self.client.post(f"/api/devices/{dev_id}/control",
+                               headers=self.headers, json={"action": "volume"})
+        self.assertEqual(res.status_code, 400)
+
+
+class TestDiscoveryScanApi(unittest.TestCase):
+    """Discovery-Center: /discovery/scan liefert ungebundene Geräte."""
+
+    def test_scan_excludes_bound(self) -> None:
+        from host import scanner
+        from host.virtual_ble import virtual_ble
+        virtual_ble.start()
+        virtual_ble.spawn("Scan-UI-Virt", "token", [], 2.0)
+        scanner.scanner._scan_once()
+        app = create_app()
+        client = app.test_client()
+        login = client.post("/api/login",
+                            json={"email": "developer", "password": "dev123"})
+        headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        res = client.post("/api/discovery/scan", headers=headers)
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertIn("devices", body)
+        found = [d for d in body["devices"] if d.get("name") == "Scan-UI-Virt"]
+        self.assertTrue(found, "Virtuelles Gerät fehlt im Discovery-Scan")
+        self.assertEqual(found[0]["protocol"], "ble")
+        self.assertTrue(found[0]["is_bindable"])
+
+
+class TestAuditActivityApi(unittest.TestCase):
+    """Activity-Feed: /audit/activity liefert Timeline-Einträge."""
+
+    def test_activity_entries(self) -> None:
+        app = create_app()
+        client = app.test_client()
+        login = client.post("/api/login",
+                            json={"email": "developer", "password": "dev123"})
+        headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+        res = client.get("/api/audit/activity?limit=5", headers=headers)
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertIsInstance(body, list)
+        for e in body:
+            self.assertIn("id", e)
+            self.assertIn("type", e)
+            self.assertIn("timestamp", e)
+            self.assertIn("message", e)

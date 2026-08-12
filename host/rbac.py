@@ -39,6 +39,8 @@ ACTION_LEVELS = {
     "scan_ble": 2,
     "devices_list": 2,
     "device_bind": 2,
+    "device_control": 2,
+    "discovery_scan": 2,
     # dongle / hardware
     "dongle_list": 2,
     "dongle_bind": 2,
