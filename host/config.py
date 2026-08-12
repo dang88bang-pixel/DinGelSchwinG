@@ -38,3 +38,10 @@ DONGLE_WHITELIST = [0x1915, 0x0A12, 0x2341, 0x16C0, 0x1A86, 0x0403,
 
 # Audit
 AUDIT_PATH = os.path.join(DATA_DIR, "audit.json")
+
+# Zentrale SQLite-Persistenz (WAL, automatische Migration) – host/db.py
+DB_PATH = os.environ.get("NEXUS_DB_PATH", os.path.join(DATA_DIR, "nexus.db"))
+
+# Rate-Limiting (Brute-Force-Schutz auf /login; Werte aus ENV überschreibbar)
+RATE_LIMIT_LOGIN = int(os.environ.get("NEXUS_RATE_LIMIT_LOGIN", "500"))
+RATE_LIMIT_WINDOW = float(os.environ.get("NEXUS_RATE_LIMIT_WINDOW", "60"))

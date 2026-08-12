@@ -1,0 +1,33 @@
+# NEXUS-BUILDER – Host-Backend (BLE Professional Suite)
+# Flask-REST (:5000) + WS-Kanäle (:8765/:8766/:8767) + userspace-SSH (:2222)
+# Start:  docker compose up -d --build backend
+FROM python:3.11-slim
+
+# System-Abhängigkeiten für alle Connectors (echte Hardware/Netzwerk)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    arp-scan \
+    bluez \
+    bluez-utils \
+    openssh-client \
+    socat \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Python-Abhängigkeiten (host/requirements.txt: Flask, websockets, PyJWT,
+# paramiko, pyserial, psutil, optional bleak)
+COPY host/requirements.txt ./host/requirements.txt
+RUN pip install --no-cache-dir -r host/requirements.txt
+
+# Quellcode
+COPY host/ ./host/
+
+# Laufzeit-Daten (SQLite, Audit, SSH-Keys, Dev-Zugänge) – als Volume gemountet
+RUN mkdir -p /app/host/data /models
+
+# REST + WS-Kanäle + SSH-Server
+EXPOSE 5000 8765 8766 8767 2222
+
+# Start (führt automatisch SQLite-Migration init_db() aus)
+CMD ["python", "-m", "host.main"]

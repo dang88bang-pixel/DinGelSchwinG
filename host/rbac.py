@@ -34,6 +34,7 @@ ACTION_LEVELS = {
     "audit_view": 1,
     "metrics": 1,
     "metrics_live": 1,
+    "db_status": 1,
     # discovery / scanner
     "scan_network": 2,
     "scan_ble": 2,
@@ -144,6 +145,12 @@ def set_override(action: str, role: str, allow: bool) -> bool:
     with _lock:
         _overrides.setdefault(action, {})[role] = bool(allow)
         _persist_overrides()
+    # Zusätzlich in der SQLite-rbac_matrix-Tabelle spiegeln (Produktionsspeicher)
+    try:
+        from . import db as host_db
+        host_db.set_rbac_override(action, role, bool(allow))
+    except Exception:  # noqa: BLE001 – DB darf die Matrix-API nie blockieren
+        pass
     return True
 
 
@@ -154,6 +161,11 @@ def clear_override(action: str, role: str) -> bool:
             if not _overrides[action]:
                 del _overrides[action]
             _persist_overrides()
+            try:
+                from . import db as host_db
+                host_db.clear_rbac_override(action, role)
+            except Exception:  # noqa: BLE001
+                pass
             return True
     return False
 

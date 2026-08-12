@@ -68,20 +68,33 @@ def list_users() -> list[dict]:
 
 
 def create_user(username: str, password: str, role: str) -> dict:
-    """Legt einen Nutzer an (Admin-UI) und persistiert ihn gehasht."""
+    """Legt einen Nutzer an (Admin-UI) und persistiert ihn gehasht.
+
+    Persistenz: users.json (kompatibel) UND zentrale SQLite-DB (host/db.py,
+    users-Tabelle) – die DB ist der Produktionsspeicher.
+    """
     import json
+
+    from . import db as host_db
 
     if username in _USERS:
         return {"ok": False, "error": "Benutzername existiert bereits"}
     salt = secrets.token_hex(16)
-    _USERS[username] = {"password": _hash_password(password, salt),
+    hashed = _hash_password(password, salt)
+    _USERS[username] = {"password": hashed,
                         "role": role, "salt": salt, "env": False}
     _persist_users()
+    try:
+        host_db.upsert_user(username, role, source="db", password_hash=hashed)
+    except Exception:  # noqa: BLE001 – DB darf das Anlegen nie blockieren
+        pass
     return {"ok": True, "username": username, "role": role}
 
 
 def delete_user(username: str) -> dict:
     import json
+
+    from . import db as host_db
 
     user = _USERS.get(username)
     if not user:
@@ -90,6 +103,10 @@ def delete_user(username: str) -> dict:
         return {"ok": False, "error": "ENV-Benutzer kann nicht gelöscht werden"}
     del _USERS[username]
     _persist_users()
+    try:
+        host_db.delete_user(username)
+    except Exception:  # noqa: BLE001
+        pass
     return {"ok": True, "username": username}
 
 

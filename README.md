@@ -69,6 +69,13 @@ Kopfhörer“, „Reboot Server-1“ – und wertet Ausgaben aus (Last/RAM/Platt
 ungebundener Geräte) plus **Bind-Wizard** (`BindWizard.tsx`, protokollspezifische Felder).
 Backend: `POST /api/devices/<id>/control`, `POST /api/discovery/scan`, `GET /api/audit/activity`.
 
+**Produktion / Persistenz:** Zentrale **SQLite-DB** (`host/db.py`, WAL, automatische
+Migration beim Start; Tabellen `users`, `devices` mit `owner_id`, `chat_history`,
+`background_jobs`, `app_configs`, `rbac_matrix`, `ble_characteristics` – Schema:
+`docs/db_schema.sql`). Verfügbarkeit: `GET /api/db/status`. **Docker**: `docker compose
+up -d --build` (Dockerfile.backend + Dockerfile.frontend, Volume `./host/data`,
+`.env.example`). **Rate-Limiting** auf `/login` (Brute-Force-Schutz, 429).
+
 **Drahtlose Geräte:** `host/connectors/` (SSH, HTTP/HTTPS inkl. Fritzbox TR-064, Ping,
 BLE-GATT, Bluetooth Classic, Seriell) + `host/device_registry.py` (gebundene Geräte mit
 Protokoll-Ableitung) + HTTP-Probe im Scanner (`kind: network_http`). Details: `docs/audit-mocks.md` §7.

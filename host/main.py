@@ -222,8 +222,15 @@ def start_ws_servers() -> None:
 
 
 def main() -> None:
+    from . import db as host_db
     from .feature_manager import feature_manager
     audit.audit.log("system", "system", "host.start", "Host-Backend startet")
+    # Zentrale SQLite-Persistenz: Migration beim Start (idempotent)
+    db_info = host_db.init_db()
+    audit.audit.log("system", "system", "db.init",
+                    f"SQLite {config.DB_PATH} "
+                    f"(schema v{db_info.get('schema_version')}, "
+                    f"{len(db_info.get('tables', []))} Tabellen)")
     scanner.scanner.start()
     virtual_ble.virtual_ble.start()          # protokollkorrekter BLE-Stapel
     # SSH-Server dem Feature-Manager melden (Toggle kann ihn live stoppen/starten)

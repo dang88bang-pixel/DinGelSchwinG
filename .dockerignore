@@ -1,0 +1,14 @@
+.git
+node_modules
+dist
+build
+__pycache__
+*.pyc
+host/data
+host/tests
+mobile
+docs
+deploy/monitoring
+wasm-ble
+*.log
+.env

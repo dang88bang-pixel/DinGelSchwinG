@@ -147,10 +147,10 @@ export default function DiscoveryCenter({ onBind }: DiscoveryCenterProps) {
                 <button
                   onClick={() => bindDevice(dev)}
                   disabled={binding === dev.id || !dev.is_bindable}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white text-[11px] font-extrabold transition disabled:opacity-50 shrink-0"
+                  className="flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-extrabold transition disabled:opacity-50 shrink-0 active:scale-95"
                   title="Gerät binden"
                 >
-                  {binding === dev.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  {binding === dev.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   Binden
                 </button>
               </div>

@@ -29,6 +29,12 @@ def health():
 
 @api.post("/login")
 def login():
+    # Brute-Force-Schutz: Sliding-Window-Rate-Limit pro IP
+    from .ratelimit import ratelimiter
+    if not ratelimiter.allow(f"login:{request.remote_addr}",
+                             config.RATE_LIMIT_LOGIN, config.RATE_LIMIT_WINDOW):
+        return jsonify({"type": "error", "code": "RATE_LIMITED",
+                        "message": "Zu viele Login-Versuche – bitte warten"}), 429
     data = request.get_json(silent=True) or {}
     username = str(data.get("email") or data.get("username") or "")
     password = str(data.get("password") or "")
@@ -127,6 +133,12 @@ def device_bind():
                           alias=str(data.get("alias") or "").strip() or None,
                           protocol=str(data.get("protocol") or "").strip() or None,
                           bound_by=g.user, role=g.role)
+    # Zentrale SQLite-DB spiegeln (devices-Tabelle, owner_id = Binder)
+    try:
+        from . import db as host_db
+        host_db.upsert_device(entry)
+    except Exception:  # noqa: BLE001
+        pass
     audit.audit.log(g.user, g.role, "device.bind",
                     f"{entry['alias']} ({entry['protocol']})")
     return jsonify({"ok": True, "device": entry}), 201
@@ -139,6 +151,11 @@ def device_unbind(device_id: str):
     removed = registry.unbind(device_id)
     if not removed:
         return jsonify({"type": "error", "code": "NOT_FOUND"}), 404
+    try:
+        from . import db as host_db
+        host_db.delete_device(device_id)
+    except Exception:  # noqa: BLE001
+        pass
     audit.audit.log(g.user, g.role, "device.unbind", device_id)
     return jsonify({"ok": True})
 
@@ -187,6 +204,11 @@ def device_control(device_id: str):
     # Entbinden als Sonderfall (kein Connector nötig)
     if action == "unbind":
         registry.unbind(device_id)
+        try:
+            from . import db as host_db
+            host_db.delete_device(device_id)
+        except Exception:  # noqa: BLE001
+            pass
         audit.audit.log(g.user, g.role, "device.unbind",
                         f"{dev['alias']} ({dev['protocol']})", critical=True)
         return jsonify({"ok": True, "action": "unbind"})
@@ -940,6 +962,20 @@ def metrics():
 
 
 # ----------------------------------------------------------------------
+# Datenbank-Verfügbarkeit (Systemprüfung: Tabellen, WAL, Integrität)
+# ----------------------------------------------------------------------
+@api.get("/db/status")
+@auth.auth_required
+def db_status():
+    ok, msg = rbac.require_action(g.role, "db_status")
+    if not ok:
+        return jsonify({"type": "error", "code": "RBAC_DENIED", "message": msg}), 403
+    from . import db as host_db
+    info = host_db.status()
+    code = 200 if info.get("ok") else 500
+    return jsonify({"service": "nexus-db", **info}), code
+
+
 @api.get("/openapi.yaml")
 def openapi_yaml():
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

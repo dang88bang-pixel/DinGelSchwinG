@@ -4,8 +4,14 @@ flask>=3.0
 websockets>=12.0
 PyJWT>=2.8
 
-# Optional – echte BLE-Hardware (sonst Simulationsmodus):
-bleak>=0.21
+# Echte SSH-Terminal-Sessions + SSH-Connector (paramiko)
+paramiko>=3.0
 
-# Optional – SSH-Terminal-Sessions (sonst nur lokale PTY):
-# paramiko>=3.0
+# Serielle USB-Dongles (pyserial wird von Terminal/Connector genutzt)
+pyserial>=3.5
+
+# System-/Live-Metriken (psutil optional – Host fällt sonst auf /proc zurück)
+psutil>=5.9
+
+# Optional – echte BLE-Hardware (sonst protokollkorrekter virtueller ATT/GATT-Stapel):
+bleak>=0.21

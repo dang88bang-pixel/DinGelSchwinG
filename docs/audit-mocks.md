@@ -233,3 +233,62 @@ Control `status` mit echter SSH-Ausführung (Last/RAM/Platte) ✅ · Reboot gege
 unerreichbares Ziel → klarer Connector-Fehler ✅ · Bluetooth ohne playerctl →
 klarer Fehler (kein Mock) ✅ · Activity-Feed ✅ · Unbind via Control ✅ ·
 Vite-Proxy ✅ · Host 69 Tests · Desktop 46 · Web tsc/lint(0)/build · Mobile 77.
+
+---
+
+## 9. Abschließende Systemprüfung – Datenbanken, Anbindungen & Produktions-Setup
+
+### 9.1 Datenbanken & Persistenz (tatsächliche Architektur)
+
+| Komponente | Status | Verfügbarkeit / Pfad | Anbindung |
+|---|---|---|---|
+| **SQLite (zentrale Host-DB)** | ✅ **Echt, neu** | `host/data/nexus.db` (`NEXUS_DB_PATH`, Docker-Volume `./host/data`) | `host/db.py` – WAL-Modus, `synchronous=NORMAL`, `PRAGMA integrity_check` |
+| **Tabellen (7)** | ✅ Vollständig | `users`, `devices` (mit `owner_id` → Multi-Tenancy), `chat_history`, `background_jobs`, `app_configs`, `rbac_matrix`, `ble_characteristics` | Schema-Spiegel in `docs/db_schema.sql` |
+| **Automatische Migration** | ✅ Konfiguriert | `init_db()` beim Backend-Start (`host/main.py`), idempotent | `PRAGMA user_version` + Migrations-Array |
+| **Echte Anbindung** | ✅ Aktiv | `auth.create_user/delete_user` → `users` · `device_bind/unbind` → `devices` (owner_id=Binder) · `rbac.set_override` → `rbac_matrix` | `GET /api/db/status` (WAL, Integrität, Tabellen+Zeilenzahlen) |
+| **JSON-Dateien** | ✅ Kompatibel | `host/data/*.json` (devices, rbac_matrix, users, audit…) | bleiben als kompatibler Layer erhalten |
+| **Persistenz bei Neustart** | ✅ Sichergestellt | Docker-Volume `./host/data` bindet `host/data` | verlustfreier Neustart |
+| **AI-Modell (Qwen2.5)** | ⚠️ Optional | Browser/WebView (transformers.js, WASM) – kein Server-Modell | **Lazy-Loading** – App startet auch ohne Modell (kein Crash) |
+
+### 9.2 Anbindungen End-to-End (Prüfung 2026-08-12)
+
+Jede Kette endet in einer echten Systemaktion oder einem sauberen Fehler (404/403/429):
+
+| Anbindung | Kette | Status | Prüfmethode |
+|---|---|---|---|
+| UI → API | React → `api.*` → Vite-Proxy `/api` → Flask :5000 | ✅ | Live-E2E + Proxy-Checks |
+| API → DB | `device_bind`/`admin/users` → SQLite (owner_id) | ✅ | `TestDbApi` (Spiegel in `devices`/`users`-Tabelle) |
+| API → SSH | `/devices/<id>/control` `ssh` → paramiko (Key/PW) | ✅ **Echt** | Live: uptime/free/df vom lokalen SSH-Server :2222 |
+| API → HTTP | Fritzbox/Shelly `login_sid.lua` | ✅ **Echt** | HTTP-Connector-Test (lokaler HTTP-Server) |
+| API → BLE | Kopfhörer/Sensoren → Host-ATT-GATT (Batterie 0x180F) | ✅ **Echt** | BLE-Connector via virtuellen GATT-Stapel |
+| API → BT-Classic | Musikboxen → `bluetoothctl`/`playerctl` | ✅ **Echt** | Fehlt das Tool → klarer Fehler (kein Mock) |
+| API → Ping | Smartphones/Drucker → `ping` | ✅ **Echt** | Ping-Connector-Test (127.0.0.1) |
+| Chat → Agent | `/agent/ask` → Orchestrator/Connectors | ✅ **Echt** | „Status alle“ → echte Ausführung |
+| WS → Live-Status | :8765/:8766/:8767 | ✅ | WS-Kanäle laufen, Vite-Proxy-rewrite erhält Query |
+| Discovery → ARP/BLE/HTTP | Scanner-Snapshot → Discovery-Center | ✅ **Echt** | `/api/discovery/scan` |
+
+### 9.3 Produktions-Setup (Docker-Finalisierung)
+
+| Datei | Inhalt |
+|---|---|
+| `Dockerfile.backend` | python:3.11-slim + arp-scan/bluez/socat/openssh-client, `pip install -r host/requirements.txt`, `CMD python -m host.main` (führt `init_db()` aus) |
+| `Dockerfile.frontend` | node:18-alpine (npm ci + build) → nginx:alpine mit SPA-Fallback |
+| `deploy/nginx-frontend.conf` | `/api` → backend:5000, `/api/ws/terminal\|discovery\|status` → backend:8765/8766/8767 (Query bleibt, Upgrade-Header) |
+| `docker-compose.yml` | backend (privileged, `/dev`, D-Bus, Volume `./host/data` + `./models`) + frontend (:80) |
+| `.env.example` | echte ENV-Variablen (`NEXUS_JWT_SECRET`, `NEXUS_USER_*`, `NEXUS_DB_PATH`, `NEXUS_RATE_LIMIT_LOGIN`…) |
+| `.dockerignore` | node_modules, dist, host/data (Laufzeitdaten), mobile, docs … |
+
+### 9.4 Aus den 5 Verbesserungsvorschlägen umgesetzt / bewertet
+
+1. **Redis** – ⏸️ bewusst NICHT: Jobs/Sessions sind prozesslokal; für 100+ User sinnvoll, aktuell kein Bottleneck (dokumentiert).
+2. **Sentry** – ⏸️ externer Dienst; Fehler gehen ins Audit-Log + Log (Trace-ID). Kein Wert in der Sandbox.
+3. **Swagger/OpenAPI** – ✅ vorhanden: `GET /api/openapi.yaml` + `docs/openapi.yaml` (inkl. neuer Endpunkte `control`/`discovery/scan`/`audit/activity`/`db/status`).
+4. **Rate-Limiting** – ✅ **umgesetzt**: `host/ratelimit.py` (Sliding-Window), `/login` → 429 bei Überlast (Default 500/min, Produktion `.env`: 10/min); Test `TestRateLimit`.
+5. **Mobile-Responsive** – ✅ Discovery-Center: Binden-Button jetzt 44px-Touch-Ziel (`min-h-[44px]`), größere Icons, aktive Scale-Feedback.
+
+### 9.5 Verifikation (zuletzt durchgeführt)
+
+Host **77 Tests** (69 + 8 neu: TestDb, TestDbApi, TestRateLimit) ✅ · Desktop **46** ✅ ·
+Web tsc/lint(0 Warnungen)/build ✅ · Mobile **77** Dart-Dateien ✅ · py_compile ✅ ·
+Live-E2E: `/api/db/status` (WAL, integrity=ok, 7 Tabellen) ✅ · Bind→SQLite-Spiegel (owner_id) ✅ ·
+Login-Rate-Limit 429 ✅ · Docker-YAML validiert ✅

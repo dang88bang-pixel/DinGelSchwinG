@@ -1,0 +1,38 @@
+# NEXUS-BUILDER – BLE Professional Suite (Host + Web)
+# Start:  docker compose up -d --build
+# Erster Login: Der Host erzeugt beim Start zufällige Dev-Zugänge in
+# host/data/dev_users.json (Volume) und gibt sie im Log aus – alternativ
+# NEXUS_USER_<name>="<passwort>:<rolle>" in der .env setzen (keine
+# hartkodierten Zugänge im Code).
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: nexus-backend
+    # Zugriff auf Host-Hardware (BLE/USB) + mDNS/Bluetooth-D-Bus
+    privileged: true
+    volumes:
+      - ./host/data:/app/host/data      # Persistente SQLite-DB + Audit + SSH-Keys
+      - ./models:/models                # Optional: lokale Modell-Dateien
+      - /dev:/dev                       # Serielle USB-Dongles
+      - /var/run/dbus:/var/run/dbus     # Bluetooth Classic
+    environment:
+      - NEXUS_DB_PATH=/app/host/data/nexus.db
+      - NEXUS_JWT_SECRET=${NEXUS_JWT_SECRET:-change-me-in-production-0123456789abcdef}
+      - NEXUS_WEBAUTHN_REQUIRED=${NEXUS_WEBAUTHN_REQUIRED:-true}
+      - NEXUS_RATE_LIMIT_LOGIN=${NEXUS_RATE_LIMIT_LOGIN:-10}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: nexus-frontend
+    ports:
+      - "80:80"                         # Nginx serviert die gebaute React-App
+    depends_on:
+      - backend
+    restart: unless-stopped

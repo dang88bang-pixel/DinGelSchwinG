@@ -454,6 +454,15 @@ paths:
       responses:
         "200": { description: live metrics }
 
+  /api/db/status:
+    get:
+      tags: [system]
+      summary: SQLite-Verfügbarkeit (WAL, Integrität, Tabellen + Zeilenzahlen)
+      x-rbac: operator
+      responses:
+        "200": { description: db status }
+        "500": { description: Datenbank nicht verfügbar }
+
   /api/admin/rbac:
     get:
       tags: [admin]

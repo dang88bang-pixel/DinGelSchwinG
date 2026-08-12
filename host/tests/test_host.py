@@ -6,9 +6,14 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Tests isolieren: SQLite-DB in /tmp statt host/data/nexus.db
+os.environ.setdefault("NEXUS_DB_PATH",
+                      os.path.join(tempfile.gettempdir(), "dgs-nexus-test.db"))
 
 # Aktive Test-Zugänge konfigurieren (auth liest NEXUS_USER_* aus ENV)
 os.environ.setdefault("NEXUS_USER_admin", "admin:admin")
@@ -963,3 +968,131 @@ class TestAuditActivityApi(unittest.TestCase):
             self.assertIn("type", e)
             self.assertIn("timestamp", e)
             self.assertIn("message", e)
+
+
+class TestDb(unittest.TestCase):
+    """Zentrale SQLite-Persistenz: Migration, CRUD, Verfügbarkeit."""
+
+    def test_init_db_migrations(self) -> None:
+        from host import db
+        info = db.init_db()  # zweimal → idempotent
+        self.assertTrue(info["ok"])
+        self.assertGreaterEqual(info["schema_version"], 1)
+        for t in ("users", "devices", "chat_history", "background_jobs",
+                  "app_configs", "rbac_matrix", "ble_characteristics"):
+            self.assertIn(t, info["tables"])
+
+    def test_app_configs_crud(self) -> None:
+        from host import db
+        db.set_config("test.key", "42")
+        self.assertEqual(db.get_config("test.key"), "42")
+        db.set_config("test.key", "43")
+        self.assertEqual(db.get_config("test.key"), "43")
+
+    def test_rbac_matrix_table(self) -> None:
+        from host import db
+        db.set_rbac_override("ble_connect", "guest", True)
+        rows = db.query("SELECT action, role, allow FROM rbac_matrix "
+                        "WHERE action='ble_connect' AND role='guest'")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["allow"], 1)
+        db.clear_rbac_override("ble_connect", "guest")
+        rows = db.query("SELECT * FROM rbac_matrix "
+                        "WHERE action='ble_connect' AND role='guest'")
+        self.assertEqual(len(rows), 0)
+
+    def test_status_wal_integrity(self) -> None:
+        from host import db
+        st = db.status()
+        self.assertTrue(st["ok"])
+        self.assertEqual(st["journal_mode"].lower(), "wal")
+        self.assertEqual(st["integrity_check"], "ok")
+        self.assertGreaterEqual(st["schema_version"], 1)
+
+
+class TestDbApi(unittest.TestCase):
+    """End-to-End: API schreibt in die SQLite-DB (users/devices)."""
+
+    def setUp(self) -> None:
+        from host import db
+        self.db = db
+        db.init_db()
+        db.execute("DELETE FROM devices")
+        db.execute("DELETE FROM users")
+        self.app = create_app()
+        self.client = self.app.test_client()
+        login = self.client.post("/api/login",
+                                 json={"email": "developer", "password": "dev123"})
+        self.headers = {"Authorization": f"Bearer {login.get_json()['token']}"}
+
+    def test_db_status_endpoint(self) -> None:
+        res = self.client.get("/api/db/status", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["service"], "nexus-db")
+        self.assertEqual(body["integrity_check"], "ok")
+        for t in ("users", "devices", "chat_history", "background_jobs",
+                  "app_configs", "rbac_matrix", "ble_characteristics"):
+            self.assertIn(t, body["tables"])
+
+    def test_bind_mirrors_devices_table(self) -> None:
+        res = self.client.post("/api/devices/bind", headers=self.headers,
+                               json={"nodeId": "manual:db:1", "alias": "DB-Gerät",
+                                     "protocol": "ping", "address": "127.0.0.1"})
+        self.assertEqual(res.status_code, 201, res.get_json())
+        rows = self.db.query("SELECT id, alias, protocol, owner_id FROM devices")
+        self.assertTrue(any(r["id"] == "manual:db:1"
+                            and r["owner_id"] == "developer"
+                            and r["protocol"] == "ping" for r in rows))
+        # Unbind entfernt den Spiegel
+        self.client.delete("/api/devices/bind/manual:db:1", headers=self.headers)
+        rows = self.db.query("SELECT id FROM devices WHERE id='manual:db:1'")
+        self.assertEqual(len(rows), 0)
+
+    def test_create_user_mirrors_users_table(self) -> None:
+        admin = self.client.post("/api/login",
+                                 json={"email": "admin", "password": "admin"})
+        ah = {"Authorization": f"Bearer {admin.get_json()['token']}"}
+        res = self.client.post("/api/admin/users", headers=ah,
+                               json={"username": "dbuser", "password": "geheim123",
+                                     "role": "service"})
+        self.assertEqual(res.status_code, 201, res.get_json())
+        rows = self.db.query("SELECT username, role, source FROM users "
+                             "WHERE username='dbuser'")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["role"], "service")
+        self.assertEqual(rows[0]["source"], "db")
+        # Löschen entfernt den Spiegel
+        self.client.delete("/api/admin/users/dbuser", headers=ah)
+        rows = self.db.query("SELECT username FROM users WHERE username='dbuser'")
+        self.assertEqual(len(rows), 0)
+
+
+class TestRateLimit(unittest.TestCase):
+    """Brute-Force-Schutz auf /login (Sliding-Window)."""
+
+    def setUp(self) -> None:
+        from host import config
+        from host.ratelimit import ratelimiter
+        self.config = config
+        self.ratelimiter = ratelimiter
+        self.ratelimiter.reset()
+        self._old_limit = config.RATE_LIMIT_LOGIN
+        config.RATE_LIMIT_LOGIN = 2
+        self.app = create_app()
+        self.client = self.app.test_client()
+
+    def tearDown(self) -> None:
+        self.config.RATE_LIMIT_LOGIN = self._old_limit
+        self.ratelimiter.reset()
+
+    def test_login_bruteforce_blocked(self) -> None:
+        for _ in range(2):
+            res = self.client.post("/api/login",
+                                   json={"email": "x", "password": "y"})
+            self.assertEqual(res.status_code, 401)
+        res = self.client.post("/api/login",
+                               json={"email": "x", "password": "y"})
+        self.assertEqual(res.status_code, 429)
+        self.assertEqual(res.get_json()["code"], "RATE_LIMITED")
