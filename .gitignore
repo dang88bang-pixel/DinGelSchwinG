@@ -44,3 +44,4 @@ desktop/data/system_instruction_custom.txt
 # Backend runtime
 server/data/
 server/**/__pycache__/
+logs/

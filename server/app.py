@@ -27,6 +27,8 @@ from .auth import decode_jwt, issue_jwt, verify_password
 from .diagnostics import payload_bytes, ping_targets, throughput_selftest
 from .discovery import collect_all, default_gateway, system_load
 from .rbac import allows
+from .rate_limiter import allow as rate_allow
+from .device_manager import annotate_permissions
 from .research import research as do_research
 
 BIND = os.environ.get("NEXUS_BIND", "0.0.0.0")
@@ -124,6 +126,43 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         _json(handler, 200, {"status": "ok", "service": "nexus-manager", "ts": time.time()})
         return
 
+    if path == "/metrics" and method == "GET":
+        devices = store.list_devices()
+        body = (
+            "# HELP nexus_devices_total Erfasste Geräte\n"
+            "# TYPE nexus_devices_total gauge\n"
+            f"nexus_devices_total {len(devices)}\n"
+            "# HELP nexus_up 1 wenn der Dienst lebt\n"
+            "# TYPE nexus_up gauge\n"
+            "nexus_up 1\n"
+        ).encode("utf-8")
+        _bytes(handler, 200, body, "text/plain; version=0.0.4")
+        return
+
+    if path in ("/ws/status", "/api/ws/status") and method == "GET":
+        # Desktop-Konsole: WS-Upgrade auf dem REST-Port
+        from .status_board import handle as status_handle
+        try:
+            handler.connection.settimeout(None)
+            # Request bereits gelesen – Handshake manuell mit vorhandenen Headern
+            key = handler.headers.get("Sec-WebSocket-Key")
+            if not key:
+                _json(handler, 400, {"type": "error", "code": "BAD_REQUEST", "message": "kein WebSocket"})
+                return
+            from .wsutil import accept_key, WsClient
+            accept = accept_key(key)
+            handler.send_response(101, "Switching Protocols")
+            handler.send_header("Upgrade", "websocket")
+            handler.send_header("Connection", "Upgrade")
+            handler.send_header("Sec-WebSocket-Accept", accept)
+            handler.end_headers()
+            qs = {k: v[0] for k, v in parse_qs(urlparse(handler.path).query).items()}
+            client = WsClient(handler.connection, path, qs)
+            status_handle(client)
+        except Exception:
+            traceback.print_exc()
+        return
+
     if path == "/api/login" and method == "POST":
         try:
             body = _read_json(handler)
@@ -132,6 +171,10 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
             return
         email = (body.get("email") or body.get("username") or "").strip()
         password = body.get("password") or ""
+        ip = handler.client_address[0] if handler.client_address else "local"
+        if not rate_allow(f"login:{ip}:{email}"):
+            _json(handler, 429, {"type": "error", "code": "RATE_LIMIT", "message": "Zu viele Login-Versuche"})
+            return
         if not email or not password:
             _json(handler, 400, {"type": "error", "code": "BAD_REQUEST", "message": "email+password nötig"})
             return
@@ -146,9 +189,11 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         return
 
     if path == "/api/devices" and method == "GET":
-        if not _need(handler, "devices.read"):
+        claims = _need(handler, "devices.read")
+        if not claims:
             return
-        _json(handler, 200, store.list_devices())
+        role = str(claims.get("role") or "guest")
+        _json(handler, 200, [annotate_permissions(role, d) for d in store.list_devices()])
         return
 
     if path == "/api/devices" and method == "POST":

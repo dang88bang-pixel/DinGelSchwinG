@@ -8,6 +8,11 @@ import ReplayEditor from './ReplayEditor';
 import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
 import AgentConsole from './AgentConsole';
+import AccessConsole from './AccessConsole';
+import NetworkPanel from './NetworkPanel';
+import StatusBoard from './StatusBoard';
+import OverviewPanel from './OverviewPanel';
+import NfcReader from './NfcReader';
 import { useSensors } from '../hooks/useSensors';
 import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
 import { registry, type ManagedDevice } from '../lib/devices/registry';
@@ -32,6 +37,7 @@ export default function NetworkDashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [termOpen, setTermOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [netConfig, setNetConfig] = useState<NetworkConfig>(() => {
     try {
@@ -156,6 +162,13 @@ export default function NetworkDashboard() {
           >
             🤖 Agent
           </button>
+          <button
+            onClick={() => setTermOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-slate-800 text-cyan-100 ring-1 ring-cyan-500/30 shadow-xl hover:brightness-110 transition"
+            title="Access Console / Terminal"
+          >
+            ⌨ Terminal
+          </button>
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
               {m==='ble' && <Bluetooth className="w-3.5 h-3.5" />}{m==='wifi' && <Wifi className="w-3.5 h-3.5" />}{m==='usb' && <Radio className="w-3.5 h-3.5" />}{m.toUpperCase()}
@@ -259,6 +272,10 @@ export default function NetworkDashboard() {
               </div>
             </div>
           {/* Neue Diagnose-Module */}
+          <OverviewPanel />
+          <StatusBoard />
+          <NetworkPanel />
+          <NfcReader />
           <NetworkDiagnostics />
           <MeshControl />
           <ReplayEditor />

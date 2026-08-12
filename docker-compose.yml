@@ -1,0 +1,59 @@
+services:
+  api:
+    build: .
+    command: python3 server/app.py
+    environment:
+      NEXUS_BIND: 0.0.0.0
+      NEXUS_PORT: "5000"
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+    ports:
+      - "5000:5000"
+    volumes:
+      - nexus-data:/app/server/data
+
+  terminal:
+    build: .
+    command: python3 -m server.pty_bridge
+    environment:
+      NEXUS_BIND: 0.0.0.0
+      PTY_PORT: "8765"
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+    ports:
+      - "8765:8765"
+    volumes:
+      - nexus-data:/app/server/data
+    privileged: true
+
+  discovery:
+    build: .
+    command: python3 -m server.scanner_service
+    environment:
+      NEXUS_BIND: 0.0.0.0
+      SCAN_PORT: "8766"
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+    network_mode: host
+    volumes:
+      - nexus-data:/app/server/data
+
+  status:
+    build: .
+    command: python3 -m server.status_board
+    environment:
+      NEXUS_BIND: 0.0.0.0
+      STATUS_PORT: "8767"
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+    ports:
+      - "8767:8767"
+    volumes:
+      - nexus-data:/app/server/data
+
+  web:
+    build: .
+    command: npx vite preview --host 0.0.0.0 --port 4173
+    ports:
+      - "4173:4173"
+    depends_on:
+      - api
+
+volumes:
+  nexus-data:
