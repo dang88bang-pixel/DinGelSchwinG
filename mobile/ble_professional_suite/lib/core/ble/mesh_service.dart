@@ -86,6 +86,13 @@ class MeshService {
     return devices;
   }
 
+  /// Guard: aktives Netzwerk erforderlich (ohne ungenutzte lokale Variable).
+  void _requireNetwork() {
+    if (_activeNetwork == null) {
+      throw StateError('Kein aktives Mesh-Netzwerk');
+    }
+  }
+
   // === KONFIGURATION ===
   Future<void> configureModel(
     ProvisionedNode node,
@@ -94,8 +101,7 @@ class MeshService {
     int? publicationAddress,
     int? subscriptionAddress,
   }) async {
-    final network = _activeNetwork ??
-        (throw StateError('Kein aktives Mesh-Netzwerk'));
+    _requireNetwork();
     final element = node.elements[elementIndex];
     final model = element.models.firstWhere((m) => m.modelId == modelId);
 
@@ -112,8 +118,7 @@ class MeshService {
   }
 
   Future<void> setPublicationAddress(ProvisionedNode node, int address) async {
-    final network = _activeNetwork ??
-        (throw StateError('Kein aktives Mesh-Netzwerk'));
+    _requireNetwork();
     for (final element in node.elements) {
       for (final model in element.models) {
         await model.setPublicationAddress(address);
@@ -122,8 +127,7 @@ class MeshService {
   }
 
   Future<void> addSubscriptionAddress(ProvisionedNode node, int address) async {
-    final network = _activeNetwork ??
-        (throw StateError('Kein aktives Mesh-Netzwerk'));
+    _requireNetwork();
     for (final element in node.elements) {
       for (final model in element.models) {
         await model.addSubscriptionAddress(address);
@@ -132,17 +136,15 @@ class MeshService {
   }
 
   Future<void> setDefaultTtl(ProvisionedNode node, int ttl) async {
-    final network = _activeNetwork ??
-        (throw StateError('Kein aktives Mesh-Netzwerk'));
-    await network.setDefaultTtl(ttl);
+    _requireNetwork();
+    await _activeNetwork!.setDefaultTtl(ttl);
     Logger.instance.info('TTL ${node.name ?? node.uuid} → $ttl');
   }
 
   // === NACHRICHTEN ===
   Future<void> sendMessage(int destinationAddress, Message message) async {
-    final network = _activeNetwork ??
-        (throw StateError('Kein aktives Mesh-Netzwerk'));
-    await network.sendMessage(destinationAddress, message);
+    _requireNetwork();
+    await _activeNetwork!.sendMessage(destinationAddress, message);
     Logger.instance.info('Mesh-Nachricht → 0x'
         '${destinationAddress.toRadixString(16)}');
   }

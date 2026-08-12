@@ -116,6 +116,7 @@ class BleSuiteView(ctk.CTkFrame):
             return
         self._log(f"Gerät gewählt: {device['name']}")
         self._fill_gatt(device)
+        self._gatt_load()  # GATT-Struktur sofort aktiv anzeigen
 
     # ------------------------------------------------------------------
     def _build_gatt_tab(self, tab) -> None:

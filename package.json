@@ -15,7 +15,8 @@
     "android:apk:release": "cd android && ./gradlew assembleRelease",
     "android:install": "cd android && ./gradlew installDebug",
     "capacitor:add": "npx cap add android",
-    "capacitor:sync": "npx cap sync"
+    "capacitor:sync": "npx cap sync",
+    "wasm:build": "cd wasm-ble && wasm-pack build --target web --out-dir ../public/wasm && cd .."
   },
   "dependencies": {
     "@capacitor/android": "^5.0.0",

@@ -61,16 +61,8 @@ class _MeshScreenState extends ConsumerState<MeshScreen> {
         ],
       ),
       body: network == null
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.network_off, size: 64),
-                  SizedBox(height: 16),
-                  Text('Kein aktives Mesh-Netzwerk'),
-                  Text('Erstelle ein neues Netzwerk oder lade ein bestehendes'),
-                ],
-              ),
+          ? _NoNetworkView(
+              onLoadSaved: () => _showSavedNetworks(context),
             )
           : Column(
               children: [
@@ -106,6 +98,49 @@ class _MeshScreenState extends ConsumerState<MeshScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  /// Dialog: gespeicherte Netzwerke aus SQLite laden (aktiv via DAO).
+  Future<void> _showSavedNetworks(BuildContext context) async {
+    final saved = await ref.read(meshControllerProvider).savedNetworks();
+    if (!context.mounted) return;
+    if (saved.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keine gespeicherten Mesh-Netzwerke')),
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Gespeicherte Mesh-Netzwerke'),
+        children: [
+          for (final network in saved)
+            SimpleDialogOption(
+              onPressed: () async {
+                try {
+                  await ref
+                      .read(meshControllerProvider)
+                      .loadNetwork(MeshController.uuidFromString(network.id));
+                  Navigator.pop(dialogContext);
+                } catch (e) {
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Laden fehlgeschlagen: $e')),
+                    );
+                  }
+                }
+              },
+              child: ListTile(
+                leading: const Icon(Icons.network_node),
+                title: Text(network.name),
+                subtitle: Text('${network.nodes.length} Knoten · '
+                    '${network.createdAt.toLocal().toString().substring(0, 16)}'),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -158,6 +193,34 @@ class _MeshScreenState extends ConsumerState<MeshScreen> {
               }
             },
             child: const Text('Erstellen'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Leerer Zustand ohne aktives Netzwerk – bietet Anlegen + Laden aus SQLite.
+class _NoNetworkView extends StatelessWidget {
+  final VoidCallback onLoadSaved;
+
+  const _NoNetworkView({required this.onLoadSaved});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.network_off, size: 64),
+          const SizedBox(height: 16),
+          const Text('Kein aktives Mesh-Netzwerk'),
+          const Text('Erstelle ein neues Netzwerk oder lade ein bestehendes'),
+          const SizedBox(height: 16),
+          FilledButton.tonalIcon(
+            onPressed: onLoadSaved,
+            icon: const Icon(Icons.folder_open),
+            label: const Text('Gespeicherte Netzwerke laden'),
           ),
         ],
       ),

@@ -1,5 +1,6 @@
 // lib/features/settings/about_screen.dart
 import 'package:flutter/material.dart';
+import '../../ui/widgets/custom_app_bar.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -7,7 +8,7 @@ class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Über')),
+      appBar: CustomAppBar(title: 'Über', showBackButton: true),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [

@@ -17,10 +17,17 @@ class ScannerWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scanResults = ref.watch(scanResultsProvider);
     final isScanning = ref.watch(scanControllerProvider);
+    // Verbindungszähler live aus dem Provider (aktiv verdrahtet)
+    final connectedCount =
+        ref.watch(connectedCountProvider).valueOrNull ?? 0;
 
     return Column(
       children: [
-        _StatusBar(isScanning: isScanning, deviceCount: scanResults.valueOrNull?.length ?? 0),
+        _StatusBar(
+          isScanning: isScanning,
+          deviceCount: scanResults.valueOrNull?.length ?? 0,
+          connectedCount: connectedCount,
+        ),
         const SizedBox(height: 4),
         Expanded(
           child: switch (scanResults) {
@@ -58,8 +65,13 @@ class ScannerWidget extends ConsumerWidget {
 class _StatusBar extends StatelessWidget {
   final bool isScanning;
   final int deviceCount;
+  final int connectedCount;
 
-  const _StatusBar({required this.isScanning, required this.deviceCount});
+  const _StatusBar({
+    required this.isScanning,
+    required this.deviceCount,
+    required this.connectedCount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +84,10 @@ class _StatusBar extends StatelessWidget {
           Text(isScanning ? 'Scanne…' : 'Scan gestoppt'),
           const Spacer(),
           Text('$deviceCount Geräte gefunden'),
+          const SizedBox(width: 12),
+          Icon(Icons.link, size: 16, color: connectedCount > 0 ? Colors.green : Colors.grey),
+          const SizedBox(width: 4),
+          Text('$connectedCount verbunden'),
         ],
       ),
     );

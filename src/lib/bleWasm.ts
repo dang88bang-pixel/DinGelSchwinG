@@ -50,11 +50,20 @@ const JS_SIMULATION: BLEWasmExports = {
 /**
  * Lädt das WASM-Modul oder liefert die verifizierte JS-Simulation.
  */
+const WASM_CANDIDATES = ['/wasm/ble_distance_bg.wasm', '/wasm/ble_distance.wasm'];
+
 export async function loadBLEWasm(): Promise<BLEWasmExports> {
   try {
-    // Versuch 1: Echte WASM-Instanzierung
-    const resp = await fetch('/wasm/ble_distance_bg.wasm');
-    if (resp.ok) {
+    // Versuch 1: Echte WASM-Instanzierung (wasm-pack Output oder manueller Build)
+    let resp: Response | null = null;
+    for (const path of WASM_CANDIDATES) {
+      const r = await fetch(path);
+      if (r.ok) {
+        resp = r;
+        break;
+      }
+    }
+    if (resp) {
       const bytes = await resp.arrayBuffer();
       const wasmModule = await WebAssembly.compile(bytes);
       const instance = await WebAssembly.instantiate(wasmModule, {});

@@ -227,8 +227,6 @@ export default function NetworkDashboard() {
               } catch (e) { alert('Lernprozess fehlgeschlagen'); }
             }} className="text-xs font-extrabold px-4 py-2 rounded-xl bg-gradient-to-br from-amber-600 to-violet-700 text-white shadow-xl hover:brightness-110 transition">🔄 Bestätigung durch Client-Gerät auswerten</button>
           </div>
-<ReplayEditor />
-          <RosettaPanel />
           </div>
         </section>
 

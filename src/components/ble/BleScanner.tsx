@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useBleStore } from './useBleStore';
 import { RssiHistoryChart, Chip, StatCard } from './BleCharts';
+import NfcReader from '../NfcReader';
 import { DEVICE_CLASS_COLORS, DEVICE_CLASS_LABELS, BleDeviceClass } from '../../lib/ble/types';
 
 const CLASS_FILTERS: Array<BleDeviceClass | 'all'> = ['all', 'ntag', 'token', 'mesh', 'peripheral'];
@@ -159,6 +160,16 @@ export default function BleScanner() {
           </div>
         )}
       </div>
+
+      {/* NTag/NFC-NDEF-Lesen (echte WebNFC-Hardware, wenn verfügbar) */}
+      <NfcReader
+        onTagRead={(res) => {
+          // Erkannten NDEF-Text ins Filterfeld übernehmen (NFC↔BLE-Workflow)
+          if (res.message && res.message !== '(kein Text-NDEF)') {
+            setQuery(res.message.slice(0, 60));
+          }
+        }}
+      />
 
       {/* Agenten-Vorschlag für ausgewähltes Gerät */}
       {selected && (

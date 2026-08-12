@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_router.dart';
 import '../../core/ble/ble_service.dart';
 import '../../providers/profile_provider.dart';
+import '../../ui/widgets/custom_app_bar.dart';
 import '../../ui/widgets/error_widget.dart';
 import '../../ui/widgets/loading_indicator.dart';
 import 'profile_card.dart';
@@ -23,13 +24,23 @@ class _ProfileListScreenState extends ConsumerState<ProfileListScreen> {
   final ProfileExecutor _executor = ProfileExecutor();
   BluetoothDevice? _targetDevice;
 
+  void _syncProgress() {
+    ref.read(profileExecutionProgressProvider.notifier).state =
+        _executor.progress.value;
+  }
+
   @override
   void dispose() {
+    _executor.progress.removeListener(_syncProgress);
     _executor.dispose();
     super.dispose();
   }
 
   Future<void> _apply(BleProfile profile) async {
+    // Aktives Profil + Fortschritt über Provider exponiert (aktiv verdrahtet).
+    ref.read(activeProfileProvider.notifier).state = profile;
+    ref.read(profileExecutionProgressProvider.notifier).state = 0;
+    _executor.progress.addListener(_syncProgress);
     // Zielgerät wählen (verbundene Geräte).
     final connected = BLEService.instance.connectedDevices;
     if (connected.isEmpty) {
@@ -95,8 +106,9 @@ class _ProfileListScreenState extends ConsumerState<ProfileListScreen> {
     final profiles = ref.watch(profilesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil-Cache'),
+      appBar: CustomAppBar(
+        title: 'Profil-Cache',
+        showBackButton: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),

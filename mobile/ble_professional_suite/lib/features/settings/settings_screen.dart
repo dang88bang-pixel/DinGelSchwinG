@@ -1,6 +1,7 @@
 // lib/features/settings/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../app/app_router.dart';
 import '../../core/agent/models/model_loader.dart';
 import '../../core/ble/peripheral_service.dart';
 import 'about_screen.dart';
@@ -106,6 +107,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const DongleSettings(),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.folder_shared),
+            title: const Text('Profil-Cache'),
+            subtitle: const Text('Konfigurationsprofile anzeigen, bearbeiten, anwenden'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.pushNamed(context, AppRouter.profiles),
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.memory),

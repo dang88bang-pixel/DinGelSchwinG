@@ -97,7 +97,9 @@ Legende: ✅ aktiv · 🟡 teilaktiv/plattformabhängig · ⬜ inaktiv
 
 ---
 
-## 3. In diesem Durchgang aktivierte Parts (vorher inaktiv)
+## 3. Aktivierte Parts
+
+### Runde 1 (vorher inaktiv)
 
 | Part | Vorher | Jetzt |
 |---|---|---|
@@ -112,6 +114,26 @@ Legende: ✅ aktiv · 🟡 teilaktiv/plattformabhängig · ⬜ inaktiv
 | `ProviderInitializer` | ungenutzt | von `main()` aufgerufen |
 | `ProfileExecutor` | – | Schritt-Switch mit `break`-Korrektheit verifiziert |
 | Verifikationswerkzeug | – | `mobile/…/tool/check_project.py` (statische Checks) |
+
+### Runde 2 (weitere inaktive Parts aktiviert)
+
+| Part | Vorher | Jetzt |
+|---|---|---|
+| `LightTheme` / `DarkTheme` | definiert, aber ungenutzt (AppTheme baute Themes inline) | `AppTheme.light()/dark()` delegieren an beide Klassen |
+| `CustomAppBar` | ungenutzt | in `AboutScreen` + `ProfileListScreen` aktiv |
+| `chat_message.dart` (`ChatMessage`) | toter Typ | `agent_provider` + `message_bubble` nutzen `ChatMessage` |
+| `gatt_structure.dart` (GATT-Modelle) | tote Modelle | `GattController.toProfile()/profileJson()`; GATT-Screen: „Profil (JSON) kopieren“ (Zwischenablage) |
+| `mesh_network.dart` + `mesh_network_dao.dart` | tote Schicht (nur Selbstreferenz) | **Persistenz aktiv**: Netzwerk wird beim Erstellen + nach jeder Provisionierung in SQLite gespeichert; Mesh-Screen „Gespeicherte Netzwerke laden“ (DAO → `savedMeshNetworksProvider`) |
+| `connectedCountProvider` | ungenutzter StateProvider | echter Stream-Provider (aus `connectionStatus` abgeleitet); Scanner-Statuszeile zeigt „N verbunden“ |
+| `connectionStateProvider` | ungenutzt | GATT-Explorer zeigt Verbindungsstatus live darüber |
+| `gattServicesProvider` | totes Duplikat des Controllers | entfernt (Funktion ist im GattController aktiv) |
+| `activeProfileProvider` / `profileExecutionProgressProvider` | ungenutzt | ProfileListScreen setzt aktives Profil + spiegelt Executor-Fortschritt |
+| `SettingsScreen` | unerreichbar (kein Einstiegspunkt) | gear-Button im Audit-Log-AppBar → `/settings` |
+| `ProfileListScreen` | unerreichbar | Settings-Tile „Profil-Cache“ → `/profiles` |
+| **Web:** `ReplayEditor`/`RosettaPanel` | doppelt gerendert (Zeilen 230/231) | Duplikate entfernt, einmal gerendert |
+| **Web:** `NfcReader.tsx` | in README referenziert, Datei fehlte | erstellt – echtes WebNFC-NDEF-Lesen (Chromium/Android), integriert im BLE-Suite-Scanner (NTag-Bereich, übernimmt NDEF-Text als Filter) |
+| **Web:** WASM-Loader | nur `/wasm/ble_distance_bg.wasm` | probiert zusätzlich `/wasm/ble_distance.wasm`; `npm run wasm:build` (wasm-pack) ergänzt |
+| **Desktop:** GATT-View | Services erst per Button | Geräteauswahl füllt GATT-Baum sofort (`_select_device` → `_gatt_load`) |
 
 ---
 
@@ -149,13 +171,14 @@ flutter pub get && flutter analyze && flutter test && flutter build apk --debug
 
 ### 4.4 Ergebnisse (dieser Lauf)
 
-| Check | Ergebnis |
-|---|---|
-| `npm run lint` | ✅ |
-| `npx tsc --noEmit` | ✅ |
-| `npm run build` | ✅ |
-| `python3 -m unittest discover -s desktop/tests` | ✅ 40/40 |
-| `python3 tool/check_project.py` | ✅ 77 Dart-Dateien, keine Stubs |
+| Check | Runde 1 | Runde 2 |
+|---|---|---|
+| `npm run lint` | ✅ | ✅ |
+| `npx tsc --noEmit` | ✅ | ✅ |
+| `npm run build` | ✅ | ✅ (35,4 s) |
+| `python3 -m unittest discover -s desktop/tests` | ✅ 40/40 | ✅ 40/40 |
+| `python3 tool/check_project.py` | ✅ 77 Dart-Dateien | ✅ 77 Dart-Dateien, keine Stubs |
+| `python3 -m py_compile desktop/views/ble.py` | – | ✅ |
 
 ---
 

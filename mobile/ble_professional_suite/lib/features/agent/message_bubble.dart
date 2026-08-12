@@ -4,9 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../core/agent/agent_service.dart';
 import 'action_button.dart';
+import 'chat_message.dart';
 
 class MessageBubble extends StatelessWidget {
-  final AgentMessage message;
+  final ChatMessage message;
   final void Function(ActionButton button)? onAction;
 
   const MessageBubble({super.key, required this.message, this.onAction});

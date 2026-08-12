@@ -1,7 +1,9 @@
 // lib/features/gatt/gatt_explorer_screen.dart
 // GATT-Explorer: zeigt Dienste/Characteristics/Descriptors des gewählten
-// Geräts (selectedDeviceProvider) und bietet Read/Write/Notify/MTU.
+// Geräts (selectedDeviceProvider) und bietet Read/Write/Notify/MTU sowie
+// den Export des GATT-Profils (Domänenmodell) als JSON.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/ble/ble_service.dart';
@@ -117,9 +119,25 @@ class _GattExplorerScreenState extends ConsumerState<GattExplorerScreen> {
                     ],
                   ),
                 ),
-                ConnectionStatusBadge(state: connected
-                    ? UiConnectionState.connected
-                    : UiConnectionState.disconnected),
+                // Verbindungsstatus live über connectionStateProvider (aktiv)
+                ref.watch(connectionStateProvider).when(
+                      data: (entry) {
+                        final connectedNow =
+                            entry.$1 == device.remoteId.str &&
+                                entry.$2 == ConnectionState.connected;
+                        return ConnectionStatusBadge(
+                          state: connectedNow
+                              ? UiConnectionState.connected
+                              : UiConnectionState.disconnected,
+                        );
+                      },
+                      error: (_, __) => ConnectionStatusBadge(
+                          state: UiConnectionState.disconnected),
+                      loading: () => ConnectionStatusBadge(
+                          state: connected
+                              ? UiConnectionState.connected
+                              : UiConnectionState.disconnected),
+                    ),
               ],
             ),
           ),
@@ -165,6 +183,30 @@ class _GattExplorerScreenState extends ConsumerState<GattExplorerScreen> {
                   ),
           ),
           const SizedBox(height: 4),
+          // GATT-Profil (Domänenmodell) als JSON exportieren/teilen
+          if (controller.services.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () async {
+                    final json = controller.profileJson();
+                    await Clipboard.setData(ClipboardData(text: json));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('GATT-Profil (JSON) in die Zwischenablage '
+                              'kopiert (${json.length} Zeichen)'),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.copy_all, size: 16),
+                  label: const Text('Profil (JSON) kopieren'),
+                ),
+              ),
+            ),
           Expanded(
             child: controller.isLoading
                 ? const LoadingIndicator(label: 'Dienste werden entdeckt…')

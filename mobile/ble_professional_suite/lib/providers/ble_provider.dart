@@ -28,15 +28,16 @@ final connectionStateProvider = StreamProvider<(String, ConnectionState)>(
   (ref) => BLEService.instance.connectionStatus,
 );
 
-/// Anzahl paralleler Verbindungen.
-final connectedCountProvider = StateProvider<int>((ref) => 0);
+/// Anzahl paralleler Verbindungen – live aus dem connectionStatus-Stream
+/// des BLEService abgeleitet (aktiv verdrahtet).
+final connectedCountProvider = StreamProvider<int>((ref) async* {
+  var count = BLEService.instance.connectedCount;
+  yield count;
+  await for (final _ in BLEService.instance.connectionStatus) {
+    count = BLEService.instance.connectedCount;
+    yield count;
+  }
+});
 
 /// Im Scanner ausgewähltes Gerät (für den GATT-Tab).
 final selectedDeviceProvider = StateProvider<BluetoothDevice?>((ref) => null);
-
-/// GATT-Dienste des gewählten/verbundenen Geräts (Stream via FutureProvider).
-final gattServicesProvider = FutureProvider<List<BluetoothService>>((ref) async {
-  final device = ref.watch(selectedDeviceProvider);
-  if (device == null) return const [];
-  return BLEService.instance.discoverServices(device);
-});
