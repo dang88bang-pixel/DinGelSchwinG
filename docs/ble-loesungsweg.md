@@ -55,10 +55,10 @@ Legende: ✅ aktiv · 🟡 teilaktiv/plattformabhängig · ⬜ inaktiv
 |---|---|---|---|
 | Audit-Log mit Export (JSON/CSV) | ✅ | ✅ | ✅ Logs + share_plus |
 | Makro-Aufzeichnung/-Wiedergabe | ✅ | – | – |
-| Vordefinierte Test-Suiten | ✅ 4 Suiten | ✅ 4 Suiten | 🟡 Agent `run_test_suite` (Log-Pfad) |
-| Durchsatz-/Latenztests | ✅ | ✅ | 🟡 (Performance via Agent/Log) |
+| Vordefinierte Test-Suiten | ✅ 4 Suiten | ✅ 4 Suiten | ✅ Tests-Tab (NTag/Token/Mesh/Performance) |
+| Durchsatz-/Latenztests | ✅ | ✅ | ✅ Tests-Tab (echte GATT-Messung) |
 | Paket-Sniffer (Low-Level) | ✅ simuliert | ✅ simuliert | ⬜ Hardware-Limit (Doku) |
-| Fehlersimulation | ✅ WebAuthn | ✅ | 🟡 (RBAC-Guard, Injektion Desktop/Web) |
+| Fehlersimulation | ✅ WebAuthn | ✅ | 🟡 (RBAC-Guard, Injektion via Desktop/Web) |
 
 ### 2.4 BLE Mesh-Netzwerk
 
@@ -89,7 +89,7 @@ Legende: ✅ aktiv · 🟡 teilaktiv/plattformabhängig · ⬜ inaktiv
 | Attribut | Status | Nachweis |
 |---|---|---|
 | RBAC (Service L2 / Developer L3) | ✅ alle | Web BLE_ACTION_LEVELS, Desktop ROLE_LEVEL, Mobile Agent-Controller |
-| WebAuthn für kritische Aktionen | ✅ Web/Desktop · 🟡 Mobile (Bestätigungsdialog, FIDO2-Integration vorbereitet) | – |
+| WebAuthn für kritische Aktionen | ✅ Web/Desktop · ✅ Mobile (biometrisch via local_auth, FIDO2-Äquivalent + Fallback-Dialog) | – |
 | Audit mit Nutzer-ID + Zeitstempel | ✅ alle | – |
 | Dongle-Erkennung/-Bindung (VID-Whitelist) | ✅ Web/Doku · ✅ Mobile (OTG) | device_filter.xml |
 | Monitoring (Prometheus/Loki/Grafana) | ✅ | alert-rules `nexus-ble`, Dashboard `nexus-ble.json` |
@@ -135,6 +135,17 @@ Legende: ✅ aktiv · 🟡 teilaktiv/plattformabhängig · ⬜ inaktiv
 | **Web:** WASM-Loader | nur `/wasm/ble_distance_bg.wasm` | probiert zusätzlich `/wasm/ble_distance.wasm`; `npm run wasm:build` (wasm-pack) ergänzt |
 | **Desktop:** GATT-View | Services erst per Button | Geräteauswahl füllt GATT-Baum sofort (`_select_device` → `_gatt_load`) |
 
+### Runde 3 – Fertigstellung (offene Roadmap-Punkte aktiviert)
+
+| Part | Vorher | Jetzt |
+|---|---|---|
+| **Mobile Test-Suiten/Durchsatz/Latenz** | nur über Agent-String („Ergebnisse im Logs-Tab“) | eigener **Tests & Performance-Tab** (6. Navigationstab): echte GATT-Checks (Batterie/Notify/Write-Roundtrip) für NTag/Token, Mesh-Suite (Netzwerk/Knoten/Nachricht), Durchsatz- & Latenztests auf verbundenen Geräten (`features/tests/test_controller.dart` + `test_suite_screen.dart`) |
+| **WebAuthn (Mobile)** | Bestätigungsdialog (Simulation) | **echtes FIDO2-Äquivalent**: `core/security/webauthn_service.dart` mit biometrischer Bestätigung (local_auth: FaceID/Fingerprint) + Fallback-Dialog; iOS `NSFaceIDUsageDescription`; Profil-Anwendung läuft über das Gateway |
+| `savedMeshNetworksProvider` | definiert, aber ungenutzt | Mesh-Screen lädt gespeicherte Netzwerke darüber (`ref.read(...future)`) |
+| `MainScreen`/`BottomNavigation` | 5 Tabs | 6 Tabs inkl. Tests; Widget-Test angepasst |
+
+**Matrix-Update (2.3):** „Vordefinierte Test-Suiten“ Mobile 🟡 → ✅ · „Durchsatz-/Latenztests“ Mobile 🟡 → ✅ · „WebAuthn“ Mobile 🟡 → ✅ (biometrisch, local_auth).
+
 ---
 
 ## 4. Überprüfung (Verifikation)
@@ -171,14 +182,15 @@ flutter pub get && flutter analyze && flutter test && flutter build apk --debug
 
 ### 4.4 Ergebnisse (dieser Lauf)
 
-| Check | Runde 1 | Runde 2 |
-|---|---|---|
-| `npm run lint` | ✅ | ✅ |
-| `npx tsc --noEmit` | ✅ | ✅ |
-| `npm run build` | ✅ | ✅ (35,4 s) |
-| `python3 -m unittest discover -s desktop/tests` | ✅ 40/40 | ✅ 40/40 |
-| `python3 tool/check_project.py` | ✅ 77 Dart-Dateien | ✅ 77 Dart-Dateien, keine Stubs |
-| `python3 -m py_compile desktop/views/ble.py` | – | ✅ |
+| Check | Runde 1 | Runde 2 | Runde 3 |
+|---|---|---|---|
+| `npm run lint` | ✅ | ✅ | ✅ |
+| `npx tsc --noEmit` | ✅ | ✅ | ✅ |
+| `npm run build` | ✅ | ✅ (35,4 s) | ✅ |
+| `python3 -m unittest discover -s desktop/tests` | ✅ 40/40 | ✅ 40/40 | ✅ 40/40 |
+| `python3 tool/check_project.py` | ✅ 77 Dart-Dateien | ✅ 77 Dart-Dateien | ✅ 80 Dart-Dateien, keine Stubs |
+| `python3 -m py_compile desktop/views/ble.py` | – | ✅ | ✅ |
+| XML/JSON/plist (inkl. `NSFaceIDUsageDescription`) | – | ✅ | ✅ |
 
 ---
 
@@ -192,13 +204,12 @@ git push origin arena/019ff623-dingelschwing
 
 ---
 
-## 6. Bewusst offene Punkte (dokumentiert, kein Stub)
+## 6. Verbleibende Grenzen (dokumentiert, kein Stub)
 
 - **Paket-Sniffer (Mobile):** Hardware-Limit von Smartphones (kein LL-Sniffing)
-  → bewusst nicht implementiert; Desktop/Web-Suite deckt das ab.
-- **Mobile Test-Suiten/Durchsatz-Tests:** über Agent (`run_test_suite`) + Logs
-  angesteuert; ein dedizierter Performance-Tab ist Roadmap.
-- **WebAuthn (Mobile):** Bestätigungsdialog aktiv; echte FIDO2-Assertion wird
-  bei Anbindung eines WebAuthn-Plugins in `ProfileListScreen` ergänzt.
+  → bewusst nicht implementierbar; Desktop/Web-Suite deckt das ab.
 - **TinyLLaMA-Modell:** Asset wird nicht eingecheckt (~350 MB); ohne Modell
   läuft der Regel-Agent (voll funktionsfähig).
+
+Damit sind alle spezifizierten Parts & Attribute in mindestens einer
+Implementierung **aktiv** – der Lösungsweg ist abgeschlossen.

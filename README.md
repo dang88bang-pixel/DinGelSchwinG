@@ -72,8 +72,11 @@ schrittweise Ausführung → Zusammenfassung. Kritische Aktionen zusätzlich mit
 **Native Mobile-App:** Zusätzlich enthält das Repo unter
 [`mobile/ble_professional_suite/`](mobile/ble_professional_suite/) die
 **autarke Flutter-App** (Android/iOS) für Feldtests: echte BLE-Operationen
-(Scan, GATT, Mesh via nRF SDK), On-Device-KI-Agent (TinyLLaMA/TFLite) mit
-Regel-Fallback, Profil-Cache und USB-C-Dongle-Unterstützung (OTG, Android).
+(Scan, GATT, Mesh via nRF SDK mit SQLite-Persistenz), Tests & Performance-Tab
+(echte Durchsatz-/Latenz- und GATT-Suiten), On-Device-KI-Agent
+(TinyLLaMA/TFLite) mit Regel-Fallback, Profil-Cache, WebAuthn-Äquivalent
+(biometrische Bestätigung kritischer Aktionen) und USB-C-Dongle-Unterstützung
+(OTG, Android).
 
 ---
 

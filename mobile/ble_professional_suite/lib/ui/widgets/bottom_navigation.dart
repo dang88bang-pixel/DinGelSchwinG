@@ -1,5 +1,5 @@
 // lib/ui/widgets/bottom_navigation.dart
-// Wiederverwendbare Bottom-Navigation (5 Tabs).
+// Wiederverwendbare Bottom-Navigation (6 Tabs: Scanner/GATT/Mesh/Tests/Agent/Logs).
 import 'package:flutter/material.dart';
 
 class AppBottomNavigation extends StatelessWidget {
@@ -16,6 +16,7 @@ class AppBottomNavigation extends StatelessWidget {
     BottomNavigationBarItem(icon: Icon(Icons.radar), label: 'Scanner'),
     BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'GATT'),
     BottomNavigationBarItem(icon: Icon(Icons.network_nodes), label: 'Mesh'),
+    BottomNavigationBarItem(icon: Icon(Icons.speed), label: 'Tests'),
     BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Agent'),
     BottomNavigationBarItem(icon: Icon(Icons.terminal), label: 'Logs'),
   ];

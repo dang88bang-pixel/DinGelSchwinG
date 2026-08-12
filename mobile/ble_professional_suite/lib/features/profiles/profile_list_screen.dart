@@ -5,6 +5,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_router.dart';
 import '../../core/ble/ble_service.dart';
+import '../../core/security/webauthn_service.dart';
 import '../../providers/profile_provider.dart';
 import '../../ui/widgets/custom_app_bar.dart';
 import '../../ui/widgets/error_widget.dart';
@@ -68,28 +69,37 @@ class _ProfileListScreenState extends ConsumerState<ProfileListScreen> {
     if (device == null || !mounted) return;
 
     _targetDevice = device;
-    // Kritische Profile: Bestätigung (WebAuthn-Simulation in Produktion).
+    // Kritische Profile: WebAuthn-Äquivalent (biometrische Bestätigung,
+    // Fallback-Dialog) – aktiv über WebAuthnService.
     if (profile.steps.any((s) => s.critical)) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Kritische Aktion'),
-          content: Text('Das Profil "${profile.name}" überschreibt die '
-              'Gerätekonfiguration.\nIn Produktion ist hier eine '
-              'WebAuthn-Bestätigung erforderlich. Fortfahren?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Abbrechen'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Bestätigen'),
-            ),
-          ],
-        ),
+      final confirmed = await WebAuthnService.instance.confirm(
+        'Profil "${profile.name}" auf ${device.platformName} anwenden',
+        onFallbackRequired: () async {
+          if (!mounted) return false;
+          return (await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Kritische Aktion'),
+                  content: Text('Das Profil "${profile.name}" überschreibt die '
+                      'Gerätekonfiguration.\n'
+                      'WebAuthn/biometrische Bestätigung nicht verfügbar – '
+                      'Fortfahren?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('Abbrechen'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('Bestätigen'),
+                    ),
+                  ],
+                ),
+              )) ??
+              false;
+        },
       );
-      if (confirmed != true) return;
+      if (!confirmed) return;
     }
 
     showDialog<void>(

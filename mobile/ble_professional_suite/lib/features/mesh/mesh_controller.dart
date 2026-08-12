@@ -53,9 +53,6 @@ class MeshController {
 
   String? _lastPassphrase;
 
-  /// Gespeicherte Netzwerke aus der Datenbank (für Auswahl-Dialog).
-  Future<List<MeshNetworkInfo>> savedNetworks() => _dao.getNetworks();
-
   Future<MeshNetwork> createNetwork(String name, String passphrase) async {
     final network = await _service.createNetwork(name, passphrase);
     _lastPassphrase = passphrase;

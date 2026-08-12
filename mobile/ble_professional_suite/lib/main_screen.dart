@@ -1,5 +1,5 @@
 // lib/main_screen.dart
-// Hauptnavigation: Scanner · GATT · Mesh · Agent · Logs
+// Hauptnavigation: Scanner · GATT · Mesh · Tests · Agent · Logs
 // Der GATT-Tab zeigt den Explorer für das im Scanner ausgewählte Gerät
 // (selectedDeviceProvider) oder eine Auswahl-Aufforderung.
 import 'package:flutter/material.dart';
@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/scan/scan_screen.dart';
 import 'features/gatt/gatt_explorer_screen.dart';
 import 'features/mesh/mesh_screen.dart';
+import 'features/tests/test_suite_screen.dart';
 import 'features/agent/agent_chat_screen.dart';
 import 'features/logs/log_screen.dart';
 import 'ui/widgets/bottom_navigation.dart';
@@ -25,6 +26,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     ScanScreen(),
     GattExplorerScreen(), // Gerät wird aus selectedDeviceProvider übernommen
     MeshScreen(),
+    TestSuiteScreen(),
     AgentChatScreen(),
     LogScreen(),
   ];

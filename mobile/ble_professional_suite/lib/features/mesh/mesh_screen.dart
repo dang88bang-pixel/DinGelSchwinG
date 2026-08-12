@@ -101,9 +101,9 @@ class _MeshScreenState extends ConsumerState<MeshScreen> {
     );
   }
 
-  /// Dialog: gespeicherte Netzwerke aus SQLite laden (aktiv via DAO).
+  /// Dialog: gespeicherte Netzwerke aus SQLite laden (aktiv via Provider).
   Future<void> _showSavedNetworks(BuildContext context) async {
-    final saved = await ref.read(meshControllerProvider).savedNetworks();
+    final saved = await ref.read(savedMeshNetworksProvider.future);
     if (!context.mounted) return;
     if (saved.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -12,6 +12,9 @@
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>BLE Professional Suite benötigt Standortzugriff, um BLE-Geräte in Ihrer Umgebung zu finden.</string>
 
+    <key>NSFaceIDUsageDescription</key>
+    <string>BLE Professional Suite verwendet Face ID zur Bestätigung kritischer Aktionen (WebAuthn-Äquivalent).</string>
+
     <key>UIBackgroundModes</key>
     <array>
         <string>bluetooth-central</string>

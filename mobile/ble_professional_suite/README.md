@@ -17,12 +17,14 @@ Repository-Stamm).
 |---|---|---|
 | **Scan** | Kontinuierlicher BLE-Scan, automatische Geräteklassifizierung (NTag / Token / Mesh / Peripherie), RSSI + Distanz | `flutter_blue_plus` |
 | **GATT** | Explorer (Services/Characteristics/Descriptors), Read/Write (Hex/Dez/Bin/ASCII), Notifications, MTU | `flutter_blue_plus` |
-| **Mesh** | Netzwerk-Erstellung (zentrale Schlüssel), Provisionierung, Topologie-Graph, Modelle, Pub/Sub, Gruppen, Nachrichten-Tracer | `nrf_mesh_flutter` |
-| **Agent** | On-Device-KI-Agent (TinyLLaMA via TFLite) mit deterministischem Regel-Fallback; Aktions-Buttons; Freigabe-Pflicht für Aktionen | `tflite_flutter` |
+| **Mesh** | Netzwerk-Erstellung (zentrale Schlüssel), Provisionierung, Topologie-Graph, Modelle, Pub/Sub, Gruppen, Nachrichten-Tracer, SQLite-Persistenz | `nrf_mesh_flutter` |
+| **Tests** | Dedizierter Tests & Performance-Tab: Suiten (NTag/Token/Mesh) + echte Durchsatz-/Latenzmessung über GATT | `flutter_blue_plus` |
+| **Agent** | On-Device-KI-Agent (TinyLLaMA via TFLite) mit deterministischem Regel-Fallback; Aktions-Buttons; Freigabe-Pflicht; RBAC (Service L2 / Developer L3) | `tflite_flutter` |
 | **Profile** | Profil-Cache (speichern/editor/anwenden) mit Schritt-Ausführung und Fortschritt | `sqflite` |
 | **Logs** | Audit-Log mit Filter, CSV/JSON-Export, Teilen | `sqflite` + `share_plus` |
 | **Peripheral** | Smartphone wirbt als BLE-Peripheral (geräteabhängig) | `flutter_ble_peripheral` |
 | **Dongle** | USB-C-BLE-Dongle (nRF52840, CSR8510) per OTG (nur Android) | `usb_serial` + native `UsbDongleHost` |
+| **Sicherheit** | WebAuthn/FIDO2-Äquivalent: biometrische Bestätigung kritischer Aktionen (FaceID/Fingerprint) mit Fallback-Dialog | `local_auth` |
 
 ## Projektstruktur
 
@@ -38,7 +40,7 @@ lib/
 │   ├── models/                # BleDevice, GattStructure, BleProfile, MeshNetwork, LogEntry
 │   └── utils/                 # HexConverter, RssiCalculator, PermissionHelper, Logger
 ├── features/
-│   ├── scan/ gatt/ mesh/ profiles/ agent/ logs/ settings/
+│   ├── scan/ gatt/ mesh/ tests/ profiles/ agent/ logs/ settings/
 └── providers/                 # Riverpod-Provider (BLE, Mesh, Agent, Profile)
 android/                       # Manifest + UsbDongleHost.kt (USB-OTG) + device_filter.xml
 ios/                           # Info.plist (BLE-/Standort-Berechtigungen)

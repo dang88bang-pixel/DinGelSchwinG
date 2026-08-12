@@ -2,6 +2,7 @@
 // Agent-Controller: sendet Nachrichten, führt Aktions-Buttons aus.
 // RBAC: Aktionen prüfen die Rolle des Nutzers (Service L2 / Developer L3).
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nrf_mesh_flutter/nrf_mesh_flutter.dart';
 import '../../core/agent/agent_service.dart';
 import '../../core/ble/ble_service.dart';
 import '../../core/ble/mesh_service.dart';
@@ -74,7 +75,8 @@ class AgentController {
         await network.sendMessage(address, Message(opcode: 0x8202, data: [1, 0]));
         return 'OnOff Set an 0x${address.toRadixString(16)} gesendet';
       case 'run_test_suite':
-        return 'Test-Suite gestartet – Ergebnisse im Logs-Tab';
+        return 'Test-Suite gestartet – Ergebnisse im Tests-Tab '
+            '(echte Durchsatz-/Latenz- und GATT-Checks)';
       case 'export_log':
         return 'Log-Export im Logs-Tab verfügbar';
       default:

@@ -48,6 +48,9 @@ dependencies:
   csv: ^5.1.1
   share_plus: ^7.2.1
 
+  # Sicherheit (WebAuthn/FIDO2-Äquivalent: biometrische Bestätigung)
+  local_auth: ^2.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
