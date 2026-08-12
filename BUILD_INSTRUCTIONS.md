@@ -22,7 +22,7 @@ der bei jedem Push auf `main` (sowie manuell über *Actions → Build APK →
 Run workflow*) die APKs automatisch baut:
 
 **Was der Workflow macht:**
-1. Installiert Node.js, JDK 21 und das Android SDK
+1. Installiert Node.js, JDK und das Android SDK (für Capacitor 8 ist JDK 21 erforderlich; falls der GitHub-Workflow noch JDK 17 setzt, muss ein Maintainer die Workflow-Datei entsprechend anpassen)
 2. `npm ci` → `npm run lint` → `npm run type-check` → `npm run build`
 3. `npx cap sync android` (die Android-Plattform ist versioniert, `android/`)
 4. Baut **Debug-APK** und **Release-APK**
