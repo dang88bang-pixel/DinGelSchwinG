@@ -6,9 +6,12 @@
 import { useMemo, useState } from 'react';
 import {
   Bluetooth, Play, Square, Search, Filter, RadioTower, Cpu, BatteryFull, BatteryMedium, BatteryLow,
+  Plug, Unplug, Loader,
 } from 'lucide-react';
 import { useBleStore } from './useBleStore';
 import { RssiHistoryChart, Chip, StatCard } from './BleCharts';
+import { useLiveBle } from '../../hooks/useLiveBle';
+import { WebBluetoothService } from '../../lib/ble/webBluetooth';
 import NfcReader from '../NfcReader';
 import { DEVICE_CLASS_COLORS, DEVICE_CLASS_LABELS, BleDeviceClass } from '../../lib/ble/types';
 
@@ -23,10 +26,45 @@ function BatteryIcon({ level }: { level?: number }) {
 
 export default function BleScanner() {
   const store = useBleStore();
+  const { device: liveDevice, supported: liveSupported } = useLiveBle();
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [cls, setCls] = useState<BleDeviceClass | 'all'>('all');
   const [minRssi, setMinRssi] = useState<number | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const connectLive = async () => {
+    setLiveBusy(true);
+    setLiveError(null);
+    try {
+      const device = await WebBluetoothService.connectAndDiscover();
+      // Echtes Gerät auch im Store registrieren (Agent/Übersicht sehen es)
+      store.setLiveDevice({
+        id: device.id,
+        name: device.name,
+        rssi: device.rssi,
+        services: device.services.map((s) => ({
+          uuid: s.uuid,
+          name: s.name,
+          characteristics: s.characteristics.map((c) => ({
+            uuid: c.uuid,
+            name: c.name,
+            properties: c.properties,
+          })),
+        })),
+      });
+    } catch (e) {
+      setLiveError(String(e));
+    } finally {
+      setLiveBusy(false);
+    }
+  };
+
+  const disconnectLive = async () => {
+    await WebBluetoothService.disconnect();
+    store.setLiveDevice(null);
+  };
 
   const devices = useMemo(
     () => store.filterDevices({ query, cls, minRssi }),
@@ -66,6 +104,59 @@ export default function BleScanner() {
           <StatCard label="Verbunden" value={`${stats.connected}/20`} accent="text-emerald-200" />
           <StatCard label="Mesh-Knoten" value={String(stats.meshNodes)} accent="text-amber-200" />
         </div>
+      </div>
+
+      {/* Live-Gerät (echte Hardware via Web Bluetooth) */}
+      <div className={`rounded-2xl border p-4 ${liveDevice ? 'border-emerald-500/40 bg-emerald-950/20' : 'border-white/5 bg-[#060f2a]/60'}`}>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h4 className="text-xs font-black text-white flex items-center gap-2">
+            <Bluetooth className="w-3.5 h-3.5 text-emerald-300" /> Live-Gerät (Web Bluetooth)
+            {liveSupported
+              ? <span className="text-[9px] font-bold text-emerald-300 border border-emerald-700/40 bg-emerald-950/40 px-1.5 py-0.5 rounded-full">echte Hardware</span>
+              : <span className="text-[9px] font-bold text-amber-300 border border-amber-700/40 bg-amber-950/40 px-1.5 py-0.5 rounded-full">Browser ohne Web-Bluetooth</span>}
+          </h4>
+          {liveDevice ? (
+            <button
+              onClick={disconnectLive}
+              className="flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-500 transition"
+            >
+              <Unplug className="w-3 h-3" /> Live-Gerät trennen
+            </button>
+          ) : (
+            <button
+              onClick={connectLive}
+              disabled={!liveSupported || liveBusy}
+              className="flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white hover:brightness-110 transition disabled:opacity-40"
+            >
+              {liveBusy ? <Loader className="w-3 h-3 animate-spin" /> : <Plug className="w-3 h-3" />}
+              Gerät auswählen &amp; verbinden
+            </button>
+          )}
+        </div>
+        {liveDevice && (
+          <div className="mt-2 grid sm:grid-cols-3 gap-2 text-[10px] font-mono">
+            <div className="bg-[#020617] border border-white/5 rounded-lg px-2.5 py-1.5">
+              <span className="text-slate-500">Name</span> <b className="text-white ml-1">{liveDevice.name}</b>
+            </div>
+            <div className="bg-[#020617] border border-white/5 rounded-lg px-2.5 py-1.5">
+              <span className="text-slate-500">RSSI</span> <b className={liveDevice.rssi != null && liveDevice.rssi > -75 ? 'text-emerald-300 ml-1' : 'text-slate-300 ml-1'}>{liveDevice.rssi ?? '–'} dBm</b>
+            </div>
+            <div className="bg-[#020617] border border-white/5 rounded-lg px-2.5 py-1.5">
+              <span className="text-slate-500">Services</span> <b className="text-cyan-200 ml-1">{liveDevice.services.length}</b>
+            </div>
+          </div>
+        )}
+        {liveError && (
+          <div className="mt-2 text-[10px] font-mono text-rose-200 bg-rose-950/30 border border-rose-800/30 rounded-lg px-3 py-2">
+            ⚠️ {liveError}
+          </div>
+        )}
+        {!liveSupported && (
+          <div className="mt-2 text-[9px] font-mono text-slate-500">
+            Web Bluetooth benötigt Chromium/Edge (Windows, macOS, Android, ChromeOS) im sicheren Kontext.
+            Ohne Hardware bleibt die untenstehende Simulation als Offline-Fallback aktiv.
+          </div>
+        )}
       </div>
 
       {/* Klassifizierungs-Legende */}

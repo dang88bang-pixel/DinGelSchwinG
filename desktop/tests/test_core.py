@@ -341,3 +341,45 @@ class TestBleSuite(unittest.TestCase):
         reply = self.agent.ask("führe die ntag test-suite aus")
         self.assertIn("NTag", reply)
         self.assertIn("PASS", reply)
+
+
+class TestBleSuiteActiveBackend(unittest.TestCase):
+    """BLE Professional Suite – aktive Hardware-Pfade (bleak) & Fallback."""
+
+    def setUp(self) -> None:
+        from utils.ble_suite import BleSuite, BLEAK_AVAILABLE
+        self.bleak_available = BLEAK_AVAILABLE
+        self.suite = BleSuite(role="developer")
+
+    def test_backend_flag(self) -> None:
+        # Backend ist "bleak", wenn bleak installiert ist, sonst "sim"
+        self.assertEqual(self.suite.backend == "bleak", self.bleak_available)
+
+    def test_scan_real_once_without_adapter(self) -> None:
+        # Ohne Adapter/Hardware liefert _scan_real_once False und crasht nicht
+        ok = self.suite._scan_real_once()
+        self.assertIsInstance(ok, bool)
+        if not self.bleak_available:
+            self.assertFalse(ok)
+
+    def test_connect_fallback_for_sim_device(self) -> None:
+        # Simulationsgerät (ohne "real"-Flag) verbindet ohne bleak
+        device = self.suite.devices[0]
+        reply = self.suite.connect(device["id"])
+        self.assertIn("verbunden", reply)
+        self.assertTrue(device["connected"])
+
+    def test_gatt_read_real_not_connected(self) -> None:
+        reply = self.suite.gatt_read_real(self.suite.devices[0]["id"],
+                                          "00002a19-0000-1000-8000-00805f9b34fb")
+        self.assertIn("verbunden", reply)
+
+    def test_gatt_write_sim_ok(self) -> None:
+        device = self.suite.devices[0]
+        reply = self.suite.gatt_write(device["id"], "0000fea2", "BEEF")
+        self.assertIn("geschrieben", reply)
+
+    def test_stop_scan(self) -> None:
+        self.suite.start_scan()
+        reply = self.suite.stop_scan()
+        self.assertIn("gestoppt", reply)

@@ -148,9 +148,19 @@ function OverviewTab() {
           <h4 className="text-xs font-black text-white mb-3 flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" /> Verbundene Geräte
           </h4>
-          {connected.length === 0 ? (
+          {store.liveDevice && (
+            <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-200 bg-emerald-950/30 border border-emerald-800/30 rounded-lg px-3 py-2 mb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="truncate font-bold">{store.liveDevice.name}</span>
+              <Chip className="text-emerald-300 border-emerald-600/40 bg-emerald-950/40">Live · Web Bluetooth</Chip>
+              <span className="ml-auto text-slate-400">
+                {store.liveDevice.rssi != null ? `RSSI ${store.liveDevice.rssi} dBm` : ''} · {store.liveDevice.services.length} Services
+              </span>
+            </div>
+          )}
+          {connected.length === 0 && !store.liveDevice ? (
             <div className="text-[10px] font-mono text-slate-500">Keine aktiven Verbindungen.</div>
-          ) : (
+          ) : connected.length > 0 ? (
             <div className="space-y-1">
               {connected.map((d) => (
                 <div key={d.id} className="flex items-center gap-2 text-[10px] font-mono text-slate-300">
@@ -160,7 +170,7 @@ function OverviewTab() {
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

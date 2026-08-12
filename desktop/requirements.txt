@@ -5,6 +5,9 @@ customtkinter>=5.2.0
 # Optional – Live-Status über WebSocket (/ws/status):
 websocket-client>=1.6.0
 
+# Optional – aktive BLE-Hardware (echter Scan/GATT statt Simulation):
+# Installation:  pip install bleak
+
 # Optional – lokales Embedded-Modell (GGUF, z.B. Qwen2.5-0.5B-Instruct):
 # Installation:  pip install llama-cpp-python
 # Modell laden:  python tools/download_model.py

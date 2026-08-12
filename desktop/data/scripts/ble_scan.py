@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""BLE-Scan über bluetoothctl – Beispielskript der BLE Professional Suite.
+"""BLE-Scan – aktives Beispielskript der BLE Professional Suite (CLI/CI-CD).
 
-Produktiv bindet der Scanner-Service (scanner_service.py, WS :8766) diesen
-Ablauf kontinuierlich ein; dieses Skript ist die CLI-/CI-CD-Variante
-(Skript-API, Abschnitt 2.5 der Modul-Spezifikation).
+Nutzt bevorzugt **bleak** (echter, plattformübergreifender BLE-Scan:
+Windows/macOS/Linux) und fällt auf `bluetoothctl` zurück, wenn bleak nicht
+installiert ist.
 
-Voraussetzungen (Linux): bluez installiert, Bluetooth-Adapter vorhanden.
-    sudo apt install bluez
+Voraussetzungen:
+    pip install bleak        # empfohlen
+    # oder (Linux ohne bleak): sudo apt install bluez
 """
 
 from __future__ import annotations
@@ -16,8 +17,35 @@ import subprocess
 import sys
 import time
 
+try:
+    import asyncio
+    from bleak import BleakScanner
+
+    BLEAK_AVAILABLE = True
+except Exception:  # noqa: BLE001
+    BLEAK_AVAILABLE = False
+
 
 def run_ble_scan(duration: int = 8) -> list[dict[str, str]]:
+    """Echter BLE-Scan (bleak) mit bluetoothctl-Fallback."""
+    if BLEAK_AVAILABLE:
+        try:
+            return asyncio.run(_scan_bleak(duration))
+        except Exception as exc:  # noqa: BLE001 – Adapter-/Rechteprobleme
+            print(f"Hinweis: bleak-Scan fehlgeschlagen ({exc}) – "
+                  "Fallback auf bluetoothctl.", file=sys.stderr)
+    return _scan_bluetoothctl(duration)
+
+
+async def _scan_bleak(duration: int) -> list[dict[str, str]]:
+    found = await BleakScanner.discover(timeout=float(duration))
+    return [
+        {"address": d.address, "name": d.name or "Unbekannt", "kind": "ble_token"}
+        for d in found
+    ]
+
+
+def _scan_bluetoothctl(duration: int) -> list[dict[str, str]]:
     """Führt 'bluetoothctl scan on' für `duration` Sekunden aus und parst das Protokoll."""
     devices: dict[str, dict[str, str]] = {}
     try:
@@ -26,7 +54,7 @@ def run_ble_scan(duration: int = 8) -> list[dict[str, str]]:
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         )
     except FileNotFoundError:
-        print("FEHLER: bluetoothctl nicht gefunden (bluez installieren).", file=sys.stderr)
+        print("FEHLER: weder bleak noch bluetoothctl verfügbar.", file=sys.stderr)
         return []
 
     deadline = time.time() + duration

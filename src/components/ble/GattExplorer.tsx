@@ -8,6 +8,8 @@ import {
   Plug, Unplug, Layers, Bell, BellOff, Ruler, ArrowDownToLine, Binary, Hash, Type, AlignLeft,
 } from 'lucide-react';
 import { useBleStore } from './useBleStore';
+import { useLiveBle } from '../../hooks/useLiveBle';
+import { WebBluetoothService, hexOf, LiveBleCharacteristic } from '../../lib/ble/webBluetooth';
 import { Chip } from './BleCharts';
 import { DEVICE_CLASS_LABELS, DEVICE_CLASS_COLORS } from '../../lib/ble/types';
 
@@ -28,8 +30,164 @@ const MODE_ICONS: Record<ValueMode, React.ReactNode> = {
   ascii: <AlignLeft className="w-3 h-3" />,
 };
 
+// ---------------------------------------------------------------------------
+// Live-GATT (echte Hardware via Web Bluetooth) – ersetzt den Simulationspfad,
+// sobald ein Live-Gerät verbunden ist.
+// ---------------------------------------------------------------------------
+function LiveGattPanel({ onClose }: { onClose: () => void }) {
+  const { device } = useLiveBle();
+  const [valueMode, setValueMode] = useState<ValueMode>('hex');
+  const [writeHex, setWriteHex] = useState('');
+  const [notifyStream, setNotifyStream] = useState<string[]>([]);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  if (!device) return null;
+
+  const bytesToText = (bytes: Uint8Array, mode: ValueMode): string => {
+    if (mode === 'dec') return Array.from(bytes).join(' ') || '(leer)';
+    if (mode === 'bin') return Array.from(bytes).map((b) => b.toString(2).padStart(8, '0')).join(' ') || '(leer)';
+    if (mode === 'ascii') return Array.from(bytes).map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : '.')).join('') || '(leer)';
+    return `0x${hexOf(bytes) || '(leer)'}`;
+  };
+
+  const read = async (ch: LiveBleCharacteristic) => {
+    try {
+      const bytes = await ch.readValue();
+      setFeedback(`📖 ${ch.name} (${ch.uuid})\n${bytesToText(bytes, valueMode)}`);
+    } catch (e) {
+      setFeedback(`❌ Read fehlgeschlagen: ${String(e)}`);
+    }
+  };
+
+  const write = async (ch: LiveBleCharacteristic) => {
+    const clean = writeHex.replace(/[^0-9a-fA-F]/g, '') || '00';
+    const bytes = new Uint8Array(clean.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)));
+    try {
+      await ch.writeValue(bytes, !ch.properties.includes('write'));
+      setFeedback(`✍️ 0x${hexOf(bytes)} geschrieben`);
+    } catch (e) {
+      setFeedback(`❌ Write fehlgeschlagen: ${String(e)}`);
+    }
+  };
+
+  const toggleNotify = async (ch: LiveBleCharacteristic, on: boolean) => {
+    try {
+      if (on) {
+        await ch.startNotifications((value) => {
+          setNotifyStream((prev) => [...prev.slice(-9), `🔔 ${ch.name}: ${bytesToText(value, valueMode)}`]);
+        });
+        setFeedback(`🔔 Notifications an (${ch.name})`);
+      } else {
+        await ch.stopNotifications();
+        setFeedback(`🔕 Notifications aus (${ch.name})`);
+      }
+    } catch (e) {
+      setFeedback(`❌ Notify fehlgeschlagen: ${String(e)}`);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/15 p-4 mb-4">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <h4 className="text-xs font-black text-emerald-100 flex items-center gap-2">
+          <Layers className="w-3.5 h-3.5 text-emerald-300" /> Live-GATT · {device.name}
+          <span className="text-[9px] font-mono text-emerald-300/70">{device.id}</span>
+          <span className="text-[9px] font-bold text-emerald-300 border border-emerald-700/40 bg-emerald-950/40 px-1.5 py-0.5 rounded-full">echte Hardware</span>
+        </h4>
+        <div className="flex items-center gap-1.5">
+          <div className="flex rounded-lg overflow-hidden border border-white/10">
+            {(Object.keys(MODE_ICONS) as ValueMode[]).map((m) => (
+              <button
+                key={m}
+                title={`Wert-Anzeige: ${m.toUpperCase()}`}
+                onClick={() => setValueMode(m)}
+                className={`p-1.5 transition ${valueMode === m ? 'bg-emerald-600/60 text-white' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'}`}
+              >
+                {MODE_ICONS[m]}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-rose-600/80 text-white hover:bg-rose-600 transition"
+          >
+            <Unplug className="w-3 h-3" /> Trennen
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+        {device.services.map((svc) => (
+          <div key={svc.uuid} className="rounded-xl border border-white/5 bg-slate-900/50">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
+              <span className="text-[11px] font-black text-emerald-200">{svc.name}</span>
+              <span className="text-[9px] font-mono text-slate-500">{svc.uuid}</span>
+            </div>
+            <div className="divide-y divide-white/5">
+              {svc.characteristics.map((ch) => (
+                <div key={ch.uuid} className="px-3 py-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-[11px] font-bold text-slate-100">{ch.name}</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {ch.properties.map((p) => (
+                        <span key={p} className="text-[8px] font-black uppercase tracking-wide text-emerald-300 border border-emerald-500/30 bg-emerald-950/30 rounded px-1.5 py-0.5">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {ch.properties.includes('read') && (
+                      <button onClick={() => read(ch)} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 transition">
+                        Lesen
+                      </button>
+                    )}
+                    {ch.properties.includes('write') && (
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={writeHex}
+                          onChange={(e) => setWriteHex(e.target.value)}
+                          placeholder="Wert (hex)"
+                          className="w-24 bg-slate-900/70 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-100 outline-none focus:border-emerald-400/50"
+                        />
+                        <button onClick={() => write(ch)} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-100 border border-emerald-700/40 transition">
+                          Schreiben
+                        </button>
+                      </div>
+                    )}
+                    {ch.properties.includes('notify') && (
+                      <button onClick={() => toggleNotify(ch, true)} className="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-amber-700/60 text-slate-200 border border-white/10 transition">
+                        Notify an
+                      </button>
+                    )}
+                    {ch.properties.includes('indicate') && (
+                      <span className="text-[9px] font-mono text-slate-500">Indicate-Support</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {notifyStream.length > 0 && (
+        <div className="mt-3 space-y-1 font-mono text-[10px] text-emerald-200 bg-[#020617] border border-emerald-900/40 rounded-lg px-3 py-2 max-h-32 overflow-y-auto">
+          {notifyStream.map((line, i) => <div key={i}>{line}</div>)}
+        </div>
+      )}
+      {feedback && (
+        <div className="mt-3 text-[10px] font-mono text-cyan-200 bg-cyan-950/30 border border-cyan-800/30 rounded-lg px-3 py-2 whitespace-pre-wrap">
+          {feedback}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GattExplorer() {
   const store = useBleStore();
+  const { device: liveDevice } = useLiveBle();
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [valueMode, setValueMode] = useState<ValueMode>('hex');
   const [writeHex, setWriteHex] = useState('');
@@ -47,7 +205,30 @@ export default function GattExplorer() {
   };
 
   return (
-    <div className="grid lg:grid-cols-[300px_1fr] gap-4">
+    <div>
+      {/* Live-GATT (echte Hardware) – erscheint, sobald ein Live-Gerät verbunden ist */}
+      {liveDevice && (
+        <LiveGattPanel
+          onClose={async () => {
+            await WebBluetoothService.disconnect();
+            store.setLiveDevice(null);
+          }}
+        />
+      )}
+
+      {/* Simulation/Hinweis-Badge */}
+      <div className="flex items-center gap-2 mb-3">
+        <Chip className={liveDevice ? 'text-emerald-300 border-emerald-600/40 bg-emerald-950/40' : 'text-amber-300 border-amber-600/40 bg-amber-950/40'}>
+          {liveDevice ? 'Live-Modus aktiv (echte Hardware)' : 'Simulations-Modus (Web Bluetooth nicht verbunden)'}
+        </Chip>
+        {!liveDevice && (
+          <span className="text-[9px] font-mono text-slate-500">
+            Gerät im Scanner-Tab über „Live-Gerät auswählen“ verbinden – dann zeigt dieser Explorer echte GATT-Werte.
+          </span>
+        )}
+      </div>
+
+      <div className="grid lg:grid-cols-[300px_1fr] gap-4">
       {/* Geräteauswahl */}
       <div className="rounded-2xl border border-white/5 bg-[#060f2a]/60 p-4 h-fit">
         <h4 className="text-xs font-black text-white mb-3 flex items-center gap-2">
@@ -222,6 +403,7 @@ export default function GattExplorer() {
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );

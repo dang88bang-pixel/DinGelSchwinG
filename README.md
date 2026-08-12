@@ -51,7 +51,9 @@ Betriebsumgebung, vollständig über den Chat-Agenten steuerbar (Modus C):
 
 - **Discovery**: kontinuierlicher BLE-Scan mit automatischer Klassifizierung
   (NTag Smart Tracker / BLE-Token / Mesh-Knoten / Peripherie), RSSI-Verlauf,
-  Filter – Button **„BLE Pro“** im Header öffnet die Suite.
+  Filter – Button **„BLE Pro“** im Header öffnet die Suite. In Browsern mit
+  Web-Bluetooth-Support verbindet die Suite **echte Geräte** (Gerätewahl-Dialog,
+  Live-RSSI, echtes GATT-Read/Write/Notify); sonst Simulation mit klarem Badge.
 - **GATT-Explorer**: bis zu 20 parallele Verbindungen, Services/
   Characteristics/Descriptors, Werte in Hex/Dez/Bin/ASCII, Notifications, MTU.
 - **Mesh**: Netzwerk-Erstellung mit zentralen Schlüsseln, automatische

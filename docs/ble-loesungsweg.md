@@ -146,6 +146,21 @@ Legende: ✅ aktiv · 🟡 teilaktiv/plattformabhängig · ⬜ inaktiv
 
 **Matrix-Update (2.3):** „Vordefinierte Test-Suiten“ Mobile 🟡 → ✅ · „Durchsatz-/Latenztests“ Mobile 🟡 → ✅ · „WebAuthn“ Mobile 🟡 → ✅ (biometrisch, local_auth).
 
+### Runde 4 – Mock/Simulation durch aktive Funktionen ersetzt
+
+| Part | Vorher (Simulation) | Jetzt (aktive Funktion) |
+|---|---|---|
+| **Web: BLE-Scan & Verbindung** | `suiteStore.scanTick()` mit `rssiWalk()` (Zufalls-RSSI, Katalog-Geräte) | **Web Bluetooth** (`lib/ble/webBluetooth.ts`): echter Gerätewahl-Dialog, GATT-Connect, RSSI via `advertisementreceived`; Live-Gerät wird im Scanner-Tab angezeigt und im Store registriert (Agent/Übersicht sehen es). Simulation bleibt nur als Offline-Fallback ohne Web-Bluetooth-Browser (klar als „Simulation“ gebadged) |
+| **Web: GATT-Explorer** | nur Store-GATT (statische Profile) | **Live-GATT-Panel**: echte Services/Characteristics, Read/Write (Hex), Notify-Stream über `characteristicvaluechanged` – automatisch aktiv, sobald ein Live-Gerät verbunden ist |
+| **Web: Agent/Geräteübersicht** | nur Mock-Geräte | `bleSuiteStore.liveDevice` – das echte Gerät erscheint in Übersicht „Verbundene Geräte“ |
+| **Desktop: Scan** | `_rssi_walk`-Schleife | **bleak** (`BleakScanner.discover`, echte Hardware, plattformübergreifend) mit explizitem Simulations-Fallback (kein Adapter → `backend="sim"`, Audit-Eintrag) |
+| **Desktop: Verbindung/GATT** | Flag-Manipulation | **`BleakClient`**: echtes Connect/Disconnect, `gatt_read_real` (Hex/Dez/ASCII), `gatt_write_real`, `gatt_notify_real` |
+| **Desktop: CLI-Skript** | nur `bluetoothctl` | `ble_scan.py` nutzt bevorzugt bleak, Fallback bluetoothctl |
+| **Web: WASM-Distanz** | JS-Simulation als einziges | Loader probiert echte `.wasm`-Builds (2 Pfade); `npm run wasm:build` |
+
+**Matrix-Updates:** „Kontinuierlicher BLE-Scan“ Web ✅ (Live) · „Verbindungen/GATT“ Web ✅ (Live) ·
+„RSSI-Live-Monitoring“ Web ✅ (Live-RSSI) · Desktop Scan/Verbindung/GATT ✅ (bleak, wenn installiert).
+
 ---
 
 ## 4. Überprüfung (Verifikation)
@@ -191,6 +206,13 @@ flutter pub get && flutter analyze && flutter test && flutter build apk --debug
 | `python3 tool/check_project.py` | ✅ 77 Dart-Dateien | ✅ 77 Dart-Dateien | ✅ 80 Dart-Dateien, keine Stubs |
 | `python3 -m py_compile desktop/views/ble.py` | – | ✅ | ✅ |
 | XML/JSON/plist (inkl. `NSFaceIDUsageDescription`) | – | ✅ | ✅ |
+
+| Check | Runde 4 |
+|---|---|
+| `npm run lint` / `npx tsc --noEmit` / `npm run build` | ✅ |
+| `python3 -m unittest discover -s desktop/tests` | ✅ 46/46 (inkl. 6 neue Backend-Tests) |
+| `py_compile` (ble_suite.py, ble_scan.py, views/ble.py) | ✅ |
+| Dev-Server: Live-Sektion im Scanner (Web Bluetooth) | ✅ serviert |
 
 ---
 

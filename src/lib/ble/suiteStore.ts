@@ -143,6 +143,13 @@ export class BleSuiteStore {
   /** Einmalige WebAuthn-Freigabe: nach Bestätigung wird die kritische Aktion beim Retry ausgeführt. */
   webauthnGranted = false;
   lastAgentAction: string | null = null;
+  /** Aktuell per Web Bluetooth verbundenes Live-Gerät (echte Hardware). */
+  liveDevice: {
+    id: string;
+    name: string;
+    rssi: number | null;
+    services: Array<{ uuid: string; name: string; characteristics: Array<{ uuid: string; name: string; properties: string[] }> }>;
+  } | null = null;
   /** Vom Agenten vorgeschlagener Ablauf (wird erst nach Freigabe ausgeführt). */
   pendingPlan: { kind: string; title: string; steps: ConfigStep[] } | null = null;
   /** Fortschritt eines laufenden agentengesteuerten Ablaufs (0..1). */
@@ -287,6 +294,35 @@ export class BleSuiteStore {
 
   deviceCount(): number {
     return this.devices.length;
+  }
+
+  // -------------------------------------------------------------------------
+  // Web-Bluetooth-Live-Gerät (echte Hardware statt Simulation)
+  // -------------------------------------------------------------------------
+  setLiveDevice(device: {
+    id: string;
+    name: string;
+    rssi: number | null;
+    services: Array<{ uuid: string; name: string; characteristics: Array<{ uuid: string; name: string; properties: string[] }> }>;
+  } | null, user = 'nutzer'): void {
+    if (device && this.liveDevice?.id !== device.id) {
+      this.audit(user, 'ble_live_connect', `Live-Gerät verbunden: ${device.name} (${device.id}) – Web Bluetooth`);
+    }
+    if (!device && this.liveDevice) {
+      this.audit(user, 'ble_live_disconnect', `${this.liveDevice.name} getrennt`);
+    }
+    this.liveDevice = device;
+    this.notify();
+  }
+
+  liveStats(): { id: string; name: string; rssi: number | null; services: number } | null {
+    if (!this.liveDevice) return null;
+    return {
+      id: this.liveDevice.id,
+      name: this.liveDevice.name,
+      rssi: this.liveDevice.rssi,
+      services: this.liveDevice.services.length,
+    };
   }
 
   // -------------------------------------------------------------------------

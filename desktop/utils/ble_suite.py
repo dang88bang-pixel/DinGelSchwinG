@@ -1,20 +1,35 @@
-"""BLE Professional Suite – Simulations- & Koordinationskern (Desktop-Konsole).
+"""BLE Professional Suite – Koordinationskern (Desktop-Konsole).
 
 Python-Spiegel von ``src/lib/ble/suiteStore.ts`` (Web-App). Gleiche
 Schnittstellen: Scan & Klassifizierung, Verbindungen, GATT, Mesh, Tests,
 Sniffer, Simulator, Profile, Audit-Log und RBAC/WebAuthn-Guards.
 
-Produktiv übernimmt der Backend-Scanner (bluetoothctl, WS :8766) diese
-Aufgaben – siehe docs/ble-professional-suite.md.
+Aktive Hardware-Anbindung über ``bleak`` (Windows/macOS/Linux, BlueZ):
+- ``start_scan`` nutzt ``BleakScanner.discover`` (echter BLE-Scan)
+- Verbindungen/GATT nutzen ``BleakClient`` (echtes Read/Write/Notify)
+Fällt kein Bluetooth-Adapter aus (bleak fehlt oder Hardware nicht
+verfügbar), wechselt der Store explizit in den Simulationsmodus
+(``backend == "sim"``) – erkennbar in Status/Log.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import random
 import threading
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
+
+try:  # optional – echte BLE-Hardware
+    import bleak  # type: ignore
+    from bleak import BleakClient, BleakScanner
+
+    BLEAK_AVAILABLE = True
+except Exception:  # noqa: BLE001 – bleak nicht installiert
+    BLEAK_AVAILABLE = False
+    BleakClient = None  # type: ignore[assignment]
+    BleakScanner = None  # type: ignore[assignment]
 
 DEVICE_CLASS_LABELS = {
     "ntag": "NTag Smart Tracker",
@@ -187,6 +202,9 @@ class BleSuite:
         self._sniffer_timer: threading.Thread | None = None
         self._lock = threading.Lock()
         self._uid = 1000
+        self._clients: dict[str, Any] = {}  # device_id → BleakClient (echte HW)
+        # Backend: "bleak" (echte Hardware) oder "sim" (Offline-Fallback)
+        self.backend = "bleak" if BLEAK_AVAILABLE else "sim"
         self._init_devices()
 
     # ------------------------------------------------------------------
@@ -231,18 +249,72 @@ class BleSuite:
         if self.scan_running:
             return "BLE-Scan läuft bereits."
         self.scan_running = True
-        self._audit(user, "ble_scan_start", "Kontinuierlicher BLE-Scan gestartet (bluetoothctl)")
+        mode = "bleak (echte Hardware)" if self.backend == "bleak" else "Simulation (kein Adapter)"
+        self._audit(user, "ble_scan_start", f"Kontinuierlicher BLE-Scan gestartet ({mode})")
         self._scan_timer = threading.Thread(target=self._scan_loop, daemon=True)
         self._scan_timer.start()
-        return "✅ BLE-Scan gestartet – kontinuierliche Erkennung über den USB-C-Dongle."
+        return f"✅ BLE-Scan gestartet ({mode})."
 
     def _scan_loop(self) -> None:
         while self.scan_running:
-            with self._lock:
-                for d in self.devices:
-                    d["rssi"] = _rssi_walk(d["rssi"])
-                    d["rssi_history"] = (d.get("rssi_history") or [])[-40:] + [d["rssi"]]
+            if self.backend == "bleak":
+                ok = self._scan_real_once()
+                if not ok:
+                    # Adapter nicht verfügbar → explizit auf Simulation wechseln
+                    self.backend = "sim"
+                    self._audit(self.role, "ble_scan_fallback",
+                                "Kein BLE-Adapter gefunden – Simulationsmodus aktiv")
+            else:
+                with self._lock:
+                    for d in self.devices:
+                        d["rssi"] = _rssi_walk(d["rssi"])
+                        d["rssi_history"] = (d.get("rssi_history") or [])[-40:] + [d["rssi"]]
             time.sleep(2.0)
+
+    def _scan_real_once(self) -> bool:
+        """Echter BLE-Scan via BleakScanner.discover. False → kein Adapter."""
+        if not BLEAK_AVAILABLE or BleakScanner is None:
+            return False
+        try:
+            devices = self._run_async(self._discover_devices())
+            with self._lock:
+                self.devices = devices or self.devices
+            return True
+        except Exception as exc:  # noqa: BLE001 – Adapter-/Rechteprobleme
+            self._audit(self.role, "ble_scan_error", f"Scan fehlgeschlagen: {exc}")
+            return False
+
+    @staticmethod
+    async def _discover_devices() -> list[dict[str, Any]]:
+        found = await BleakScanner.discover(timeout=6.0)
+        out = []
+        for i, dev in enumerate(found):
+            name = dev.name or "Unbekannt"
+            address = dev.address
+            rssi = int(dev.rssi or 0)
+            uuids = [str(u) for u in (dev.metadata.get("uuids") or [])] if dev.metadata else []
+            cls_ = "peripheral"
+            hay = f"{name} {' '.join(uuids)}".lower()
+            if any(w in hay for w in ("ntag", "nfc", "tracker")):
+                cls_ = "ntag"
+            elif any(w in hay for w in ("beacon", "sensor", "aktor", "token", "temp")):
+                cls_ = "token"
+            elif "mesh" in hay:
+                cls_ = "mesh"
+            out.append({
+                "id": f"ble-live-{address.replace(':', '').lower()[:8]}",
+                "name": name, "address": address, "rssi": rssi,
+                "tx_power": -59, "device_class": cls_, "manufacturer": "",
+                "service_uuids": uuids, "connectable": True, "bound": False,
+                "connected": False, "battery": None, "provisioned": None,
+                "rssi_history": [rssi], "real": True,
+            })
+        return out
+
+    @staticmethod
+    def _run_async(coro):
+        """Führt eine Async-Coroutine aus (Sync-UI → bleak)."""
+        return asyncio.run(coro)
 
     def stop_scan(self, user: str = "nutzer") -> str:
         self.scan_running = False
@@ -275,6 +347,20 @@ class BleSuite:
             return f"❌ Maximal {MAX_CONNECTIONS} parallele Verbindungen."
         if not self.can("connect"):
             return "⛔ Zugriff verweigert: Rolle Service (L2) erforderlich."
+        # Echte Hardware (bleak): Verbindung tatsächlich aufbauen
+        if device.get("real") and BLEAK_AVAILABLE and BleakClient is not None:
+            try:
+                client = BleakClient(device["address"], timeout=10.0)
+                self._run_async(client.connect())
+                self._clients[device_id] = client
+                device["connected"] = True
+                self.connected_ids.append(device_id)
+                self._audit(user, "ble_connect",
+                            f"{device['name']} verbunden (echte Hardware, bleak)")
+                return f"🔗 {device['name']} verbunden (echte Hardware)."
+            except Exception as exc:  # noqa: BLE001
+                self._audit(user, "ble_connect_error", f"{device['name']}: {exc}")
+                return f"❌ Verbindung fehlgeschlagen (echte Hardware): {exc}"
         device["connected"] = True
         self.connected_ids.append(device_id)
         self._audit(user, "ble_connect", f"{device['name']} verbunden ({len(self.connected_ids)}/{MAX_CONNECTIONS})")
@@ -284,6 +370,13 @@ class BleSuite:
         device = next((d for d in self.devices if d["id"] == device_id), None)
         if not device or not device["connected"]:
             return "❌ Gerät ist nicht verbunden."
+        # Echte Verbindung schließen
+        client = self._clients.pop(device_id, None)
+        if client is not None:
+            try:
+                self._run_async(client.disconnect())
+            except Exception:  # noqa: BLE001
+                pass
         device["connected"] = False
         self.connected_ids = [i for i in self.connected_ids if i != device_id]
         self._audit(user, "ble_disconnect", device["name"])
@@ -321,8 +414,59 @@ class BleSuite:
         if not device:
             return "❌ Gerät nicht gefunden."
         clean = "".join(c for c in value_hex if c in "0123456789abcdefABCDEF") or "00"
+        # Echte Hardware: an das verbundene BleakClient schreiben
+        client = self._clients.get(device_id)
+        if client is not None:
+            try:
+                bytes_ = bytes.fromhex(clean)
+                self._run_async(client.write_gatt_char(uuid, bytes_))
+                self._audit(user, "gatt_write",
+                            f"{device['name']} → {uuid} = 0x{clean.upper()} (echte Hardware)")
+                return f"✍️ {device['name']}: Wert 0x{clean.upper()} geschrieben (echte Hardware)."
+            except Exception as exc:  # noqa: BLE001
+                return f"❌ GATT-Write fehlgeschlagen (echte Hardware): {exc}"
         self._audit(user, "gatt_write", f"{device['name']} → 0x{clean.upper()}")
         return f"✍️ {device['name']}: Wert 0x{clean.upper()} geschrieben."
+
+    def gatt_read_real(self, device_id: str, uuid: str, user: str = "nutzer") -> str:
+        """Echtes GATT-Read über bleak (verbundenes Gerät)."""
+        if not self.can("gatt_read"):
+            return "⛔ Zugriff verweigert: Rolle Service (L2) erforderlich."
+        client = self._clients.get(device_id)
+        device = next((d for d in self.devices if d["id"] == device_id), None)
+        if client is None or device is None:
+            return "❌ Gerät nicht (echt) verbunden – zuerst verbinden."
+        try:
+            value = self._run_async(client.read_gatt_char(uuid))
+            hex_str = value.hex().upper()
+            dec = " ".join(str(b) for b in value)
+            ascii_ = "".join(chr(b) if 32 <= b <= 126 else "." for b in value)
+            self._audit(user, "gatt_read", f"{device['name']} → {uuid} = 0x{hex_str}")
+            return (f"📖 {device['name']} · {uuid}\n"
+                    f"Hex: 0x{hex_str or '(leer)'}  Dez: {dec}\n"
+                    f"ASCII: {ascii_}")
+        except Exception as exc:  # noqa: BLE001
+            return f"❌ GATT-Read fehlgeschlagen (echte Hardware): {exc}"
+
+    def gatt_notify_real(self, device_id: str, uuid: str, enable: bool,
+                         user: str = "nutzer", callback=None) -> str:
+        """Echtes Notify an/aus über bleak (verbundenes Gerät)."""
+        if not self.can("gatt_notify"):
+            return "⛔ Zugriff verweigert: Rolle Service (L2) erforderlich."
+        client = self._clients.get(device_id)
+        device = next((d for d in self.devices if d["id"] == device_id), None)
+        if client is None or device is None:
+            return "❌ Gerät nicht (echt) verbunden – zuerst verbinden."
+        try:
+            if enable:
+                self._run_async(client.start_notify(uuid, callback or (lambda _s, _d: None)))
+                self._audit(user, "gatt_notify_on", f"{device['name']} · {uuid} (echte Hardware)")
+                return f"🔔 Notifications an ({device['name']} · {uuid}) – echte Hardware."
+            self._run_async(client.stop_notify(uuid))
+            self._audit(user, "gatt_notify_off", f"{device['name']} · {uuid}")
+            return f"🔕 Notifications aus ({device['name']} · {uuid})."
+        except Exception as exc:  # noqa: BLE001
+            return f"❌ Notify fehlgeschlagen (echte Hardware): {exc}"
 
     # ------------------------------------------------------------------
     # Mesh

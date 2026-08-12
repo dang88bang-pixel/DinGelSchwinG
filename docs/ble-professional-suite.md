@@ -208,6 +208,19 @@ schlägt bei Abweichungen Maßnahmen vor.
 
 ## 8. Produktiver Betrieb (Roadmap)
 
+### 8.0 Aktive Hardware statt Simulation
+
+- **Web-App:** Die Suite nutzt ab sofort die **Web-Bluetooth-API** für echte
+  Hardware (Chromium/Edge auf Windows/macOS/Android, HTTPS): Gerätewahl-Dialog,
+  GATT-Connect, Live-RSSI, echtes GATT-Read/Write/Notify im GATT-Explorer
+  („Live-Modus“). Ohne Web-Bluetooth-fähigen Browser bleibt der SuiteStore als
+  klar gekennzeichneter Offline-Fallback aktiv (`src/lib/ble/webBluetooth.ts`).
+- **Desktop-Konsole:** Echter BLE-Scan/Verbindung/GATT über **bleak**
+  (`pip install bleak`); ohne Adapter wechselt der Store explizit in den
+  Simulationsmodus (`desktop/utils/ble_suite.py`).
+- **Mobile-App:** bereits vollständig hardware-basiert (flutter_blue_plus,
+  nRF Mesh SDK, local_auth).
+
 ### 8.1 Native Flutter-App (Feldtests, Android/iOS)
 
 `mobile/ble_professional_suite/` ist die **native, autarke** Umsetzung: Alle
