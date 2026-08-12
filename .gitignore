@@ -31,3 +31,11 @@ build/
 
 # Capacitor (generierte Caches)
 capacitor/
+.gui-venv/
+
+# Desktop-Konsole: Laufzeit-Dateien (nicht versionieren)
+desktop/data/config.json
+desktop/data/audit*.json
+desktop/data/cache/
+desktop/data/models/
+desktop/**/__pycache__/

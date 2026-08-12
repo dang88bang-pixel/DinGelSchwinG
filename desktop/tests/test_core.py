@@ -1,0 +1,186 @@
+"""Headless-Tests für die Agent-Console-Engine (ohne GUI/Tkinter).
+
+Ausführen:  python -m unittest discover -s tests -v
+"""
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.agent import Agent  # noqa: E402
+from utils.config import load_config  # noqa: E402
+from utils.model_backend import (  # noqa: E402
+    BackendError, DeterministicBackend, LlamaCppBackend, OllamaBackend,
+    OpenAICompatBackend, create_backend,
+)
+from utils.script_executor import ScriptExecutor, ScriptResult  # noqa: E402
+from utils.skill_loader import load_skills, load_system_instruction  # noqa: E402
+from utils.status_manager import StatusManager  # noqa: E402
+
+
+class TestSkillLoader(unittest.TestCase):
+    def test_load_skills(self) -> None:
+        skills = load_skills()
+        names = {s.name for s in skills}
+        for required in ("scan_network", "show_devices", "assign_button", "run_script",
+                         "export_log", "show_audit", "clear_cache", "stop_workflow", "help"):
+            self.assertIn(required, names, f"Skill {required} fehlt")
+
+    def test_system_instruction(self) -> None:
+        text = load_system_instruction()
+        self.assertTrue(len(text) > 20)
+        self.assertIn("Deutsch", text)
+
+
+class TestScriptExecutor(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp()
+        with open(os.path.join(self.tmp, "echo.py"), "w", encoding="utf-8") as f:
+            f.write('import sys\nprint("ECHO:" + "|".join(sys.argv[1:]))\n')
+        self.executor = ScriptExecutor(scripts_dir=self.tmp)
+
+    def test_list_and_run(self) -> None:
+        self.assertIn("echo.py", self.executor.list_scripts())
+        result = self.executor.run("echo.py", args=["a", "b"])
+        self.assertIsInstance(result, ScriptResult)
+        self.assertTrue(result.ok)
+        self.assertIn("ECHO:a|b", result.output)
+
+    def test_missing_script(self) -> None:
+        result = self.executor.run("nope.py")
+        self.assertFalse(result.ok)
+        self.assertIn("nicht gefunden", result.error)
+
+    def test_path_traversal_blocked(self) -> None:
+        result = self.executor.run("../etc/passwd")
+        self.assertFalse(result.ok)
+
+
+class TestStatusManager(unittest.TestCase):
+    def test_mock_fallback(self) -> None:
+        manager = StatusManager(poll_interval=0.5)
+        manager.refresh()
+        self.assertGreaterEqual(len(manager.devices), 5)
+        self.assertGreaterEqual(len(manager.clients), 1)
+        self.assertGreaterEqual(manager.connected_devices(), 1)
+        self.assertIsInstance(manager.summary(), str)
+        self.assertIn("Geräte", manager.summary())
+
+    def test_manual_workflows(self) -> None:
+        manager = StatusManager(poll_interval=0.5)
+        manager.refresh()
+        baseline = manager.active_workflows()  # Mock liefert 1 laufenden Workflow
+        manager.add_workflow("test_wf", progress=10)
+        self.assertEqual(manager.active_workflows(), baseline + 1)
+        manager.update_workflow("test_wf", 100, "success")
+        self.assertEqual(manager.active_workflows(), baseline)
+        self.assertTrue(manager.remove_workflow("test_wf"))
+        self.assertEqual(manager.active_workflows(), baseline)
+
+
+class TestBackends(unittest.TestCase):
+    def test_deterministic(self) -> None:
+        backend = create_backend({"engine": "none"})
+        self.assertIsInstance(backend, DeterministicBackend)
+        self.assertFalse(backend.is_llm)
+
+    def test_llamacpp_missing_model_raises_clear_error(self) -> None:
+        backend = LlamaCppBackend(model_path="/nonexistent/model.gguf")
+        with self.assertRaises(BackendError):
+            backend.generate("sys", "hi")
+
+    def test_ollama_offline_raises_clear_error(self) -> None:
+        backend = OllamaBackend(base_url="http://127.0.0.1:1")
+        with self.assertRaises(BackendError):
+            backend.generate("sys", "hi")
+
+    def test_openai_missing_key_raises_clear_error(self) -> None:
+        backend = OpenAICompatBackend(api_key="")
+        with self.assertRaises(BackendError):
+            backend.generate("sys", "hi")
+
+
+class TestAgent(unittest.TestCase):
+    def setUp(self) -> None:
+        self.agent = Agent(role="admin", config={"engine": "none"})
+
+    def test_help(self) -> None:
+        reply = self.agent.ask("hilfe")
+        self.assertIn("scan_network", reply)
+
+    def test_devices(self) -> None:
+        reply = self.agent.ask("zeige alle Geräte")
+        self.assertIn("Gefundene Geräte", reply)
+
+    def test_scan(self) -> None:
+        # Echten Scan vermeiden: Executor stubben (Antwort aber durchintentieren)
+        self.agent.executor.run = lambda *a, **k: ScriptResult(
+            True, "SCAN_ERGEBNIS 10.0.0.0/24: 3 aktive Geräte\n  - 10.0.0.1", "", 0.0,
+            "network_scan.py", 0, "12:00:00")
+        reply = self.agent.ask("scanne das Netzwerk 10.0.0.0/24")
+        self.assertIn("Netzwerk-Scan", reply)
+        self.assertTrue(self.agent.status.remove_workflow("network_scan"))
+
+    def test_assign_button(self) -> None:
+        reply = self.agent.ask("belege Button 3 mit dem Skript backup_config.sh")
+        self.assertIn("Button 3", reply)
+        self.assertEqual(self.agent.get_button(2)["action"], "script:backup_config.sh")
+        # ausführen (lokales, schnelles Skript)
+        result = self.agent.execute_action(2)
+        self.assertIsInstance(result, str)
+        self.assertTrue(result.startswith("▶️") or "Skript" in result)
+
+    def test_assign_button_invalid(self) -> None:
+        reply = self.agent.ask("belege Button 9 mit x.py")
+        self.assertIn("❌", reply)
+
+    def test_audit_and_export(self) -> None:
+        self.agent.ask("zeige alle Geräte")
+        audit = self.agent.audit_text()
+        self.assertIn("show_devices", audit)
+        path = self.agent.export_log("json")
+        self.assertTrue(os.path.isfile(path))
+        os.remove(path)
+
+    def test_clear_cache(self) -> None:
+        # Anhang simulieren
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".log") as f:
+            f.write(b"test")
+            tmp = f.name
+        reply = self.agent.attach_file(tmp)
+        self.assertIn("angehängt", reply)
+        count = self.agent.clear_cache()
+        self.assertGreaterEqual(count, 1)
+
+    def test_stop_workflow(self) -> None:
+        self.agent.status.add_workflow("demo_task")
+        reply = self.agent.ask("stoppe den Workflow")
+        self.assertIn("Gestoppt", reply)
+        self.assertIn("demo_task", reply)
+
+    def test_fallback(self) -> None:
+        reply = self.agent.ask("was ist die Hauptstadt von Frankreich?")
+        self.assertIn("verstanden", reply)
+
+    def test_buttons_defaults(self) -> None:
+        self.assertEqual(len(self.agent._buttons), 6)
+        self.assertEqual(self.agent.get_button(0)["action"], "attach")
+
+    def test_run_script_intent(self) -> None:
+        reply = self.agent.ask("führe backup_config.sh aus")
+        self.assertIn("backup_config.sh", reply)
+
+
+class TestConfig(unittest.TestCase):
+    def test_defaults_and_save(self) -> None:
+        cfg = load_config()
+        self.assertEqual(len(cfg["buttons"]), 6)
+        self.assertEqual(cfg["engine"], "auto")
+
+
+if __name__ == "__main__":
+    unittest.main()

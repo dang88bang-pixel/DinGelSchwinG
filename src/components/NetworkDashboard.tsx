@@ -7,6 +7,7 @@ import MeshControl from './MeshControl';
 import ReplayEditor from './ReplayEditor';
 import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
+import AgentConsole from './AgentConsole';
 import { useSensors } from '../hooks/useSensors';
 import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
 
@@ -35,6 +36,7 @@ export default function NetworkDashboard() {
   const [boundClients, setBoundClients] = useState<PairedDevice[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -88,6 +90,13 @@ export default function NetworkDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          <button
+            onClick={() => setAgentOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-violet-600 to-fuchsia-700 text-white ring-1 ring-violet-300/40 shadow-xl hover:brightness-110 transition"
+            title="Chat-zentrierte Agenten-Steuerung öffnen"
+          >
+            🤖 Agent
+          </button>
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
               {m==='ble' && <Bluetooth className="w-3.5 h-3.5" />}{m==='wifi' && <Wifi className="w-3.5 h-3.5" />}{m==='usb' && <Radio className="w-3.5 h-3.5" />}{m.toUpperCase()}
@@ -259,6 +268,8 @@ export default function NetworkDashboard() {
       <footer className="border-t border-white/10 mt-auto py-4 text-center text-[11px] text-slate-600 font-mono tracking-wide bg-[#020617]/60 backdrop-blur-md">
         DinGelSchwinG • NEXUS-BUILDER • WASM BLE Modul • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
       </footer>
+
+      {agentOpen && <AgentConsole role="admin" onClose={() => setAgentOpen(false)} />}
     </div>
   );
 }
