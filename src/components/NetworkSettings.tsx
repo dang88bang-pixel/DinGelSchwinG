@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { SlidersHorizontal, Wifi, Bluetooth, Radio, Activity, Waves, Zap, Save, RotateCcw } from 'lucide-react';
+import { SlidersHorizontal, Wifi, Bluetooth, Activity, Save } from 'lucide-react';
 
 export interface NetworkConfig {
   defaultMode: 'ble' | 'wifi' | 'usb';

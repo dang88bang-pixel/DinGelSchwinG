@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, Lock, AlertCircle, Settings, Plus, Trash2, Send, Copy, CheckCircle } from 'lucide-react';
+import { MessageCircle, Lock, AlertCircle, Plus, Send, CheckCircle } from 'lucide-react';
 
 /**
  * MoE Agent Chat Interface mit System-Critical Permission Guards
@@ -481,16 +481,6 @@ export default function MoEChatInterface() {
   };
 
   // ============ Agent Management ============
-
-  const handleSaveAgent = (agent: MoEAgent) => {
-    if (editingAgent) {
-      setAgents(prev => prev.map(a => a.id === agent.id ? agent : a));
-    } else {
-      setAgents(prev => [...prev, { ...agent, id: `agent-${Date.now()}` }]);
-    }
-    setEditingAgent(null);
-    setShowAgentForm(false);
-  };
 
   const handleDeleteAgent = (id: string) => {
     setAgents(prev => prev.filter(a => a.id !== id));

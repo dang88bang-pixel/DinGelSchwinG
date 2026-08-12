@@ -4,7 +4,7 @@
 
 ✅ **Required Software:**
 - Node.js 18+ & npm
-- Java Development Kit (JDK) 11+
+- Java Development Kit (JDK) 17 (Gradle 8)
 - Android SDK (API 34+)
 - Android Build Tools 34.0.0+
 - Gradle 8.0+
@@ -12,6 +12,41 @@
 ✅ **For Release Builds:**
 - Keystore file for signing
 - Google Play Developer Account (for distribution)
+
+---
+
+## 🤖 GitHub Actions – automatischer APK-Build & Release
+
+Das Repository enthält einen CI-Workflow (`.github/workflows/build-apk.yml`),
+der bei jedem Push auf `main` (sowie manuell über *Actions → Build APK →
+Run workflow*) die APKs automatisch baut:
+
+**Was der Workflow macht:**
+1. Installiert Node.js, JDK 17 und das Android SDK
+2. `npm ci` → `npm run lint` → `npm run type-check` → `npm run build`
+3. `npx cap sync android` (die Android-Plattform ist versioniert, `android/`)
+4. Baut **Debug-APK** und **Release-APK**
+5. Lädt beide APKs als **Artifact** hoch
+
+**GitHub Release mit APK (bei Tags):**
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+Sobald ein Tag mit `v*` gepusht wird, erstellt der Workflow automatisch ein
+**GitHub Release** mit beiden APKs als Download-Anhang.
+
+**Signiertes Release-APK (optional):**
+Ohne Keystore wird das Release-APK mit dem Debug-Schlüssel signiert
+(installierbar, nicht für den Play Store geeignet). Für echtes Signieren
+im Repository unter *Settings → Secrets and variables → Actions* anlegen:
+
+| Secret | Beschreibung |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | Keystore-Datei als Base64 (`base64 -w0 release.keystore`) |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore-Passwort |
+| `ANDROID_KEY_ALIAS` | Alias des Signierschlüssels |
+| `ANDROID_KEY_PASSWORD` | Schlüssel-Passwort |
 
 ---
 

@@ -23,12 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Android
-android/
+# Android build outputs (Quellcode unter android/ ist versioniert)
 .gradle/
 build/
 *.apk
 *.aab
 
-# Capacitor
+# Capacitor (generierte Caches)
 capacitor/
