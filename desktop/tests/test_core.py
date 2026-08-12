@@ -33,7 +33,14 @@ class TestSkillLoader(unittest.TestCase):
     def test_system_instruction(self) -> None:
         text = load_system_instruction()
         self.assertTrue(len(text) > 20)
-        self.assertIn("Deutsch", text)
+        self.assertIn("Systemanweisung", text)
+
+    def test_system_instruction_modes(self) -> None:
+        chat = load_system_instruction("chat")
+        adb = load_system_instruction("adb")
+        self.assertIn("Systemanweisung", chat)
+        self.assertIn("ADB", adb)
+        self.assertIn("Penetrationstesting", adb)
 
 
 class TestScriptExecutor(unittest.TestCase):
@@ -175,11 +182,73 @@ class TestAgent(unittest.TestCase):
         self.assertIn("backup_config.sh", reply)
 
 
+class TestAgentModes(unittest.TestCase):
+    """Modus A (Chat) / Modus B (ADB-Aktion) – konfigurierbare Systemanweisung."""
+
+    def test_default_chat_mode(self) -> None:
+        agent = Agent(role="admin", config={"engine": "none"})
+        self.assertEqual(agent.mode, "chat")
+        self.assertIn("Systemanweisung", agent.system_instruction)
+        names = {s.name for s in agent.skills}
+        self.assertIn("scan_network", names)
+        self.assertNotIn("adb_backup", names)
+
+    def test_adb_mode(self) -> None:
+        agent = Agent(role="admin", config={"engine": "none", "agent_mode": "adb"})
+        self.assertEqual(agent.mode, "adb")
+        self.assertIn("ADB", agent.system_instruction)
+        names = {s.name for s in agent.skills}
+        self.assertIn("adb_backup", names)
+        self.assertIn("adb_pentest", names)
+
+    def test_adb_approval_flow(self) -> None:
+        agent = Agent(role="admin", config={"engine": "none", "agent_mode": "adb"})
+        reply = agent.ask("erstelle ein adb backup skript")
+        self.assertIn("Umsetzungsplan", reply)
+        self.assertIn("Freigabe", reply)
+        self.assertIsNotNone(agent._pending_plan)
+        # erst nach Freigabe wird das Skript erzeugt
+        reply2 = agent.ask("freigeben")
+        self.assertIn("Skript erstellt", reply2)
+        name = reply2.split("`")[1]
+        path = os.path.join(agent.executor.scripts_dir, name)
+        self.assertTrue(os.path.isfile(path))
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("adb", content)
+        os.remove(path)
+
+    def test_approval_stays_pending_until_replaced(self) -> None:
+        agent = Agent(role="admin", config={"engine": "none", "agent_mode": "adb"})
+        agent.ask("backup des geräts")
+        agent.ask("zeige alle Geräte")  # unabhängige Anfrage löscht den Plan nicht
+        self.assertIsNotNone(agent._pending_plan)
+        agent.ask("erstelle einen pentest")  # neuer Plan ersetzt alten
+        self.assertEqual(agent._pending_plan[0], "pentest")
+
+    def test_set_mode_switch(self) -> None:
+        agent = Agent(role="admin", config={"engine": "none"})
+        reply = agent.set_mode("adb")
+        self.assertIn("ADB", reply)
+        self.assertIn("adb_backup", {s.name for s in agent.skills})
+        reply = agent.set_mode("chat")
+        self.assertIn("Normaler Chat", reply)
+        self.assertNotIn("adb_backup", {s.name for s in agent.skills})
+
+    def test_save_custom_instruction(self) -> None:
+        agent = Agent(role="admin", config={"engine": "none"})
+        agent.set_mode("custom")
+        reply = agent.save_instruction("Du bist ein Test-Agent. Antworte auf Deutsch.")
+        self.assertIn("gespeichert", reply)
+        self.assertIn("Test-Agent", agent.system_instruction)
+
+
 class TestConfig(unittest.TestCase):
     def test_defaults_and_save(self) -> None:
         cfg = load_config()
         self.assertEqual(len(cfg["buttons"]), 6)
         self.assertEqual(cfg["engine"], "auto")
+        self.assertEqual(cfg["agent_mode"], "chat")
 
 
 if __name__ == "__main__":

@@ -22,7 +22,9 @@ from .api_client import APIClient
 from .config import load_config
 from .model_backend import BackendError, DeterministicBackend, ModelBackend, create_backend
 from .script_executor import ScriptExecutor, ScriptResult
-from .skill_loader import Skill, load_skills, load_system_instruction, skills_to_prompt
+from .skill_loader import (
+    Skill, load_skills, load_system_instruction, save_system_instruction, skills_to_prompt,
+)
 from .status_manager import StatusManager
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
@@ -32,6 +34,18 @@ AUDIT_PATH = os.path.join(DATA_DIR, "audit.json")
 BUTTON_LABELS = ["📎", "📤", "📋", "▶️", "⏹️", "🗑️"]
 DEFAULT_BUTTON_ACTIONS = ["attach", "export", "audit", "workflow:scan", "stop", "clear_cache"]
 
+MODE_LABELS = {
+    "chat": "A: Normaler Chat",
+    "adb": "B: ADB-Aktion (USB/WiFi · Pentest · Rescue · Backup)",
+    "custom": "Benutzerdefiniert",
+}
+
+APPROVAL_WORDS = re.compile(
+    r"^\s*(freigeben|freigegeben|bestätigen|bestaetigen|freigabe|approve|approved|"
+    r"ja[, ]*führe aus|ja[, ]*fuehre aus|ok[, ]*ausführen|ok[, ]*ausfuehren)\b",
+    re.IGNORECASE,
+)
+
 
 class Agent:
     """Zentraler Agent: Chat-Verarbeitung, Tools, Aktionsbuttons, Audit."""
@@ -40,16 +54,47 @@ class Agent:
                  status: StatusManager | None = None) -> None:
         self.role = role
         self.config = config or load_config()
-        self.skills: list[Skill] = load_skills()
-        self.system_instruction = load_system_instruction()
+        self.mode = str(self.config.get("agent_mode", "chat"))
+        if self.mode not in MODE_LABELS:
+            self.mode = "chat"
+        self.skills: list[Skill] = load_skills(self.mode)
+        self.system_instruction = load_system_instruction(self.mode)
         self.executor = ScriptExecutor()
         self.status = status or StatusManager()
         self.backend: ModelBackend = create_backend(self.config)
         self.audit_log: list[dict] = []
         self._audit_lock = threading.Lock()
         self._buttons = self._init_buttons()
+        self._pending_plan: tuple[str, Callable[[], str]] | None = None
         self._load_audit()
         os.makedirs(CACHE_DIR, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Modus-Umschaltung (A: Chat, B: ADB-Aktion, custom)
+    # ------------------------------------------------------------------
+    def set_mode(self, mode: str) -> str:
+        """Wechselt den Agenten-Modus und lädt Anweisung + Skills neu."""
+        if mode not in MODE_LABELS:
+            return f"❌ Unbekannter Modus: {mode} (erlaubt: {', '.join(MODE_LABELS)})"
+        self.mode = mode
+        self.config["agent_mode"] = mode
+        self.system_instruction = load_system_instruction(mode)
+        self.skills = load_skills(mode)
+        self._pending_plan = None
+        self._audit("set_mode", MODE_LABELS[mode])
+        return f"✅ Modus gewechselt: {MODE_LABELS[mode]}\nAnweisung und Skills wurden neu geladen."
+
+    def save_instruction(self, text: str) -> str:
+        """Speichert die Systemanweisung für den aktiven Modus (editierbar)."""
+        ok = save_system_instruction(text, self.mode)
+        if ok:
+            self.system_instruction = text.strip()
+            self._audit("save_instruction", f"Modus {self.mode} aktualisiert")
+            return "💾 Systemanweisung gespeichert."
+        return "❌ Speichern fehlgeschlagen (Dateizugriff)."
+
+    def mode_label(self) -> str:
+        return MODE_LABELS.get(self.mode, self.mode)
 
     # ------------------------------------------------------------------
     # Aktionsbuttons
@@ -141,6 +186,12 @@ class Agent:
 
     def _process(self, text: str) -> str:
         try:
+            # 0) Ausstehender Plan (Modus B): Freigabe-Bestätigung zuerst prüfen
+            if self._pending_plan is not None and APPROVAL_WORDS.match(text.strip()):
+                description, executor = self._pending_plan
+                self._pending_plan = None
+                self._audit("approve_plan", description)
+                return "✅ Freigabe erteilt.\n" + executor()
             handled = self._try_intents(text)
             if handled is not None:
                 return handled
@@ -160,6 +211,10 @@ class Agent:
             return self._intent_help()
         if "belege" in t and "button" in t:
             return self._intent_assign_button(t)
+        if self.mode == "adb":
+            adb = self._try_adb_intents(t)
+            if adb is not None:
+                return adb
         if re.search(r"\bstopp|abbrechen|beenden", t):
             return self._intent_stop()
         if re.search(r"\bscann|netzwerk-?scan", t):
@@ -181,11 +236,112 @@ class Agent:
         return None
 
     # ------------------------------------------------------------------
+    # Modus B: ADB-Intents (nur im ADB-Modus aktiv)
+    # ------------------------------------------------------------------
+    def _try_adb_intents(self, t: str) -> str | None:
+        if re.search(r"\badb\b|adb geräte|adb devices", t) and re.search(r"(gerät|geraet|device|list|zeige|welche|status)", t):
+            return self._intent_adb_devices()
+        if re.search(r"\b(backup|sichern|sicherung)\b", t):
+            return self._plan_adb("backup",
+                                  "1. Analyse: Zielgerät (eigenes/autorisierte Fremdgerät), Android-Version, OEM-Lock-Status\n"
+                                  "2. Zielgruppe: Endnutzer zur Datensicherung / Admin\n"
+                                  "3. Tools: adb (USB-Debugging aktiv, Gerät autorisiert), kein Root nötig\n"
+                                  "4. Workflow: Geräteprüfung → APK-Liste → Backup-Verzeichnis → adb pull/backup → Fehlerprüfung\n"
+                                  "5. Compliance: Nur eigene/Genehmigte Geräte, DSGVO-konforme Datenhaltung\n\n"
+                                  "Risikohinweis: `adb backup` funktioniert bei aktiven OEM-Locks u.U. nicht; "
+                                  "kein Datenverlustrisiko bei reinem Lesen/Pull.")
+        if re.search(r"\b(rescue|datenrettung|retten)\b", t):
+            return self._plan_adb("rescue",
+                                  "1. Analyse: Gerät im Bootloop/Display defekt, USB-Debugging aktiv?\n"
+                                  "2. Zielgruppe: Forensische Ermittler / Endnutzer zur Datenrettung\n"
+                                  "3. Tools: adb pull (read-only, kein Root erforderlich für /sdcard)\n"
+                                  "4. Workflow: Geräteprüfung → Zielverzeichnis → pull von DCIM/Download/Documents → Checksummen\n"
+                                  "5. Compliance: DSGVO; nur autorisierte Geräte\n\n"
+                                  "Risikohinweis: Rescue liest nur Daten (kein Bricking-Risiko).")
+        if re.search(r"\b(pentest|sicherheitscheck|auditiere|schwachstellen)\b", t):
+            return self._plan_adb("pentest",
+                                  "1. Analyse: Rechtliche Zulässigkeit (eigenes Gerät / schriftliche Genehmigung)\n"
+                                  "2. Zielgruppe: Penetrationstester (autorisiert)\n"
+                                  "3. Tools: adb + optionale Analyse (Frida/Objection NUR nach Freigabe)\n"
+                                  "4. Workflow: Geräteinfo → Paketliste → Berechtigungen → Logs → Bericht\n"
+                                  "5. Compliance: Keine rechtswidrigen Zugriffe, kein Datendiebstahl")
+        if re.search(r"\b(logcat|gerätelogs|logdaten|logs)\b", t):
+            return self._plan_adb("logs",
+                                  "1. Analyse: Gerät verbunden und autorisiert\n"
+                                  "2. Zielgruppe: Admin / Forensik\n"
+                                  "3. Tools: adb logcat\n"
+                                  "4. Workflow: Verbindung prüfen → logcat in Datei schreiben\n"
+                                  "5. Compliance: Logs können personenbezogene Daten enthalten – DSGVO beachten")
+        if re.search(r"(wifi|tcpip|kabellos)", t) and re.search(r"(verbind|connect)", t):
+            return self._plan_adb("connect",
+                                  "1. Analyse: USB-Debugging aktiv, Gerät autorisiert\n"
+                                  "2. Zielgruppe: Admin / Pentester (autorisiert)\n"
+                                  "3. Tools: adb tcpip + adb connect\n"
+                                  "4. Workflow: USB-Status → tcpip <port> → connect <ip>:<port> → Verifikation\n"
+                                  "5. Compliance: Keine sensiblen Daten über unverschlüsselte öffentliche Netze\n\n"
+                                  "Risikohinweis: WiFi-ADB setzt das Gerät Netzwerkzugriffen aus – nur im eigenen/vertrauenswürdigen Netz.")
+        if re.search(r"\b(shell|befehl)\b", t):
+            return self._plan_adb("shell",
+                                  "1. Analyse: Befehl prüfen (read-only bevorzugt, z.B. getprop)\n"
+                                  "2. Zielgruppe: Admin\n"
+                                  "3. Tools: adb shell\n"
+                                  "4. Workflow: Geräteprüfung → Befehl ausführen → Ausgabe protokollieren\n"
+                                  "5. Compliance: Nur autorisierte Befehle, keine Manipulation an Sicherheitsmechanismen")
+        return None
+
+    def _plan_adb(self, kind: str, plan_text: str) -> str:
+        """Legt einen Umsetzungsplan zur Freigabe vor (Pflichtprozess 2.3)."""
+        self._pending_plan = (kind, lambda: self._generate_adb(kind))
+        self._audit("plan_adb", kind)
+        return (f"📋 Umsetzungsplan (Modus B – ADB-Aktion: {kind})\n"
+                f"{plan_text}\n\n"
+                f"Vor Ausführung ist deine ausdrückliche Freigabe erforderlich.\n"
+                f"Antworte mit **„freigeben“**, um fortzufahren.")
+
+    def _intent_adb_devices(self) -> str:
+        self._audit("adb_devices", "Geräteliste abgefragt")
+        return ("📱 ADB-Geräte (USB/WiFi):\n"
+                "- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n"
+                "- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n"
+                "- `offline` R22X987DEF – Gerät reaktivieren\n"
+                "- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n"
+                "Hinweis: `adb devices -l` liefert Details (Modell, Transport).")
+
+    def _generate_adb(self, kind: str) -> str:
+        """Erzeugt nach Freigabe ein vollständiges, ausführbares ADB-Skript."""
+        scripts = {
+            "backup": ADB_BACKUP_SCRIPT,
+            "rescue": ADB_RESCUE_SCRIPT,
+            "pentest": ADB_PENTEST_SCRIPT,
+            "logs": ADB_LOGS_SCRIPT,
+            "connect": ADB_CONNECT_SCRIPT,
+            "shell": ADB_SHELL_SCRIPT,
+        }
+        content = scripts.get(kind, ADB_BACKUP_SCRIPT)
+        name = f"adb_{kind}_{time.strftime('%Y%m%d_%H%M%S')}.sh"
+        path = os.path.join(self.executor.scripts_dir, name)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            os.chmod(path, 0o755)
+        except OSError as exc:
+            return f"❌ Skript konnte nicht geschrieben werden: {exc}"
+        self._audit("adb_generate", name)
+        return (f"✅ Skript erstellt: `{name}`\n"
+                f"Pfad: {path}\n"
+                f"Vollständige Dokumentation (Voraussetzungen, Fehlerbehebung, Compliance) "
+                f"steht im Skript-Kopf – ausführbar mit: bash {name}")
+
+    # ------------------------------------------------------------------
     # Intent-Handler (Tools)
     # ------------------------------------------------------------------
     def _intent_help(self) -> str:
-        lines = ["🤖 Ich kann folgende Aufgaben ausführen:", ""]
+        lines = [f"🤖 Modus {self.mode_label()}", ""]
         lines.append(skills_to_prompt(self.skills) or "Keine Skills geladen.")
+        if self.mode == "adb":
+            lines.append("")
+            lines.append("Hinweis: Risikobehaftete Aktionen werden erst nach deiner ausdrücklichen "
+                         "Freigabe („freigeben“) ausgeführt.")
         return "\n".join(lines)
 
     def _intent_assign_button(self, t: str) -> str:
@@ -449,3 +605,169 @@ class Agent:
     def set_backend(self, cfg: dict[str, Any]) -> None:
         self.config.update(cfg)
         self.backend = create_backend(cfg)
+
+# --------------------------------------------------------------------------
+# ADB-Skript-Templates (Modus B) – vollständige, ausführbare Skripte mit
+# Fehlerbehandlung (Regel 3.1/3.3 der ADB-Systemanweisung).
+# --------------------------------------------------------------------------
+
+ADB_BACKUP_SCRIPT = """#!/usr/bin/env bash
+# DinGelSchwinG – ADB-Backup (Modus B)
+# Voraussetzungen: adb installiert, USB-Debugging aktiv, Gerät autorisiert.
+# Nutzung:         bash adb_backup_*.sh [zielverzeichnis]
+set -euo pipefail
+ADB="${ADB:-adb}"
+OUT="${1:-./adb_backup_$(date +%Y%m%d_%H%M%S)}"
+mkdir -p "$OUT"
+
+echo "==> [1/4] Gerätestatus prüfen"
+if ! "$ADB" get-state >/dev/null 2>&1; then
+  echo "FEHLER: Kein ADB-Gerät verbunden." >&2
+  echo "  - USB-Debugging aktivieren (Entwickleroptionen)" >&2
+  echo "  - RSA-Fingerprint am Gerät bestätigen (Status: unauthorized)" >&2
+  echo "  - Prüfe: adb devices" >&2
+  exit 1
+fi
+"$ADB" devices -l
+
+echo "==> [2/4] Installierte Drittanbieter-Apps inventarisieren"
+"$ADB" shell pm list packages -3 -f | sed 's/^package://;s/.*=//' > "$OUT/packages.txt"
+wc -l < "$OUT/packages.txt" | xargs echo "  Pakete gefunden:"
+
+echo "==> [3/4] APKs sichern (kann je nach Gerät mehrere Minuten dauern)"
+while IFS= read -r pkg; do
+  [ -z "$pkg" ] && continue
+  echo "  - $pkg"
+  "$ADB" shell pm path "$pkg" | sed 's/^package://' | while IFS= read -r apk; do
+    "$ADB" pull "$apk" "$OUT/apks/${pkg}.apk" >/dev/null 2>&1 || true
+  done
+done < "$OUT/packages.txt"
+
+echo "==> [4/4] Benutzerdaten (sdcard) sichern"
+for dir in DCIM Download Documents Pictures; do
+  "$ADB" pull "/sdcard/$dir" "$OUT/sdcard/$dir" >/dev/null 2>&1 || \
+    echo "  Hinweis: /sdcard/$dir nicht vorhanden oder nicht lesbar (OEM-Lock?)."
+done
+
+echo "==> Fertig. Backup liegt in: $OUT"
+echo "Hinweis: `adb backup` (System-Backup) funktioniert bei aktivem OEM-Lock u.U. nicht."
+"""
+
+ADB_RESCUE_SCRIPT = """#!/usr/bin/env bash
+# DinGelSchwinG – ADB-Rescue / Datenrettung (Modus B, read-only)
+# Voraussetzungen: Gerät im Recovery/Download erreichbar, USB-Debugging aktiv.
+# Nutzung:         bash adb_rescue_*.sh [zielverzeichnis]
+set -euo pipefail
+ADB="${ADB:-adb}"
+OUT="${1:-./adb_rescue_$(date +%Y%m%d_%H%M%S)}"
+mkdir -p "$OUT"
+
+echo "==> [1/3] Gerätestatus prüfen"
+if ! "$ADB" get-state >/dev/null 2>&1; then
+  echo "FEHLER: Gerät nicht erreichbar (Status offline/unauthorized)." >&2
+  echo "  - Anderes Kabel/Port versuchen" >&2
+  echo "  - Gerät neu starten (Recovery-Modus)" >&2
+  exit 1
+fi
+
+echo "==> [2/3] Datenverzeichnisse lesen (nur pull, keine Änderungen)"
+for dir in DCIM Download Documents Pictures Movies Music; do
+  echo "  - /sdcard/$dir"
+  "$ADB" pull "/sdcard/$dir" "$OUT/$dir" >/dev/null 2>&1 || \
+    echo "    Hinweis: nicht vorhanden oder nicht lesbar."
+done
+
+echo "==> [3/3] Integrität prüfen"
+find "$OUT" -type f -exec md5sum {} + > "$OUT/checksums.md5"
+echo "  Checksummen geschrieben: $OUT/checksums.md5"
+echo "==> Rescue abgeschlossen: $OUT"
+echo "Hinweis: Rescue ist rein lesend – kein Bricking-/Datenverlustrisiko."
+"""
+
+ADB_PENTEST_SCRIPT = """#!/usr/bin/env bash
+# DinGelSchwinG – ADB-Sicherheitscheck (Modus B, NUR autorisierte Geräte)
+# Voraussetzungen: eigenes Gerät ODER schriftliche Genehmigung des Besitzers.
+# Nutzung:         bash adb_pentest_*.sh [paketname]
+set -euo pipefail
+ADB="${ADB:-adb}"
+PKG="${1:-}"
+OUT="./adb_pentest_$(date +%Y%m%d_%H%M%S).txt"
+: > "$OUT"
+
+echo "==> [1/5] Geräteinformationen" | tee -a "$OUT"
+"$ADB" shell getprop ro.product.model            | tee -a "$OUT"
+"$ADB" shell getprop ro.build.version.release    | tee -a "$OUT"
+"$ADB" shell getprop ro.build.version.sdk        | tee -a "$OUT"
+
+echo "==> [2/5] Sicherheitsstatus" | tee -a "$OUT"
+echo -n "  USB-Debugging aktiv: " | tee -a "$OUT"
+"$ADB" shell settings get global adb_enabled 2>/dev/null | tee -a "$OUT"
+
+echo "==> [3/5] Drittanbieter-Pakete" | tee -a "$OUT"
+if [ -n "$PKG" ]; then
+  "$ADB" shell dumpsys package "$PKG" | grep -E "versionName|targetSdk|permissions" | head -40 | tee -a "$OUT"
+else
+  "$ADB" shell pm list packages -3 | tee -a "$OUT"
+fi
+
+echo "==> [4/5] Berechtigungen (Auswahl)" | tee -a "$OUT"
+"$ADB" shell dumpsys package "${PKG:-com.android.settings}" 2>/dev/null \
+  | grep -oE "android.permission.[A-Z_]+" | sort -u | head -30 | tee -a "$OUT"
+
+echo "==> [5/5] Bericht: $OUT"
+echo "Compliance: Nur für autorisierte Penetrationstests. Bericht DSGVO-konform aufbewahren."
+"""
+
+ADB_LOGS_SCRIPT = """#!/usr/bin/env bash
+# DinGelSchwinG – ADB-Logdatenerfassung (Modus B)
+# Nutzung:         bash adb_logs_*.sh
+set -euo pipefail
+ADB="${ADB:-adb}"
+OUT="./adb_logcat_$(date +%Y%m%d_%H%M%S).txt"
+if ! "$ADB" get-state >/dev/null 2>&1; then
+  echo "FEHLER: Kein Gerät verbunden (adb devices prüfen)." >&2
+  exit 1
+fi
+echo "==> Logcat wird erfasst (10 Sekunden)…"
+timeout 10 "$ADB" logcat -v threadtime > "$OUT" || true
+echo "==> Fertig: $OUT ($(wc -l < "$OUT") Zeilen)"
+echo "DSGVO-Hinweis: Logs können personenbezogene Daten enthalten – Zugriff beschränken."
+"""
+
+ADB_CONNECT_SCRIPT = """#!/usr/bin/env bash
+# DinGelSchwinG – ADB-over-WiFi-Verbindung (Modus B)
+# Voraussetzungen: USB-Verbindung aktiv + autorisiert.
+# Nutzung:         bash adb_connect_*.sh <ip> [port]
+set -euo pipefail
+ADB="${ADB:-adb}"
+IP="${1:?Usage: $0 <ip> [port]}"
+PORT="${2:-5555}"
+
+echo "==> [1/3] USB-Status"
+"$ADB" get-state || { echo "FEHLER: USB-Verbindung fehlt." >&2; exit 1; }
+
+echo "==> [2/3] TCP/IP-Modus aktivieren (Port $PORT)"
+"$ADB" tcpip "$PORT"
+
+echo "==> [3/3] Verbinden mit $IP:$PORT"
+"$ADB" connect "$IP:$PORT"
+"$ADB" -s "$IP:$PORT" wait-for-device
+echo "==> Verbunden. Kabel kann getrennt werden."
+echo "Sicherheitshinweis: Nur im vertrauenswürdigen Netz verwenden – keine sensiblen"
+echo "Daten über öffentliche/unverschlüsselte WLANs übertragen."
+"""
+
+ADB_SHELL_SCRIPT = """#!/usr/bin/env bash
+# DinGelSchwinG – ADB-Shell-Ausführung (Modus B)
+# Nutzung:         bash adb_shell_*.sh '<befehl>'
+set -euo pipefail
+ADB="${ADB:-adb}"
+CMD="${1:?Usage: $0 '<befehl>'}"
+if ! "$ADB" get-state >/dev/null 2>&1; then
+  echo "FEHLER: Kein Gerät verbunden." >&2
+  exit 1
+fi
+echo "==> adb shell $CMD"
+"$ADB" shell "$CMD"
+echo "==> Exit-Code: $?"
+"""

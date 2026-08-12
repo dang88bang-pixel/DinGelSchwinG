@@ -16,6 +16,29 @@ pip install -r requirements.txt        # customtkinter (+ optional websocket-cli
 python main.py                          # Login (admin / admin)
 ```
 
+## Agent-Modi (Systemanweisung konfigurierbar)
+
+Der Agent arbeitet in **konfigurierbaren Modi** – Wechsel unter
+**Einstellungen → System**, der Text der Systemanweisung ist dort direkt editierbar:
+
+| Modus | Beschreibung |
+|---|---|
+| **A: Normaler Chat** | Allgemeine verbindliche Systemanweisung (Anforderungsanalyse, Pflichtprozess, Code-Regeln, Kommunikation) |
+| **B: ADB-Aktion** | ADB-spezialisierte Anweisung (USB/WiFi · Pentesting · Rescue · Backup). Eigene ADB-Skills (`skillz_adb.md`). **Pflicht-Freigabeprozess:** Bei risikobehafteten Aktionen wird zuerst ein Umsetzungsplan vorgelegt – erst nach „freigeben“ wird das vollständige, ausführbare Skript erzeugt (in `data/scripts/adb_*.sh`). |
+| **Benutzerdefiniert** | Eigene Anweisung frei definierbar |
+
+Dateien: `data/system_instruction_chat.txt`, `data/system_instruction_adb.txt`,
+`data/system_instruction_custom.txt` (wird beim Speichern angelegt), `data/skillz_adb.md`.
+
+Beispiel-Dialog Modus B:
+```
+» erstelle ein adb backup skript
+  📋 Umsetzungsplan (Modus B – ADB-Aktion: backup) … Vor Ausführung ist deine
+     ausdrückliche Freigabe erforderlich. Antworte mit „freigeben“.
+» freigeben
+  ✅ Skript erstellt: adb_backup_20260812_103000.sh (Pfad: data/scripts/…)
+```
+
 ## Modell einbinden (optional)
 
 **Variante A – eingebettetes GGUF-Modell (empfohlen):**

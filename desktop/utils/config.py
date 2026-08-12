@@ -10,7 +10,8 @@ CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 
 DEFAULTS: dict[str, Any] = {
     "role": "admin",
-    "engine": "auto",          # auto | none | llamacpp | ollama | openai
+    "agent_mode": "chat",        # chat (A: Normaler Chat) | adb (B: ADB-Aktion) | custom
+    "engine": "auto",            # auto | none | llamacpp | ollama | openai
     "model": "qwen2.5:0.5b",
     "model_path": "",          # expliziter Pfad zu einer .gguf-Datei
     "base_url": "http://localhost:11434",

@@ -1,13 +1,13 @@
 """⚙️ Einstellungen: Systeminstruktionen, Modell-Backend, Aktionsbuttons."""
 from __future__ import annotations
 
+import os
 from typing import Callable
 
 import customtkinter as ctk
 
 from ..utils.agent import Agent
 from ..utils.config import save_config
-from ..utils.skill_loader import save_system_instruction
 
 ENGINES = ["auto", "none", "llamacpp", "ollama", "openai"]
 ENGINE_LABELS = {
@@ -44,31 +44,73 @@ class SettingsView(ctk.CTkFrame):
     # ------------------------------------------------------------------
     def _build_system_tab(self, tab) -> None:
         tab.grid_columnconfigure(0, weight=1)
-        tab.grid_rowconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+
+        # Modus-Auswahl (A: Normaler Chat | B: ADB-Aktion | custom)
+        mode_row = ctk.CTkFrame(tab, fg_color="transparent")
+        mode_row.grid(row=0, column=0, sticky="ew", padx=6, pady=(6, 2))
+        mode_row.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(mode_row, text="Modus:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=4)
+
+        from ..utils.agent import MODE_LABELS
+        self.mode_menu = ctk.CTkOptionMenu(
+            mode_row, values=list(MODE_LABELS.values()),
+            command=lambda _v: self._on_mode_change())
+        self.mode_menu.set(MODE_LABELS.get(self.agent.mode, "A: Normaler Chat"))
+        self.mode_menu.pack(side="left", padx=4, fill="x", expand=True)
+
+        ctk.CTkLabel(mode_row, text="Systemanweisung (editierbar):",
+                     text_color="#94a3b8", font=ctk.CTkFont(size=12)).pack(side="left", padx=8)
 
         self.sys_text = ctk.CTkTextbox(tab, font=ctk.CTkFont(size=13))
-        self.sys_text.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
-        self.sys_text.insert("1.0", self.agent.system_instruction)
+        self.sys_text.grid(row=1, column=0, sticky="nsew", padx=6, pady=6)
+        self._load_instruction_text()
 
         bar = ctk.CTkFrame(tab, fg_color="transparent")
-        bar.grid(row=1, column=0, sticky="ew", padx=6, pady=6)
-        ctk.CTkButton(bar, text="💾 Systeminstruktion speichern",
+        bar.grid(row=2, column=0, sticky="ew", padx=6, pady=6)
+        ctk.CTkButton(bar, text="💾 Anweisung speichern",
                       command=self._save_system).pack(side="left", padx=4)
+        ctk.CTkButton(bar, text="↩️ Standard wiederherstellen",
+                      command=self._restore_default).pack(side="left", padx=4)
         ctk.CTkButton(bar, text="🔄 skillz.md neu laden",
                       command=self._reload_skills).pack(side="left", padx=4)
 
+    def _on_mode_change(self) -> None:
+        """Modus wechseln: Agent umschalten + Anweisungstext neu laden."""
+        labels_to_keys = {v: k for k, v in MODE_LABELS.items()}
+        mode = labels_to_keys.get(self.mode_menu.get(), "chat")
+        result = self.agent.set_mode(mode)
+        self._load_instruction_text()
+        self._flash(result.split("\n")[0])
+
+    def _load_instruction_text(self) -> None:
+        self.sys_text.delete("1.0", "end")
+        self.sys_text.insert("1.0", self.agent.system_instruction)
+
     def _save_system(self) -> None:
         text = self.sys_text.get("1.0", "end-1c")
-        if save_system_instruction(text):
-            self.agent.system_instruction = text
-            self._flash("Systeminstruktion gespeichert ✓")
+        self._flash(self.agent.save_instruction(text))
+
+    def _restore_default(self) -> None:
+        """Setzt die Anweisung des aktiven Modus auf den mitgelieferten Standard zurück."""
+        from ..utils.skill_loader import SYSTEM_INSTRUCTION_PATHS
+        import shutil
+        mode = self.agent.mode
+        src = SYSTEM_INSTRUCTION_PATHS.get(mode)
+        if src and os.path.isfile(src):
+            with open(src, "r", encoding="utf-8") as f:
+                default_text = f.read()
         else:
-            self._flash("❌ Speichern fehlgeschlagen")
+            default_text = self.agent.system_instruction
+        self.sys_text.delete("1.0", "end")
+        self.sys_text.insert("1.0", default_text)
+        self._flash(self.agent.save_instruction(default_text))
 
     def _reload_skills(self) -> None:
         from ..utils.skill_loader import load_skills
-        self.agent.skills = load_skills()
-        self._flash(f"skillz.md neu geladen: {len(self.agent.skills)} Skills ✓")
+        self.agent.skills = load_skills(self.agent.mode)
+        self._flash(f"{self.agent.mode_label()}: skillz.md neu geladen "
+                    f"({len(self.agent.skills)} Skills) ✓")
 
     # ------------------------------------------------------------------
     def _build_model_tab(self, tab) -> None:

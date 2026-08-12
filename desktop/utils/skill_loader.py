@@ -1,4 +1,4 @@
-"""Lädt Skill-Definitionen aus skillz.md und Systeminstruktionen."""
+"""Lädt Skill-Definitionen aus skillz.md und Systeminstruktionen (modusabhängig)."""
 from __future__ import annotations
 
 import os
@@ -6,8 +6,22 @@ import re
 from dataclasses import dataclass, field
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-SKILLZ_PATH = os.path.join(DATA_DIR, "skillz.md")
-SYSTEM_INSTRUCTION_PATH = os.path.join(DATA_DIR, "system_instruction.txt")
+
+# Modus A: Normaler Chat | Modus B: ADB-Aktion | custom: eigene Anweisung
+MODES = ("chat", "adb", "custom")
+
+SKILLZ_PATHS = {
+    "chat": os.path.join(DATA_DIR, "skillz.md"),
+    "adb": os.path.join(DATA_DIR, "skillz_adb.md"),
+}
+SYSTEM_INSTRUCTION_PATHS = {
+    "chat": os.path.join(DATA_DIR, "system_instruction_chat.txt"),
+    "adb": os.path.join(DATA_DIR, "system_instruction_adb.txt"),
+    "custom": os.path.join(DATA_DIR, "system_instruction_custom.txt"),
+}
+# Kompatibilität: alte Aufrufe ohne Modus
+SKILLZ_PATH = SKILLZ_PATHS["chat"]
+SYSTEM_INSTRUCTION_PATH = SYSTEM_INSTRUCTION_PATHS["chat"]
 
 _DEFAULT_SYSTEM_INSTRUCTION = (
     "Du bist ein hilfreicher Assistent für Netzwerk- und Systemadministration. "
@@ -36,9 +50,14 @@ class Skill:
         return "\n".join(parts)
 
 
-def load_skills(path: str | None = None) -> list[Skill]:
+def _normalize_mode(mode: str | None) -> str:
+    return mode if mode in MODES else "chat"
+
+
+def load_skills(mode: str | None = None, path: str | None = None) -> list[Skill]:
     """Parst skillz.md: Abschnitte '## <name>' mit Schlüssel/Wert-Zeilen."""
-    path = path or SKILLZ_PATH
+    mode = _normalize_mode(mode)
+    path = path or SKILLZ_PATHS.get(mode, SKILLZ_PATHS["chat"])
     skills: list[Skill] = []
     if not os.path.isfile(path):
         return skills
@@ -65,19 +84,20 @@ def load_skills(path: str | None = None) -> list[Skill]:
         value = value.strip()
         if not sep:
             continue
-        if key == "beschreibung" or key == "description":
+        if key in ("beschreibung", "description"):
             current.description = value
-        elif key == "aufruf" or key == "calls":
+        elif key in ("aufruf", "calls"):
             current.calls = [c.strip() for c in value.split("|")]
-        elif key == "parameter" or key == "params":
+        elif key in ("parameter", "params"):
             current.params = value
-        elif key == "beispiel" or key == "example":
+        elif key in ("beispiel", "example"):
             current.example = value
     return skills
 
 
-def load_system_instruction(path: str | None = None) -> str:
-    path = path or SYSTEM_INSTRUCTION_PATH
+def load_system_instruction(mode: str | None = None, path: str | None = None) -> str:
+    mode = _normalize_mode(mode)
+    path = path or SYSTEM_INSTRUCTION_PATHS.get(mode, SYSTEM_INSTRUCTION_PATHS["chat"])
     try:
         with open(path, "r", encoding="utf-8") as f:
             content = f.read().strip()
@@ -86,8 +106,9 @@ def load_system_instruction(path: str | None = None) -> str:
         return _DEFAULT_SYSTEM_INSTRUCTION
 
 
-def save_system_instruction(text: str, path: str | None = None) -> bool:
-    path = path or SYSTEM_INSTRUCTION_PATH
+def save_system_instruction(text: str, mode: str | None = None, path: str | None = None) -> bool:
+    mode = _normalize_mode(mode)
+    path = path or SYSTEM_INSTRUCTION_PATHS.get(mode, SYSTEM_INSTRUCTION_PATHS["chat"])
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:

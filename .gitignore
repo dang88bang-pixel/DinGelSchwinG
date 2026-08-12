@@ -39,3 +39,4 @@ desktop/data/audit*.json
 desktop/data/cache/
 desktop/data/models/
 desktop/**/__pycache__/
+desktop/data/system_instruction_custom.txt

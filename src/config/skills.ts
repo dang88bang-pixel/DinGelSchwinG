@@ -90,8 +90,8 @@ export const SKILLS: Skill[] = [
   },
 ];
 
-export function skillsToPrompt(): string {
-  return SKILLS.map(
+export function skillsToPrompt(skills: Skill[] = SKILLS): string {
+  return skills.map(
     (s) => `- ${s.name}: ${s.description}\n    Aufruf: ${s.calls.join(' | ')}\n    Parameter: ${s.params}${s.example ? `\n    Beispiel: ${s.example}` : ''}`,
   ).join('\n');
 }

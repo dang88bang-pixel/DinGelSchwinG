@@ -7,7 +7,11 @@
  * transformers.js) für freie Antworten genutzt – ohne Modell läuft die
  * deterministische Skill-Engine (immer funktionsfähig).
  */
-import { SKILLS, skillsToPrompt } from '../../config/skills';
+import { SKILLS, Skill, skillsToPrompt } from '../../config/skills';
+import {
+  ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, CHAT_SYSTEM_INSTRUCTION,
+  MODE_LABELS,
+} from '../../config/systemInstructions';
 import { MOCK_DEVICES } from '../../mocks/devices.mock';
 import { TransformersBackend } from './transformersBackend';
 
@@ -49,13 +53,10 @@ export const BUTTON_DEFAULTS: ActionButton[] = [
   { label: '🗑️', action: 'clear_cache', desc: 'Cache leeren' },
 ];
 
-const DEFAULT_SYSTEM_INSTRUCTION =
-  'Du bist "DinGelSchwinG", ein Agent für Netzwerk- und Systemadministration. ' +
-  'Antworte immer auf Deutsch, kurz und präzise. ' +
-  'Nutze die verfügbaren Skills, um Befehle auszuführen. ' +
-  'Wenn du eine Aktion ausführen willst, schreibe genau eine Zeile im Format: ' +
-  'TOOL:<skill_name> parameter=wert ... ' +
-  'Erfinde keine Ergebnisse. Verweise bei Unsicherheit auf "hilfe".';
+const STORAGE_MODE_KEY = 'dgs.agentMode';
+const STORAGE_CUSTOM_KEY = 'dgs.customInstruction';
+
+const APPROVAL_RE = /^\s*(freigeben|freigegeben|bestätigen|bestaetigen|freigabe|approve|approved)\b/i;
 
 function now(): string {
   return new Date().toLocaleTimeString('de-DE');
@@ -63,17 +64,103 @@ function now(): string {
 
 export class AgentEngine {
   role: string;
-  skills = SKILLS;
-  systemInstruction = DEFAULT_SYSTEM_INSTRUCTION;
+  mode: AgentMode = 'chat';
+  customInstruction = '';
   buttons: ActionButton[] = BUTTON_DEFAULTS.map((b) => ({ ...b }));
   auditLog: AuditEntry[] = [];
   tasks: WorkflowEntry[] = [];
   attachments: string[] = [];
   backend: TransformersBackend = new TransformersBackend();
+  pendingPlan: { kind: string; plan: string } | null = null;
   private nextMsgId = 1;
 
   constructor(role = 'admin') {
     this.role = role;
+    // Persistierte Konfiguration laden (Modus A/B/custom + eigene Anweisung)
+    try {
+      const mode = localStorage.getItem(STORAGE_MODE_KEY) as AgentMode | null;
+      if (mode && mode in MODE_LABELS) this.mode = mode;
+      this.customInstruction = localStorage.getItem(STORAGE_CUSTOM_KEY) ?? '';
+    } catch {
+      /* localStorage nicht verfügbar (z.B. WebView) – Defaults bleiben */
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Modus-Konfiguration (A: Normaler Chat | B: ADB-Aktion | custom)
+  // ------------------------------------------------------------------
+  get systemInstruction(): string {
+    const override = this.getInstructionOverride(this.mode);
+    if (override) return override;
+    if (this.mode === 'adb') return ADB_SYSTEM_INSTRUCTION;
+    if (this.mode === 'custom' && this.customInstruction.trim()) return this.customInstruction;
+    return CHAT_SYSTEM_INSTRUCTION;
+  }
+
+  getInstructionOverride(mode: AgentMode): string {
+    try {
+      return localStorage.getItem(`dgs.override.${mode}`) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  saveInstruction(text: string): void {
+    const trimmed = text.trim();
+    try {
+      if (this.mode === 'custom') {
+        this.customInstruction = trimmed;
+        localStorage.setItem(STORAGE_CUSTOM_KEY, trimmed);
+      } else {
+        localStorage.setItem(`dgs.override.${this.mode}`, trimmed);
+      }
+    } catch {
+      /* ignore */
+    }
+    this.audit('save_instruction', `Modus ${this.mode} aktualisiert`);
+  }
+
+  resetInstruction(): void {
+    try {
+      if (this.mode === 'custom') {
+        this.customInstruction = '';
+        localStorage.removeItem(STORAGE_CUSTOM_KEY);
+      } else {
+        localStorage.removeItem(`dgs.override.${this.mode}`);
+      }
+    } catch {
+      /* ignore */
+    }
+    this.audit('reset_instruction', `Modus ${this.mode} auf Standard zurückgesetzt`);
+  }
+
+  get skills(): Skill[] {
+    return this.mode === 'adb' ? ADB_SKILLS : SKILLS;
+  }
+
+  get modeLabel(): string {
+    return MODE_LABELS[this.mode];
+  }
+
+  setMode(mode: AgentMode): void {
+    this.mode = mode;
+    this.pendingPlan = null;
+    try {
+      localStorage.setItem(STORAGE_MODE_KEY, mode);
+    } catch {
+      /* ignore */
+    }
+    this.audit('set_mode', MODE_LABELS[mode]);
+  }
+
+  saveCustomInstruction(text: string): void {
+    this.customInstruction = text.trim();
+    try {
+      localStorage.setItem(STORAGE_CUSTOM_KEY, this.customInstruction);
+    } catch {
+      /* ignore */
+    }
+    this.audit('save_instruction', 'custom aktualisiert');
   }
 
   // ------------------------------------------------------------------
@@ -81,6 +168,13 @@ export class AgentEngine {
   // ------------------------------------------------------------------
   async ask(text: string): Promise<string> {
     const t = text.trim();
+    // 0) Ausstehender Plan (Modus B): Freigabe-Bestätigung zuerst prüfen
+    if (this.pendingPlan && APPROVAL_RE.test(t)) {
+      const plan = this.pendingPlan;
+      this.pendingPlan = null;
+      this.audit('approve_plan', plan.kind);
+      return '✅ Freigabe erteilt.\n' + this.generateAdbScript(plan.kind);
+    }
     const intent = this.tryIntents(t);
     if (intent !== null) return intent;
     if (this.backend.isReady()) {
@@ -97,7 +191,7 @@ export class AgentEngine {
     const context =
       `Aktueller Kontext:\n- Rolle: ${this.role}\n` +
       `- Geräte: ${MOCK_DEVICES.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ')}\n` +
-      `- Aktive Workflows: ${this.activeWorkflows().length}\n${skillsToPrompt()}`;
+      `- Aktive Workflows: ${this.activeWorkflows().length}\n${skillsToPrompt(this.skills)}`;
     try {
       const raw = await this.backend.generate(this.systemInstruction + '\n\n' + context, text);
       const toolLines = raw.split('\n').filter((l) => l.trim().startsWith('TOOL:'));
@@ -139,6 +233,10 @@ export class AgentEngine {
 
     if (/\b(help|hilfe)\b|was kannst du/.test(t)) return this.intentHelp();
     if (t.includes('belege') && t.includes('button')) return this.intentAssignButton(t);
+    if (this.mode === 'adb') {
+      const adb = this.tryAdbIntents(t);
+      if (adb !== null) return adb;
+    }
     if (/\bstopp|abbrechen|beenden/.test(t)) return this.intentStop();
     if (/\bscann|netzwerk-?scan/.test(t)) return this.intentScan(t);
     if (/(zeige|list|show).*(geräte|geraete|devices)|welche geräte|geräte anzeigen/.test(t)) {
@@ -163,10 +261,108 @@ export class AgentEngine {
   }
 
   // ------------------------------------------------------------------
+  // Modus B: ADB-Intents (nur im ADB-Modus aktiv)
+  // ------------------------------------------------------------------
+  private tryAdbIntents(t: string): string | null {
+    if (/\badb\b/.test(t) && /(gerät|geraet|device|list|zeige|welche|status)/.test(t)) {
+      return this.intentAdbDevices();
+    }
+    if (/\b(backup|sichern|sicherung)\b/.test(t)) {
+      return this.planAdb('backup',
+        '1. Analyse: Zielgerät (eigenes/autorisierte Fremdgerät), Android-Version, OEM-Lock-Status\n' +
+        '2. Zielgruppe: Endnutzer zur Datensicherung / Admin\n' +
+        '3. Tools: adb (USB-Debugging aktiv, Gerät autorisiert), kein Root nötig\n' +
+        '4. Workflow: Geräteprüfung → APK-Liste → Backup-Verzeichnis → adb pull → Fehlerprüfung\n' +
+        '5. Compliance: Nur eigene/genehmigte Geräte, DSGVO-konforme Datenhaltung\n\n' +
+        'Risikohinweis: `adb backup` funktioniert bei aktiven OEM-Locks u.U. nicht; reines Lesen/Pull birgt kein Datenverlustrisiko.');
+    }
+    if (/\b(rescue|datenrettung|retten)\b/.test(t)) {
+      return this.planAdb('rescue',
+        '1. Analyse: Gerät im Bootloop/Display defekt, USB-Debugging aktiv?\n' +
+        '2. Zielgruppe: Forensische Ermittler / Endnutzer zur Datenrettung\n' +
+        '3. Tools: adb pull (read-only, kein Root erforderlich für /sdcard)\n' +
+        '4. Workflow: Geräteprüfung → Zielverzeichnis → pull von DCIM/Download/Documents → Checksummen\n' +
+        '5. Compliance: DSGVO; nur autorisierte Geräte\n\n' +
+        'Risikohinweis: Rescue liest nur Daten (kein Bricking-Risiko).');
+    }
+    if (/\b(pentest|sicherheitscheck|auditiere|schwachstellen)\b/.test(t)) {
+      return this.planAdb('pentest',
+        '1. Analyse: Rechtliche Zulässigkeit (eigenes Gerät / schriftliche Genehmigung)\n' +
+        '2. Zielgruppe: Penetrationstester (autorisiert)\n' +
+        '3. Tools: adb + optionale Analyse (Frida/Objection NUR nach Freigabe)\n' +
+        '4. Workflow: Geräteinfo → Paketliste → Berechtigungen → Logs → Bericht\n' +
+        '5. Compliance: Keine rechtswidrigen Zugriffe, kein Datendiebstahl');
+    }
+    if (/\b(logcat|gerätelogs|logdaten|logs)\b/.test(t)) {
+      return this.planAdb('logs',
+        '1. Analyse: Gerät verbunden und autorisiert\n' +
+        '2. Zielgruppe: Admin / Forensik\n' +
+        '3. Tools: adb logcat\n' +
+        '4. Workflow: Verbindung prüfen → logcat in Datei schreiben\n' +
+        '5. Compliance: Logs können personenbezogene Daten enthalten – DSGVO beachten');
+    }
+    if (/(wifi|tcpip|kabellos)/.test(t) && /(verbind|connect)/.test(t)) {
+      return this.planAdb('connect',
+        '1. Analyse: USB-Debugging aktiv, Gerät autorisiert\n' +
+        '2. Zielgruppe: Admin / Pentester (autorisiert)\n' +
+        '3. Tools: adb tcpip + adb connect\n' +
+        '4. Workflow: USB-Status → tcpip <port> → connect <ip>:<port> → Verifikation\n' +
+        '5. Compliance: Keine sensiblen Daten über unverschlüsselte öffentliche Netze\n\n' +
+        'Risikohinweis: WiFi-ADB setzt das Gerät Netzwerkzugriffen aus – nur im eigenen/vertrauenswürdigen Netz.');
+    }
+    if (/\b(shell|befehl)\b/.test(t)) {
+      return this.planAdb('shell',
+        '1. Analyse: Befehl prüfen (read-only bevorzugt, z.B. getprop)\n' +
+        '2. Zielgruppe: Admin\n' +
+        '3. Tools: adb shell\n' +
+        '4. Workflow: Geräteprüfung → Befehl ausführen → Ausgabe protokollieren\n' +
+        '5. Compliance: Nur autorisierte Befehle, keine Manipulation an Sicherheitsmechanismen');
+    }
+    return null;
+  }
+
+  private planAdb(kind: string, plan: string): string {
+    this.pendingPlan = { kind, plan };
+    this.audit('plan_adb', kind);
+    return (
+      `📋 Umsetzungsplan (Modus B – ADB-Aktion: ${kind})\n${plan}\n\n` +
+      'Vor Ausführung ist deine ausdrückliche Freigabe erforderlich.\n' +
+      'Antworte mit **„freigeben“**, um fortzufahren.'
+    );
+  }
+
+  intentAdbDevices(): string {
+    this.audit('adb_devices', 'Geräteliste abgefragt');
+    return (
+      '📱 ADB-Geräte (USB/WiFi):\n' +
+      '- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n' +
+      '- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n' +
+      '- `offline` R22X987DEF – Gerät reaktivieren\n' +
+      '- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n' +
+      'Hinweis: `adb devices -l` liefert Details (Modell, Transport).'
+    );
+  }
+
+  generateAdbScript(kind: string): string {
+    const content = ADB_SCRIPTS[kind] ?? ADB_SCRIPTS.backup;
+    this.audit('adb_generate', kind);
+    return (
+      `✅ Skript erstellt (vollständig, ausführbar):\n` +
+      `\`\`\`bash\n${content}\n\`\`\`\n` +
+      `Voraussetzungen: adb installiert, USB-Debugging aktiv, Gerät autorisiert.\n` +
+      `Ausführen: In Datei speichern (z.B. adb_${kind}.sh) und mit \`bash adb_${kind}.sh\` starten.`
+    );
+  }
+
+  // ------------------------------------------------------------------
   // Intent-Handler
   // ------------------------------------------------------------------
   intentHelp(): string {
-    return `🤖 Ich kann folgende Aufgaben ausführen:\n\n${skillsToPrompt()}`;
+    const header = `🤖 Modus ${this.modeLabel}\n\n`;
+    const hint = this.mode === 'adb'
+      ? '\n\nHinweis: Risikobehaftete Aktionen werden erst nach deiner ausdrücklichen Freigabe („freigeben“) ausgeführt.'
+      : '';
+    return `${header}Ich kann folgende Aufgaben ausführen:\n\n${skillsToPrompt(this.skills)}${hint}`;
   }
 
   intentAssignButton(t: string): string {
