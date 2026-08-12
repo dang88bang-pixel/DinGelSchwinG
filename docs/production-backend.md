@@ -1,7 +1,7 @@
 # Produktions-Backend: PostgreSQL, Passwort-Hashes, LDAP/OAuth2
 
 Konkretisierung der README-Aufgabe „echte Nutzer-DB + Passwort-Hashes,
-WebAuthn für L3+/L5“. Der Server selbst liegt außerhalb dieses Repos —
+WebAuthn für L3+/L5“. Das Backend liegt in `server/` (REST :5000, Terminal :8765, Discovery :8766, Status :8767). Für Produktion zusätzlich:
 hier das vollständige Integrations-Blueprint inkl. `deploy/.env.example`.
 
 Bisheriger Stand (README): SQLite (`data.db`) für Geräte/Clients/Pairings/
