@@ -83,7 +83,6 @@ Diese Datei verlinkt die aktiven Projektbereiche, damit jede beschriebene Funkti
 | [android/app/build.gradle](../android/app/build.gradle) | App-Modul, Signing, Build-Types |
 | [android/variables.gradle](../android/variables.gradle) | Android SDK-/Dependency-Versionen |
 | [android/gradle/wrapper/gradle-wrapper.properties](../android/gradle/wrapper/gradle-wrapper.properties) | Gradle Wrapper Distribution |
-| [scripts/patch-capacitor-android.mjs](../scripts/patch-capacitor-android.mjs) | Nach `npx cap sync android`: generierte Capacitor-Dateien auf Java 17 patchen |
 
 ## Qualitätssicherung
 

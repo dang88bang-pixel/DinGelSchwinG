@@ -24,7 +24,7 @@ Run workflow*) die APKs automatisch baut:
 **Was der Workflow macht:**
 1. Installiert Node.js, JDK 17 und das Android SDK
 2. `npm ci` → `npm run lint` → `npm run type-check` → `npm run build`
-3. `npx cap sync android` (die Android-Plattform ist versioniert, `android/`) und danach automatisch `scripts/patch-capacitor-android.mjs`, damit die generierten Capacitor-Gradle-Dateien Java 17 nutzen
+3. `npx cap sync android` (die Android-Plattform ist versioniert, `android/`); die Root-Gradle-Konfiguration erzwingt Java 17 für alle Android-Subprojekte
 4. Baut **Debug-APK** und **Release-APK**
 5. Lädt beide APKs als **Artifact** hoch
 

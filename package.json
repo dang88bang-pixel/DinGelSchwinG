@@ -15,9 +15,7 @@
     "android:apk:release": "npm run build && npx cap sync android && cd android && ./gradlew assembleRelease --no-daemon",
     "android:install": "npm run build && npx cap sync android && cd android && ./gradlew installDebug --no-daemon",
     "capacitor:add": "npx cap add android",
-    "capacitor:sync": "npx cap sync",
-    "patch:capacitor-android": "node scripts/patch-capacitor-android.mjs",
-    "capacitor:sync:after": "npm run patch:capacitor-android"
+    "capacitor:sync": "npx cap sync"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

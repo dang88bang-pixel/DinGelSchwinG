@@ -136,4 +136,4 @@ Geprüft wurden:
 - `npx cap sync android`
 - `python3 -m unittest discover -s desktop/tests -v`
 
-APK-Builds benötigen in dieser Umgebung zusätzlich eine installierte JDK-17-Laufzeit. Nach `npx cap sync android` setzt `scripts/patch-capacitor-android.mjs` die generierten Android-Compile-Optionen auf Java 17, damit der vorhandene GitHub-Actions-Workflow APKs erzeugen kann.
+APK-Builds benötigen in dieser Umgebung zusätzlich eine installierte JDK-17-Laufzeit. Die Root-Gradle-Konfiguration erzwingt Java 17 für alle Android-Subprojekte, damit der vorhandene GitHub-Actions-Workflow APKs erzeugen kann.
