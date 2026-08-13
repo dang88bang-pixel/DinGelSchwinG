@@ -1,8 +1,7 @@
 # Hardware-Setup — Dongles, PTY-Bridge, SSH & BLE
 
-Konkrete Anleitung zum Produktivmachen der Hardware-Pfade, die in der
-README-Checkliste als Platzhalter markiert sind (`cat`-PTY-Bridge, SSH-Key-Pfade,
-`bluetoothctl`-Voraussetzungen, `/dev/ttyACM*`).
+Konkrete Anleitung zum Anbinden produktiver Hardware-Pfade (PTY-Bridge,
+SSH-Key-Pfade, `bluetoothctl`-Voraussetzungen, `/dev/ttyACM*`).
 
 > **Scope-Hinweis:** Der eigentliche Server-Code (PTY-Bridge, Scanner, Auth)
 > ist nicht Teil dieses Repos — diese Anleitung beschreibt den produktiven
@@ -60,9 +59,9 @@ services:
 > Scanner nutzt `network_mode: host` (mDNS/BLE) — Port-Konflikt mit einem
 > Host-Dienst auf 8766 prüfen.
 
-## 3. PTY-Bridge: `cat`-Platzhalter ersetzen
+## 3. PTY-Bridge produktiv anbinden
 
-Die Entwicklungs-Stub-Bridge spawnt `cat` (Echo). Produktiv je nach Ziel:
+Die produktive Bridge muss je nach Ziel einen seriellen Port, ein Netzwerk-PTY oder SSH öffnen:
 
 **a) Serielle Bridge (physisches Dongle an `/dev/ttyACM0`):**
 

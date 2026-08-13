@@ -56,7 +56,7 @@ class DashboardView(ctk.CTkFrame):
             self.workflow_card.configure(text=str(self.status.active_workflows()))
             self.state_card.configure(text="IDLE" if self.status.idle() else "BUSY")
             names = ", ".join(w.get("name", "?") for w in self.status.workflows) or "keine"
-            src = "Live (Backend)" if self.status.backend_online else "Mock (offline)"
+            src = "Live (Backend)" if self.status.backend_online else "Offline (keine Backend-Daten)"
             self.detail.configure(
                 text=f"Geräte: {', '.join(d.get('name','') for d in self.status.devices[:5])}\n"
                      f"Workflows: {names}\nQuelle: {src}")

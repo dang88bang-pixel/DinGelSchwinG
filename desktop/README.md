@@ -4,7 +4,7 @@ Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration:
 
 - 💬 **Chat-Bereich** – Messenger-Stil, Markdown-lite (fett/kursiv/Code/Listen), Enter zum Senden
 - 🔘 **6 frei belegbare Aktionsbuttons** – per Chat belegen (`"Belege Button 3 mit dem Skript network_scan.py"`) oder manuell in den Einstellungen
-- 📡 **Status-Panel** – Geräte, Clients, Workflows, Testverbindungen, Systemlast (Live via WebSocket `/ws/status` + Polling, mit Offline-Mock-Fallback)
+- 📡 **Status-Panel** – Geräte, Clients, Workflows, Testverbindungen, Systemlast (Live via WebSocket `/ws/status` + Polling; offline bewusst leere Live-Daten)
 - 🛠️ **Skripte-Galerie** – CRUD + eingebauter Editor, Testen/Ausführen mit Timeout, RBAC (nur `admin` darf löschen)
 - ⚙️ **Einstellungen** – Systeminstruktionen (System-Prompt), Modell-Backend, Button-Belegung
 - 🧠 **Eingebettetes Lightweight-Modell** – Qwen2.5-0.5B-Instruct (GGUF ~400 MB) oder Ollama/OpenAI-kompatibel; ohne LLM läuft eine deterministische Skill-Engine (immer funktionsfähig)
@@ -12,7 +12,8 @@ Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration:
 ## Installation & Start
 
 ```bash
-pip install -r requirements.txt        # customtkinter (+ optional websocket-client)
+sudo apt-get install python3-tk         # Linux: Tkinter-Systembibliothek
+pip install -r requirements.txt         # customtkinter (+ optional websocket-client)
 python main.py                          # Login (admin / admin)
 ```
 
@@ -72,9 +73,9 @@ python -m unittest discover -s tests -v     # 23 Tests, ohne GUI
 
 Die Konsole fragt ein optionales Backend auf `localhost:5000` ab
 (`/api/devices`, `/api/clients`, `/api/workflows`, `/api/tests`, `/api/system`,
-WebSocket `/ws/status`). Ist kein Backend erreichbar, liefert ein eingebauter
-Mock-Datenprovider plausible Daten – die Oberfläche bleibt voll funktionsfähig
-(erkennbar an „(mock)“ in der Status-Bar).
+WebSocket `/ws/status`). Ist kein Backend erreichbar, bleiben die Live-Listen
+bewusst leer – die Oberfläche bleibt ausführbar, zeigt aber klar `offline`
+anstatt künstliche Daten zu erzeugen.
 
 ## Projektstruktur
 

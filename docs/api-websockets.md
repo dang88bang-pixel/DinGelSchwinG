@@ -105,5 +105,5 @@ Live-Status gebundener Geräte. Heartbeat/Ping + Stale-Detection (TTL).
 Die Python-Desktop-Konsole (`desktop/`) nutzt denselben Vertrag abgespeckt
 auf `localhost:5000` (`/api/devices`, `/api/clients`, `/api/workflows`,
 `/api/tests`, `/api/system`). Fällt das Backend aus, liefert der eingebaute
-**Mock-Provider** plausible Daten — erkennbar am Marker `(mock)` in der
+**Offline-Modus** leere Live-Daten — erkennbar am Marker `offline` in der
 Status-Bar.

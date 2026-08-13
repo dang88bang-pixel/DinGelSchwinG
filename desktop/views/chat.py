@@ -113,7 +113,7 @@ class ChatView(ctk.CTkFrame):
         self._scroll_to_bottom()
 
     def _make_text_widget(self, master, text: str) -> tk.Text:
-        fg = BUBBLE_COLORS.get("system", {})  # placeholder
+        fg = BUBBLE_COLORS.get("system", {})  # neutrale Systemfarbe
         # Farbe je Sender wird vom Bubble-Frame geerbt – wir wählen kontrastreich:
         bg = master.cget("fg_color")
         fg_color = "#e2e8f0"

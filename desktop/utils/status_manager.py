@@ -1,8 +1,9 @@
 """StatusManager: aggregiert Geräte, Clients, Workflows, Tests + Systemlast.
 
-Bezieht Daten aus WebSocket (/ws/status), periodischem API-Polling und
-– falls beides nicht erreichbar – aus Mock-Daten. Benachrichtigt
-Observer (UI) nach jedem Update über einen Thread-sicheren Callback.
+Bezieht Daten aus WebSocket (/ws/status) und periodischem API-Polling.
+Ist kein Backend erreichbar, bleiben die Live-Listen leer; es werden keine
+künstlichen Daten erzeugt. Benachrichtigt Observer (UI) nach jedem Update
+über einen Thread-sicheren Callback.
 """
 from __future__ import annotations
 
@@ -91,7 +92,7 @@ class StatusManager:
             self.refresh()
 
     def refresh(self) -> None:
-        """Holt alle Daten (mit Mock-Fallback) und benachrichtigt Observer."""
+        """Holt Live-Daten und benachrichtigt Observer; offline bleibt leer."""
         self.backend_online = APIClient.backend_online()
         with self._lock:
             self.devices = APIClient.get_devices()
@@ -168,7 +169,7 @@ class StatusManager:
         cli = self.client_count()
         wf = self.active_workflows()
         state = "IDLE" if self.idle() else "BUSY"
-        src = "live" if self.backend_online else "mock"
+        src = "live" if self.backend_online else "offline"
         return (f"🟢 Geräte: {dev}  |  👥 Clients: {cli}  |  ⚡ Workflows: {wf}  |  "
                 f"🛡️ {state}  ({src})")
 

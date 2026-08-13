@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
 import threading
 import time
 from typing import Any, Callable
@@ -299,13 +300,22 @@ class Agent:
                 f"Antworte mit **„freigeben“**, um fortzufahren.")
 
     def _intent_adb_devices(self) -> str:
-        self._audit("adb_devices", "Geräteliste abgefragt")
-        return ("📱 ADB-Geräte (USB/WiFi):\n"
-                "- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n"
-                "- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n"
-                "- `offline` R22X987DEF – Gerät reaktivieren\n"
-                "- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n"
-                "Hinweis: `adb devices -l` liefert Details (Modell, Transport).")
+        self._audit("adb_devices", "adb devices -l")
+        adb = shutil.which("adb")
+        if not adb:
+            return "📱 ADB ist nicht installiert oder nicht im PATH. Es werden keine Beispielgeräte angezeigt."
+        try:
+            result = subprocess.run(
+                [adb, "devices", "-l"], capture_output=True, text=True,
+                timeout=10, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return f"📱 ADB-Geräteliste konnte nicht gelesen werden: {exc}"
+        output = (result.stdout or "").strip()
+        error = (result.stderr or "").strip()
+        if result.returncode != 0:
+            return f"📱 `adb devices -l` fehlgeschlagen (Exit {result.returncode}).\n{error or output}"
+        return "📱 ADB-Geräte (Live via `adb devices -l`):\n```\n" + (output or "Keine Geräte verbunden.") + "\n```"
 
     def _generate_adb(self, kind: str) -> str:
         """Erzeugt nach Freigabe ein vollständiges, ausführbares ADB-Skript."""

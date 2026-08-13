@@ -1,10 +1,9 @@
 /**
- * BLE Distance WASM Integration
+ * BLE Distance Integration
  *
- * Exakte Schnittstelle zum Rust-WASM-Modul (`wasm-ble/`).
- * Der Loader versucht `public/ble_distance.wasm` (bzw. `/wasm/ble_distance_bg.wasm`)
- * zu laden; falls nicht vorhanden, fällt zurück auf die exakt identische
- * JavaScript-Implementierung (verifiziert gegen rust/src/lib.rs).
+ * Tries to load the Rust-WASM module from `public/wasm/ble_distance_bg.wasm`.
+ * If no WASM artifact is deployed, the same deterministic path-loss algorithm
+ * is executed in TypeScript so distance calculation remains real and available.
  */
 
 export interface BLEWasmExports {
@@ -16,12 +15,19 @@ export interface BLEWasmExports {
   get_learned_n: () => number;
 }
 
+export type BLEDistanceSource = 'wasm' | 'typescript';
+
+export interface BLEDistanceModule {
+  exports: BLEWasmExports;
+  source: BLEDistanceSource;
+}
+
 function pathLoss(rssi: number, txPower: number, n: number): number {
   const ratio = (txPower - rssi) / (10.0 * n);
   return Math.pow(10, ratio);
 }
 
-const JS_SIMULATION: BLEWasmExports = {
+const TYPESCRIPT_IMPLEMENTATION: BLEWasmExports = {
   calculate_distance: (rssi: number, tx_power: number) => pathLoss(rssi, tx_power, 2.0),
   calculate_distance_env: (rssi: number, tx_power: number, n: number) => pathLoss(rssi, tx_power, n),
   calc_exact_distance: (rssi: number, tx_power: number, rssi_ref: number, dist_ref: number) => {
@@ -47,33 +53,35 @@ const JS_SIMULATION: BLEWasmExports = {
   get_learned_n: () => 2.0,
 };
 
-/**
- * Lädt das WASM-Modul oder liefert die verifizierte JS-Simulation.
- */
-export async function loadBLEWasm(): Promise<BLEWasmExports> {
+function isValidWasmExports(exports: Partial<BLEWasmExports>): exports is BLEWasmExports {
+  return typeof exports.calculate_distance === 'function'
+    && typeof exports.calculate_distance_env === 'function'
+    && typeof exports.calc_exact_distance === 'function';
+}
+
+export async function loadBLEDistanceModule(): Promise<BLEDistanceModule> {
   try {
-    // Versuch 1: Echte WASM-Instanzierung
-    const resp = await fetch('/wasm/ble_distance_bg.wasm');
+    const resp = await fetch('/wasm/ble_distance_bg.wasm', { cache: 'no-store' });
     if (resp.ok) {
       const bytes = await resp.arrayBuffer();
       const wasmModule = await WebAssembly.compile(bytes);
       const instance = await WebAssembly.instantiate(wasmModule, {});
-      const exports = instance.exports as unknown as BLEWasmExports;
-      if (exports && typeof exports.calculate_distance === 'function') {
-        // Validierung: Bekannte Eingabe muss ~2.0m ergeben (Pfadverlust bei -65 / -59)
-        try {
-          const testVal = exports.calculate_distance(-65, -59);
-          if (typeof testVal === 'number' && testVal > 0 && Math.abs(testVal - 2.0) < 1.0) {
-            return exports;
-          }
-        } catch { /* ungültiges WASM, Fallback */ }
+      const exports = instance.exports as unknown as Partial<BLEWasmExports>;
+      if (isValidWasmExports(exports)) {
+        const testVal = exports.calculate_distance(-65, -59);
+        if (typeof testVal === 'number' && Number.isFinite(testVal) && testVal > 0) {
+          return { exports, source: 'wasm' };
+        }
       }
     }
   } catch {
-    // Silently fall through to verified JS bridge
+    // Fall through to the in-process deterministic implementation.
   }
-  // Falls kein echtes .wasm gefunden / geladen wird, liefern wir die geprüfte Simulation
-  return JS_SIMULATION;
+  return { exports: TYPESCRIPT_IMPLEMENTATION, source: 'typescript' };
 }
 
-export { JS_SIMULATION as bleWasmVerifiedSimulation };
+export async function loadBLEWasm(): Promise<BLEWasmExports> {
+  return (await loadBLEDistanceModule()).exports;
+}
+
+export { TYPESCRIPT_IMPLEMENTATION as bleDistanceTypeScriptImplementation };

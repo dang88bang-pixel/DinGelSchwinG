@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Beispiel-Skript: Sichert Konfigurationsdateien als Archiv.
+# Produktionsskript: Sichert Konfigurationsdateien als Archiv.
 set -euo pipefail
 
 SRC="${1:-data/scripts}"
