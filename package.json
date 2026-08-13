@@ -11,11 +11,13 @@
     "type-check": "tsc --noEmit",
     "android:build": "npm run build && npx cap copy android && npx cap open android",
     "android:sync": "npx cap sync android",
-    "android:apk": "cd android && ./gradlew assembleDebug",
-    "android:apk:release": "cd android && ./gradlew assembleRelease",
-    "android:install": "cd android && ./gradlew installDebug",
+    "android:apk": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug --no-daemon",
+    "android:apk:release": "npm run build && npx cap sync android && cd android && ./gradlew assembleRelease --no-daemon",
+    "android:install": "npm run build && npx cap sync android && cd android && ./gradlew installDebug --no-daemon",
     "capacitor:add": "npx cap add android",
-    "capacitor:sync": "npx cap sync"
+    "capacitor:sync": "npx cap sync",
+    "patch:capacitor-android": "node scripts/patch-capacitor-android.mjs",
+    "capacitor:sync:after": "npm run patch:capacitor-android"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

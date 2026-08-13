@@ -58,7 +58,7 @@ npm audit --audit-level=moderate
 Voraussetzungen:
 
 - Node.js `^20.19.0` oder `>=22.12.0`
-- JDK 21
+- JDK 17
 - Android SDK / Build Tools
 
 ```bash
@@ -136,4 +136,4 @@ Geprüft wurden:
 - `npx cap sync android`
 - `python3 -m unittest discover -s desktop/tests -v`
 
-APK-Builds benötigen in dieser Umgebung zusätzlich eine installierte JDK-21-Laufzeit.
+APK-Builds benötigen in dieser Umgebung zusätzlich eine installierte JDK-17-Laufzeit. Nach `npx cap sync android` setzt `scripts/patch-capacitor-android.mjs` die generierten Android-Compile-Optionen auf Java 17, damit der vorhandene GitHub-Actions-Workflow APKs erzeugen kann.

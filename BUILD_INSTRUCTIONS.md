@@ -4,7 +4,7 @@
 
 ✅ **Required Software:**
 - Node.js 20.19+ (oder 22.12+) & npm
-- Java Development Kit (JDK) 21 (Capacitor 8 / Gradle Android build)
+- Java Development Kit (JDK) 17 (GitHub-Actions-kompatibler Android-Build)
 - Android SDK (API 36+)
 - Android Build Tools 34.0.0+
 - Gradle 8.0+
@@ -22,9 +22,9 @@ der bei jedem Push auf `main` (sowie manuell über *Actions → Build APK →
 Run workflow*) die APKs automatisch baut:
 
 **Was der Workflow macht:**
-1. Installiert Node.js, JDK und das Android SDK (für Capacitor 8 ist JDK 21 erforderlich; falls der GitHub-Workflow noch JDK 17 setzt, muss ein Maintainer die Workflow-Datei entsprechend anpassen)
+1. Installiert Node.js, JDK 17 und das Android SDK
 2. `npm ci` → `npm run lint` → `npm run type-check` → `npm run build`
-3. `npx cap sync android` (die Android-Plattform ist versioniert, `android/`)
+3. `npx cap sync android` (die Android-Plattform ist versioniert, `android/`) und danach automatisch `scripts/patch-capacitor-android.mjs`, damit die generierten Capacitor-Gradle-Dateien Java 17 nutzen
 4. Baut **Debug-APK** und **Release-APK**
 5. Lädt beide APKs als **Artifact** hoch
 
@@ -139,8 +139,6 @@ chmod +x build-release.sh
 ./build-release.sh
 
 # Or manually
-npm run build
-npx cap sync android
 npm run android:apk:release
 ```
 
