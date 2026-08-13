@@ -2,7 +2,7 @@
 
 Bezieht Daten aus WebSocket (/ws/status) und periodischem API-Polling.
 Ist kein Backend erreichbar, bleiben die Live-Listen leer; es werden keine
-Mock- oder Demo-Daten erzeugt. Benachrichtigt Observer (UI) nach jedem Update
+künstlichen Daten erzeugt. Benachrichtigt Observer (UI) nach jedem Update
 über einen Thread-sicheren Callback.
 """
 from __future__ import annotations

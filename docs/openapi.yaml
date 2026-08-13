@@ -403,7 +403,7 @@ paths:
       x-rbac: operator
       responses:
         "200":
-          description: Statusliste (Mock-Fähig, Desktop-App nutzt localhost:5000)
+          description: Statusliste (Desktop-App nutzt localhost:5000)
 
   /api/workflows:
     get:

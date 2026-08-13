@@ -148,7 +148,7 @@ export default function ReplayEditor() {
       {points.length === 0 && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-950/30 p-3 text-xs text-amber-100 flex gap-2 mb-4">
           <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
-          Keine Demo-Signale geladen. Verbinde <code>/ws/replay</code>, importiere JSON oder füge Punkte manuell hinzu.
+          Keine Live-Signale geladen. Verbinde <code>/ws/replay</code>, importiere JSON oder füge Punkte manuell hinzu.
         </div>
       )}
 

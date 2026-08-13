@@ -1,6 +1,6 @@
 # DinGelSchwinG — NEXUS-BUILDER
 
-DinGelSchwinG ist eine [React/Vite-Web-App](src/App.tsx) mit [Android/Capacitor-Ziel](capacitor.config.json) und einer optionalen [Python-Desktop-Konsole](desktop/README.md). Der aktuelle Stand erzeugt keine Mock-, Demo- oder Zufallsdaten. Wenn Hardware, Browser-API oder Backend nicht verfügbar sind, zeigt die Oberfläche einen klaren Offline-/Nicht-verfügbar-Status statt künstlicher Ergebnisse.
+DinGelSchwinG ist eine [React/Vite-Web-App](src/App.tsx) mit [Android/Capacitor-Ziel](capacitor.config.json) und einer optionalen [Python-Desktop-Konsole](desktop/README.md). Der aktuelle Stand erzeugt keine künstlichen oder Zufallsdaten. Wenn Hardware, Browser-API oder Backend nicht verfügbar sind, zeigt die Oberfläche einen klaren Offline-/Nicht-verfügbar-Status statt künstlicher Ergebnisse.
 
 ➡️ **Vollständige Link-Matrix:** [docs/INDEX.md](docs/INDEX.md)
 
@@ -17,6 +17,7 @@ DinGelSchwinG ist eine [React/Vite-Web-App](src/App.tsx) mit [Android/Capacitor-
 - **[BLE-Abstandsberechnung](src/lib/bleWasm.ts)** über das Rust-WASM-Artefakt [`public/wasm/ble_distance_bg.wasm`](public/wasm/README.txt), sofern vorhanden. Fehlt das Artefakt, wird dieselbe deterministische Pfadverlustformel in TypeScript ausgeführt; es werden keine Messwerte erfunden. Rust-Quelle: [wasm-ble/src/lib.rs](wasm-ble/src/lib.rs).
 - **Sensoranzeige** über echte DeviceOrientation-/DeviceMotion-Events aus [src/hooks/useSensors.ts](src/hooks/useSensors.ts).
 - **[Netzwerkdiagnose](src/components/diagnostics/NetworkDiagnostics.tsx)** mit echten HTTP-Latenz- und Asset-Download-Messungen. iPerf3 wird nur über ein Backend unter `/api/diagnostics/iperf` ausgeführt; ohne Backend gibt es eine Fehlermeldung.
+- **[Operations-Center](src/components/OperationsCenter.tsx)** mit Endpoint-Health, REST-/WebSocket-Prüfung, produktiven Aktionsformularen und Ereignisprotokoll.
 - **[Mesh-Control](src/components/MeshControl.tsx)** über WebSocket `/ws/mesh`; ohne Backend werden keine Knoten angezeigt.
 - **[Replay-Editor](src/components/ReplayEditor.tsx)** über WebSocket `/ws/replay`, JSON-Import oder manuelle Eingabe; keine vorgefüllten Signale.
 - **[Rosetta-AI-Gateway](src/components/RosettaPanel.tsx)** über reale Backend-Endpunkte aus [src/config/ai-models.ts](src/config/ai-models.ts) und [src/lib/rosetta/rosettaConverter.ts](src/lib/rosetta/rosettaConverter.ts); ohne Backend wird der Fehler angezeigt.

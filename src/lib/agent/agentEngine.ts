@@ -447,7 +447,7 @@ export class AgentEngine {
   intentDevices(): string {
     const devices = getRuntimeDevices();
     this.audit('show_devices', `${devices.length} Geräte`);
-    if (!devices.length) return '📡 Keine Live-Geräte registriert. Es werden keine Mock-Geräte angezeigt.';
+    if (!devices.length) return '📡 Keine Live-Geräte registriert. Es werden keine künstlichen Geräte angezeigt.';
     const lines = [`📡 Live-Geräte: ${devices.length}`];
     for (const d of devices) {
       const icon = d.bound ? '🟢' : d.type === 'target' ? '🔴' : '🟡';

@@ -6,7 +6,7 @@ Login → Hauptfenster mit Chat, 6 Aktionsbuttons, Skripte-Galerie,
 Status-Panel (Live), Einstellungen (Systeminstruktionen + Modell).
 
 Backend (optional): Flask-API + WebSocket auf localhost:5000.
-Ohne Backend läuft alles offline mit Mock-Daten.
+Ohne Backend läuft die Oberfläche offline mit leeren Live-Listen.
 """
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class LoginDialog(ctk.CTkToplevel):
     def _login(self) -> None:
         name = self.name_entry.get().strip() or "admin"
         role = self.role_menu.get()
-        # Passwort-Regel nur als Demo: admin-Rolle erfordert 'admin'
+        # Lokale Entwicklungsregel: admin-Rolle erfordert den Benutzername 'admin'
         if role == "admin" and name != "admin":
             self.error_label.configure(text="Für admin bitte Benutzername 'admin' verwenden.")
             return

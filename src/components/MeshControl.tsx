@@ -86,7 +86,7 @@ export default function MeshControl() {
       {nodes.length === 0 ? (
         <div className="rounded-xl border border-amber-500/20 bg-amber-950/30 p-3 text-xs text-amber-100 flex gap-2 mb-4">
           <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
-          Keine Mesh-Live-Daten. Starte einen Backend-WebSocket unter <code>/ws/mesh</code>; es werden keine Demo-Knoten erzeugt.
+          Keine Mesh-Live-Daten. Starte einen Backend-WebSocket unter <code>/ws/mesh</code>; es werden keine künstlichen Knoten erzeugt.
         </div>
       ) : (
         <div className="grid md:grid-cols-3 gap-3 mb-4">

@@ -1,8 +1,8 @@
 """HTTP-Client für die Backend-API (Flask auf localhost:5000).
 
 Nutzt nur die Standardbibliothek (urllib). Schlägt eine Anfrage fehl,
-werden bewusst leere Live-Daten zurückgegeben. Es gibt keinen Mock- oder
-Demo-Datenprovider; die UI zeigt dadurch klar, dass kein Backend verbunden ist.
+werden bewusst leere Live-Daten zurückgegeben. Es gibt keinen künstlichen
+Datenprovider; die UI zeigt dadurch klar, dass kein Backend verbunden ist.
 """
 from __future__ import annotations
 

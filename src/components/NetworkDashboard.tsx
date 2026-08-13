@@ -7,6 +7,7 @@ import MeshControl from './MeshControl';
 import ReplayEditor from './ReplayEditor';
 import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
+import OperationsCenter from './OperationsCenter';
 import AgentConsole from './AgentConsole';
 import { useSensors } from '../hooks/useSensors';
 import { loadBLEDistanceModule, BLEDistanceModule, BLEWasmExports } from '../lib/bleWasm';
@@ -181,7 +182,7 @@ export default function NetworkDashboard() {
               {devices.length === 1 && (
                 <div className="absolute bottom-4 left-4 right-4 rounded-xl border border-amber-500/30 bg-amber-950/50 px-4 py-3 text-xs text-amber-100 flex gap-2 shadow-xl">
                   <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />
-                  Keine Demo-Knoten geladen. Nutze rechts QR, BLE, NFC oder WiFi, um echte Clients zu koppeln; Backend-/Hardware-Funktionen zeigen sonst bewusst leere Live-Daten.
+                  Keine Live-Knoten geladen. Nutze rechts QR, BLE, NFC oder WiFi, um echte Clients zu koppeln; Backend-/Hardware-Funktionen zeigen sonst bewusst leere Live-Daten.
                 </div>
               )}
             </div>
@@ -260,6 +261,7 @@ export default function NetworkDashboard() {
           </div>
 
           <NetworkDiagnostics />
+          <OperationsCenter />
           <MeshControl />
           <ReplayEditor />
           <RosettaPanel />
