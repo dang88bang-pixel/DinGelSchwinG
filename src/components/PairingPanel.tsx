@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { QrCode, Bluetooth, Waves, Wifi, ShieldCheck, Smartphone, Zap } from 'lucide-react';
+import {
+  fromQrPayload,
+  requestBluetoothDevice,
+  requestUsbDevice,
+  readNfcTag,
+} from '../lib/devices/browserDiscovery';
+import { registry, type ManagedDevice } from '../lib/devices/registry';
 
 export interface PairedDevice {
   id: string;
@@ -16,6 +23,11 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [pairingMethod, setPairingMethod] = useState<'qr' | 'ble' | 'nfc' | 'wifi'>('qr');
   const [statusMsg, setStatusMsg] = useState('Bereit zur Kopplung');
+  const [bound, setBound] = useState<ManagedDevice[]>([]);
+
+  useEffect(() => registry.subscribe((list) => {
+    setBound(list.filter((d) => d.bound && d.type !== 'master'));
+  }), []);
 
   useEffect(() => {
     if (!scanningQR) {
@@ -26,12 +38,24 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
     }
   }, [scanningQR]);
 
+  const emit = useCallback(async (device: ManagedDevice, method: PairedDevice['method']) => {
+    const stored = await registry.bind({ ...device, method, bound: true });
+    onBind({
+      id: stored.id,
+      name: stored.name,
+      method,
+      rssi: stored.rssi,
+      boundAt: new Date().toISOString(),
+    });
+    setStatusMsg(`Kopplung erfolgreich — ${stored.name}`);
+  }, [onBind]);
+
   const startQR = useCallback(() => {
-    if (scanningQR) return; // Verhindere Doppel-Scan
+    if (scanningQR) return;
     setScanningQR(true);
     setScanResult(null);
     setStatusMsg('QR-Scan aktiv — Kamera freigeben');
-    setTimeout(() => {
+    window.setTimeout(() => {
       try {
         const scanner = new Html5QrcodeScanner('qr-reader', {
           fps: 10,
@@ -42,44 +66,66 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
         scanner.render(
           (decodedText: string) => {
             setScanResult(decodedText);
-            setStatusMsg('QR erkannt — Bindung wird durchgeführt');
-            // Simulate binding
-            onBind({
-              id: 'bound-' + Date.now(),
-              name: 'BoundClient-' + decodedText.slice(0, 8),
-              method: 'qr',
-              rssi: -55,
-              boundAt: new Date().toISOString(),
-            });
-            setScanningQR(false); // schließen
+            setStatusMsg('QR erkannt — Gerät wird gebunden');
+            void emit(fromQrPayload(decodedText), 'qr');
+            setScanningQR(false);
             if (scannerRef.current) {
               scannerRef.current.clear().catch(() => {});
               scannerRef.current = null;
             }
           },
-          (_err: unknown) => {
-            // ignore scan errors
-          }
+          () => { /* scan frame miss */ },
         );
-      } catch (e) {
+      } catch {
         setStatusMsg('Kamera-Fehler — bitte Berechtigung prüfen');
       }
     }, 300);
-  }, [onBind, scanningQR]);
+  }, [emit, scanningQR]);
 
-  const bindMethod = (method: 'ble' | 'nfc' | 'wifi') => {
-    setPairingMethod(method);
-    setStatusMsg(method === 'ble' ? 'BLE-Scan läuft — Geräte suchen' : method === 'nfc' ? 'NFC-Token lesen — bitte halten' : 'WiFi-AP erkennen — Verbindungsaufbau');
-    setTimeout(() => {
-      onBind({
-        id: 'bound-' + Date.now(),
-        name: method === 'ble' ? 'BLE-Client-' + Math.floor(Math.random()*100) : method === 'nfc' ? 'NFC-Token-' + Math.floor(Math.random()*100) : 'WiFi-Node-' + Math.floor(Math.random()*100),
-        method,
-        rssi: -62 + Math.floor(Math.random() * 20),
-        boundAt: new Date().toISOString(),
-      });
-      setStatusMsg('Kopplung erfolgreich — Gerät gebunden');
-    }, 1200);
+  const bindBle = async () => {
+    setPairingMethod('ble');
+    setStatusMsg('BLE: Geräteauswahl des Browsers öffnen…');
+    try {
+      await emit(await requestBluetoothDevice(), 'ble');
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : 'BLE-Kopplung abgebrochen');
+    }
+  };
+
+  const bindNfc = async () => {
+    setPairingMethod('nfc');
+    setStatusMsg('NFC: Tag an das Gerät halten…');
+    try {
+      await emit(await readNfcTag(), 'nfc');
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : 'NFC nicht verfügbar');
+    }
+  };
+
+  const bindWifi = async () => {
+    setPairingMethod('wifi');
+    setStatusMsg('Netzwerk-Discovery über Backend…');
+    try {
+      const list = await registry.scan(true);
+      const net = list.find((d) => d.source === 'network' || d.source === 'wifi' || d.source === 'host');
+      if (!net) {
+        setStatusMsg('Kein Netzwerkknoten gefunden — Backend erreichbar?');
+        return;
+      }
+      await emit({ ...net, bound: true }, 'wifi');
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : 'WiFi-Discovery fehlgeschlagen');
+    }
+  };
+
+  const bindUsb = async () => {
+    setStatusMsg('USB: Geräteauswahl öffnen…');
+    try {
+      const dev = await requestUsbDevice();
+      await emit(dev, 'qr');
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : 'WebUSB nicht verfügbar');
+    }
   };
 
   return (
@@ -93,16 +139,19 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
           <button onClick={() => { setPairingMethod('qr'); startQR(); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'qr' ? 'bg-cyan-600 text-white shadow-cyan-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <QrCode className="w-4 h-4" /> QR Code
           </button>
-          <button onClick={() => { setPairingMethod('ble'); bindMethod('ble'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'ble' ? 'bg-emerald-600 text-white shadow-emerald-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
+          <button onClick={() => void bindBle()} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'ble' ? 'bg-emerald-600 text-white shadow-emerald-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <Bluetooth className="w-4 h-4" /> BLE
           </button>
-          <button onClick={() => { setPairingMethod('nfc'); bindMethod('nfc'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'nfc' ? 'bg-violet-600 text-white shadow-violet-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
+          <button onClick={() => void bindNfc()} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'nfc' ? 'bg-violet-600 text-white shadow-violet-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <Waves className="w-4 h-4" /> NFC Token
           </button>
-          <button onClick={() => { setPairingMethod('wifi'); bindMethod('wifi'); }} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'wifi' ? 'bg-rose-600 text-white shadow-rose-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
+          <button onClick={() => void bindWifi()} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition shadow-lg ${pairingMethod === 'wifi' ? 'bg-rose-600 text-white shadow-rose-900/40' : 'bg-slate-800/60 text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'}`}>
             <Wifi className="w-4 h-4" /> WiFi
           </button>
         </div>
+        <button onClick={() => void bindUsb()} className="w-full mb-3 text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 border border-slate-600 hover:bg-slate-700">
+          USB-Gerät wählen (WebUSB)
+        </button>
 
         <div className={`text-xs font-mono mb-2 rounded-lg px-3 py-2 border ${pairingMethod === 'qr' ? 'bg-cyan-950/40 border-cyan-700/40 text-cyan-200' : pairingMethod === 'ble' ? 'bg-emerald-950/40 border-emerald-700/40 text-emerald-200' : pairingMethod === 'nfc' ? 'bg-violet-950/40 border-violet-700/40 text-violet-200' : 'bg-rose-950/40 border-rose-700/40 text-rose-200'}`}>
           {statusMsg}
@@ -123,9 +172,16 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
 
       <div className="bg-gradient-to-br from-slate-900/60 to-blue-950/40 backdrop-blur-xl border border-slate-700/40 rounded-2xl p-4 flex-1 overflow-y-auto shadow-xl shadow-blue-900/5">
         <h3 className="text-sm font-bold text-slate-200 mb-2 flex items-center gap-2"><Smartphone className="w-4 h-4 text-amber-300" /> Gebundene Clients</h3>
-        <div className="flex flex-col gap-2" id="bound-list">
-          {/* Placeholder — parent injects live bound devices */}
-          <div className="text-xs text-slate-500 italic">Warte auf Kopplung…</div>
+        <div className="flex flex-col gap-2">
+          {bound.length === 0 ? (
+            <div className="text-xs text-slate-500 italic">Noch keine Kopplung.</div>
+          ) : bound.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-700/30 rounded-xl px-3 py-2 text-emerald-100 text-xs">
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <div className="flex-1 truncate font-bold">{c.name}</div>
+              <div className="text-[10px] text-emerald-300 font-extrabold">{(c.method || c.source || '').toUpperCase()}</div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

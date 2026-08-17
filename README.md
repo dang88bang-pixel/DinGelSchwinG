@@ -1,7 +1,19 @@
-# HackGPT-CPS — NEXUS-BUILDER v2.2
-## Erweiterung: Service-/Developer-Zugriff & Sicheres Terminal
+# NEXUS Manager – Enterprise Device Control v2.2
 
-Berechtigungserweiterung (Rollen Service L2 / Developer L3) plus gesichertes Terminal für Hardware-, Netzwerkgeräte und USB-C-Dongles. Zielrollen: Anwender Service / Entwickler — genau dafür ist der neue Zugriffsweg gebaut.
+Professionelle Lösung für Administratoren und Service-Teams, um vernetzte
+Geräte und USB-Peripherie zentral zu **verwalten, diagnostizieren und warten**.
+
+| Store-Name | Kurzbeschreibung |
+|---|---|
+| **NEXUS Manager** | Secure Device Management & Diagnostics |
+
+Interne Codebase: DinGelSchwinG. Store-Texte und Prüferhinweise:
+[`docs/store-listing.md`](docs/store-listing.md),
+[`docs/store-compliance.md`](docs/store-compliance.md).
+
+Berechtigungserweiterung (Rollen Service L2 / Developer L3) plus gesichertes
+Terminal für Hardware, Netzwerkgeräte und USB-C-Dongles. Zielrollen:
+Service-Mitarbeitende und Entwickler — genau dafür ist der Zugriffsweg gebaut.
 
 ---
 
@@ -33,6 +45,8 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 | [`docs/monitoring.md`](docs/monitoring.md) | Mitgelieferter Monitoring-Stack: Prometheus, Loki, Grafana-Dashboard, Slack-Alerting |
 | [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
+| [`docs/store-listing.md`](docs/store-listing.md) | Offizielle Store-Texte (Play / App Store) |
+| [`docs/store-compliance.md`](docs/store-compliance.md) | Prüferhinweise und Berechtigungen |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
 
 Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,
@@ -293,16 +307,12 @@ Beispiel-Rechte: service kann Pairing aus hardware/dongle erstellen (write), abe
 ### Schnellstart (Entwicklung)
 
 ```bash
-# 1. Frontend
-cd hackgpt-extended
-npm install
-npm run dev            # http://localhost:5173 (proxied /api -> Flask)
+# 1. Backend (echte Discovery, Diagnose, Auth, SQLite)
+python3 server/app.py          # http://0.0.0.0:5000  Login: admin / admin
 
-# 2. Backend
-cd server
-pip install -r requirements.txt
-python app.py          # Auth auf :5000
-python pty_bridge.py   # Terminal-Bridge auf :8765
+# 2. Frontend (Repository-Wurzel)
+npm install
+npm run dev            # http://localhost:5173 (proxied /api -> :5000)
 
 # 3. Produktion (docker-compose)
 cd ..

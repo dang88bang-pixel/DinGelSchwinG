@@ -16,7 +16,21 @@ export default defineConfig({
     port: 5173,
     host: true,
     // Live-Preview-Umgebung: beliebige Preview-Hosts erlauben
-    allowedHosts: true
+    allowedHosts: true,
+    proxy: {
+      '/api/ws/terminal': { target: 'http://127.0.0.1:8765', ws: true, changeOrigin: true },
+      '/api/ws/discovery': { target: 'http://127.0.0.1:8766', ws: true, changeOrigin: true },
+      '/api/ws/status': { target: 'http://127.0.0.1:8767', ws: true, changeOrigin: true },
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    host: true,
+    port: 4173,
+    allowedHosts: true,
   },
   build: {
     outDir: 'dist',

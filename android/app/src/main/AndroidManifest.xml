@@ -35,7 +35,7 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
-
+    <!-- Permissions: INTERNET connects to the organization's own
+         management backend (login, device status, audit). -->
     <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

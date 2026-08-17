@@ -593,14 +593,25 @@ export default function AdvancedResearchChat() {
 
   const simulateResearch = async (query: string) => {
     const activeSources = researchSources.filter(s => s.enabled);
-    const research: ChatMessage = {
+    let content = `Recherche: "${query}"`;
+    try {
+      const { ensureSession, api } = await import('../lib/api/client');
+      await ensureSession();
+      const res = await api<{ hits: Array<{ source: string; title: string; summary?: string }>; count: number }>(
+        `/api/research?q=${encodeURIComponent(query)}&sources=github,npm,wikipedia`,
+      );
+      const lines = (res.hits || []).slice(0, 6).map((h) => `- [${h.source}] ${h.title}${h.summary ? ': ' + h.summary.slice(0, 120) : ''}`);
+      content = `Recherche zu "${query}" (${res.count} Treffer):\n${lines.join('\n') || 'Keine Treffer.'}`;
+    } catch (e) {
+      content = `Recherche-Backend nicht erreichbar (${e instanceof Error ? e.message : e}).`;
+    }
+    return {
       id: `research-${Date.now()}`,
-      role: 'research',
-      content: `Researching: "${query}" across ${activeSources.length} sources`,
+      role: 'research' as const,
+      content,
       timestamp: Date.now(),
       researchSources: activeSources.slice(0, 3),
     };
-    return research;
   };
 
   // ============ Generate Temp Auth ============

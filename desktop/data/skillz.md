@@ -19,7 +19,7 @@ Parameter: keine
 
 ## show_workflows
 Beschreibung: Zeigt laufende Workflows/Tasks mit Fortschritt und Status.
-Aufruf: "welche workflows laufen?" | "status der angriffe" | "show workflows"
+Aufruf: "welche workflows laufen?" | "status der aufgaben" | "show workflows"
 Parameter: keine
 
 ## run_script

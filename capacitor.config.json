@@ -1,6 +1,6 @@
 {
   "appId": "com.dingelschwinng.moeagent",
-  "appName": "MoE Agent Chat",
+  "appName": "NEXUS Manager",
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {

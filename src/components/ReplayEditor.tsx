@@ -20,17 +20,22 @@ export default function ReplayEditor() {
   const [playHead, setPlayHead] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Background recording service: adds points every 300ms when recording
+  // Aufnahme: echte RSSI-Werte aus der Geräteliste (kein Zufallssignal)
   useEffect(() => {
     if (!recording) return;
-    const timer = setInterval(() => {
-      setPoints(prev => {
-        const t = prev.length ? Math.max(...prev.map(p => p.t)) + 300 : 0;
+    const timer = setInterval(async () => {
+      const { registry } = await import('../lib/devices/registry');
+      const list = registry.list();
+      const sample = list.find((d) => d.type !== 'master') || list[0];
+      if (!sample) return;
+      setPoints((prev) => {
+        const t = prev.length ? Math.max(...prev.map((p) => p.t)) + 300 : 0;
+        const rssi = sample.rssi;
         return [...prev, {
           t,
-          freqMHz: 2400 + Math.random() * 100,
-          rssi: -80 + Math.random() * 40,
-          amp: 0.2 + Math.random() * 0.8,
+          freqMHz: 2412,
+          rssi,
+          amp: Math.max(0.05, Math.min(1, (rssi + 90) / 60)),
         }];
       });
     }, 300);

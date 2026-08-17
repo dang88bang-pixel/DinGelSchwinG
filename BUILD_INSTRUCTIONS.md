@@ -1,4 +1,4 @@
-# MoE Agent Chat - APK Build Instructions
+# NEXUS Manager – APK Build Instructions
 
 ## Prerequisites
 
@@ -157,7 +157,7 @@ aapt dump badging android/app/build/outputs/apk/release/app-release.apk
 ### Step 5: Upload to Play Store
 
 1. Go to Google Play Console
-2. Create new app: "MoE Agent Chat"
+2. Create new app: "NEXUS Manager"
 3. Upload APK under "Internal Testing" or "Production"
 4. Fill metadata (description, screenshots, etc.)
 5. Submit for review
@@ -166,7 +166,7 @@ aapt dump badging android/app/build/outputs/apk/release/app-release.apk
 
 ## Features Included
 
-✅ **MoE Agent Chat Interface**
+✅ **NEXUS Manager Admin Console**
 - Multi-agent conversation
 - Real-time messaging
 - Agent management (Create/Edit/Delete)
@@ -230,7 +230,7 @@ npm run android:install
 
 ```bash
 # View device logs
-adb logcat | grep MoE
+adb logcat | grep -i nexus
 
 # Check installed apps
 adb shell pm list packages | grep dingelschwinng

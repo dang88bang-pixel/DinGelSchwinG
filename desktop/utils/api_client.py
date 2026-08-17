@@ -31,7 +31,7 @@ class MockDataSource:
             {"name": "MASTER-Gold", "ip": "192.168.1.1", "type": "master", "online": True},
             {"name": "Client-A", "ip": "192.168.1.12", "type": "client", "online": True},
             {"name": "Client-B", "ip": "192.168.1.15", "type": "client", "online": True},
-            {"name": "Target-X", "ip": "192.168.1.33", "type": "target", "online": True},
+            {"name": "Endpoint-X", "ip": "192.168.1.33", "type": "target", "online": True},
             {"name": "WiFi-AP-01", "ip": "192.168.1.254", "type": "other", "online": True},
             {"name": "BLE-Beacon-3", "ip": "192.168.1.77", "type": "other", "online": False},
         ]

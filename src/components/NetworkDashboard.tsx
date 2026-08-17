@@ -8,8 +8,15 @@ import ReplayEditor from './ReplayEditor';
 import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
 import AgentConsole from './AgentConsole';
+import AccessConsole from './AccessConsole';
+import NetworkPanel from './NetworkPanel';
+import StatusBoard from './StatusBoard';
+import OverviewPanel from './OverviewPanel';
+import NfcReader from './NfcReader';
 import { useSensors } from '../hooks/useSensors';
 import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
+import { registry, type ManagedDevice } from '../lib/devices/registry';
+import type { NetworkConfig } from './NetworkSettings';
 
 export interface SceneDevice {
   id: string;
@@ -25,28 +32,67 @@ export default function NetworkDashboard() {
   const sensors = useSensors();
   const [mode, setMode] = useState<'ble' | 'wifi' | 'usb'>('ble');
   const [wasmModule, setWasmModule] = useState<BLEWasmExports | null>(null);
-  const [devices, setDevices] = useState<SceneDevice[]>([
-    { id: 'master-1', name: 'MASTER-Gold', x: 0, y: 0, z: 0, type: 'master', rssi: -42, txPower: -59 },
-    { id: 'client-1', name: 'Client-A', x: 1.8, y: 0.9, z: 0.7, type: 'client', rssi: -62, txPower: -59 },
-    { id: 'client-2', name: 'Client-B', x: -2.1, y: 0.6, z: 1.4, type: 'client', rssi: -68, txPower: -59 },
-    { id: 'target-1', name: 'Target-X', x: -1.4, y: 0.4, z: -2.2, type: 'target', rssi: -74, txPower: -59 },
-    { id: 'other-1', name: 'WiFi-AP-01', x: 3.2, y: 0.3, z: -1.0, type: 'other', rssi: -81, txPower: -55 },
-    { id: 'other-2', name: 'BLE-Beacon-3', x: 0.6, y: 1.2, z: -2.5, type: 'other', rssi: -76, txPower: -59 },
-  ]);
+  const [devices, setDevices] = useState<SceneDevice[]>([]);
   const [boundClients, setBoundClients] = useState<PairedDevice[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [termOpen, setTermOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [netConfig, setNetConfig] = useState<NetworkConfig>(() => {
+    try {
+      const raw = localStorage.getItem('nexus.netconfig');
+      return raw ? { ...JSON.parse(raw) } : {
+        defaultMode: 'ble', scanIntervalMs: 8000, bleTxPower: -59, bleEnvFactor: 2.0,
+        sensorTimeoutMs: 1000, meshIntervalMs: 2000, meshFreqStart: 2400, meshFreqEnd: 2500,
+        pairingMethods: { qr: true, ble: true, nfc: true, wifi: true },
+        wasmCalibrationRssiRef: -59, wasmCalibrationDistRef: 2.0,
+      };
+    } catch {
+      return {
+        defaultMode: 'ble', scanIntervalMs: 8000, bleTxPower: -59, bleEnvFactor: 2.0,
+        sensorTimeoutMs: 1000, meshIntervalMs: 2000, meshFreqStart: 2400, meshFreqEnd: 2500,
+        pairingMethods: { qr: true, ble: true, nfc: true, wifi: true },
+        wasmCalibrationRssiRef: -59, wasmCalibrationDistRef: 2.0,
+      };
+    }
+  });
+
+  const applyManaged = useCallback((list: ManagedDevice[], wasm?: BLEWasmExports | null) => {
+    const mod = wasm ?? wasmModule;
+    setDevices(list.map((d) => ({
+      id: d.id,
+      name: d.name,
+      x: d.x, y: d.y, z: d.z,
+      type: d.type,
+      rssi: d.rssi,
+      txPower: d.txPower,
+      distance: mod ? mod.calculate_distance(d.rssi, d.txPower) : undefined,
+    })));
+    setBoundClients(list.filter((d) => d.bound && d.type !== 'master').map((d) => ({
+      id: d.id,
+      name: d.name,
+      method: (d.method as PairedDevice['method']) || (d.source === 'ble' ? 'ble' : d.source === 'nfc' ? 'nfc' : d.source === 'wifi' ? 'wifi' : 'qr'),
+      rssi: d.rssi,
+      boundAt: new Date().toISOString(),
+    })));
+  }, [wasmModule]);
 
   useEffect(() => {
-    loadBLEWasm().then(mod => {
+    const unsub = registry.subscribe((list) => applyManaged(list));
+    loadBLEWasm().then((mod) => {
       setWasmModule(mod);
-      setDevices(prev => prev.map(d => ({
-        ...d,
-        distance: d.rssi !== undefined && d.txPower !== undefined ? mod.calculate_distance(d.rssi, d.txPower) : undefined,
-      })));
+      applyManaged(registry.list(), mod);
     });
-  }, []);
+    void registry.refreshFromBackend().then((list) => applyManaged(list));
+    void registry.scan(false);
+    return unsub;
+  }, [applyManaged]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => { void registry.scan(false); }, Math.max(3000, netConfig.scanIntervalMs));
+    return () => window.clearInterval(id);
+  }, [netConfig.scanIntervalMs]);
 
   useEffect(() => {
     if (sensors.permissionGranted && (sensors.beta !== null || sensors.gamma !== null)) {
@@ -63,12 +109,31 @@ export default function NetworkDashboard() {
   }, [sensors.alpha, sensors.beta, sensors.gamma, sensors.permissionGranted, selectedId]);
 
   const handleBind = useCallback((device: PairedDevice) => {
-    setBoundClients(prev => [...prev, device]);
-    setDevices(prev => [
-      ...prev,
-      { id: device.id, name: device.name, x: 1.5 + Math.random() * 2, y: 0.5 + Math.random() * 1, z: Math.random() * 2 - 1, type: 'client', rssi: device.rssi, txPower: -59 },
-    ]);
+    void registry.bind({
+      id: device.id,
+      name: device.name,
+      type: 'client',
+      kind: device.method === 'ble' ? 'ble_token' : device.method === 'nfc' ? 'ntag' : 'hardware',
+      source: device.method,
+      method: device.method,
+      rssi: device.rssi,
+      txPower: -59,
+      x: 1.5,
+      y: 0.6,
+      z: 0.4,
+      bound: true,
+      online: true,
+    });
   }, []);
+
+  const handleScan = useCallback(async () => {
+    setScanning(true);
+    try {
+      applyManaged(await registry.scan(true), wasmModule);
+    } finally {
+      setScanning(false);
+    }
+  }, [applyManaged, wasmModule]);
 
   const sceneDevices = useMemo(() => devices.map(d => ({ id: d.id, name: d.name, x: d.x, y: d.y, z: d.z, type: d.type, rssi: d.rssi })), [devices]);
   const selectedDevice = devices.find(d => d.id === selectedId);
@@ -80,11 +145,11 @@ export default function NetworkDashboard() {
         <div className="flex items-center gap-4">
           <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-200 border border-white/10 transition"><Menu className="w-5 h-5" /></button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-cyan-200 to-violet-200 leading-none glow-text">DinGelSchwinG <span className="text-sm font-medium text-slate-400 align-top ml-1">NEXUS-BUILDER</span></h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-cyan-200 to-violet-200 leading-none glow-text">NEXUS Manager <span className="text-sm font-medium text-slate-400 align-top ml-1">Enterprise Device Control</span></h1>
             <div className="flex items-center gap-3 mt-1.5 text-[11px] font-mono text-slate-400">
               <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-amber-400" /> Master</span>
               <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-emerald-400" /> Client</span>
-              <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-rose-400" /> Ziel</span>
+              <span className="flex items-center gap-1"><CircleDot className="w-3 h-3 text-rose-400" /> Endpunkt</span>
               <span className="text-slate-600">| WASM · BLE · 3D · Sensoren</span>
             </div>
           </div>
@@ -93,9 +158,16 @@ export default function NetworkDashboard() {
           <button
             onClick={() => setAgentOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-br from-violet-600 to-fuchsia-700 text-white ring-1 ring-violet-300/40 shadow-xl hover:brightness-110 transition"
-            title="Chat-zentrierte Agenten-Steuerung öffnen"
+            title="Administrations-Assistent öffnen"
           >
             🤖 Agent
+          </button>
+          <button
+            onClick={() => setTermOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-slate-800 text-cyan-100 ring-1 ring-cyan-500/30 shadow-xl hover:brightness-110 transition"
+            title="Access Console / Terminal"
+          >
+            ⌨ Terminal
           </button>
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
@@ -115,7 +187,12 @@ export default function NetworkDashboard() {
                 <Layers className="w-3.5 h-3.5 text-amber-300" /> 3D-Raumdarstellung — exakte Positionen
                 <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border ${wasmModule ? 'bg-emerald-900/60 text-emerald-200 border-emerald-600/40' : 'bg-amber-900/40 text-amber-200 border-amber-600/30'}`}>{wasmModule ? 'WASM aktiv' : 'WASM lädt...'}</span>
               </div>
-              <div className="text-[10px] font-mono text-slate-500">Modus: <span className="text-white font-bold">{mode.toUpperCase()}</span></div>
+              <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                <span>Modus: <span className="text-white font-bold">{mode.toUpperCase()}</span></span>
+                <button onClick={() => void handleScan()} disabled={scanning} className="px-2 py-0.5 rounded-md bg-cyan-700/70 text-white font-bold hover:bg-cyan-600 disabled:opacity-50">
+                  {scanning ? 'Scan…' : 'Discovery'}
+                </button>
+              </div>
             </div>
             <div className="h-[420px] md:h-[540px] lg:h-[580px] relative">
               <Scene3D devices={sceneDevices} onSelect={setSelectedId} />
@@ -195,6 +272,10 @@ export default function NetworkDashboard() {
               </div>
             </div>
           {/* Neue Diagnose-Module */}
+          <OverviewPanel />
+          <StatusBoard />
+          <NetworkPanel />
+          <NfcReader />
           <NetworkDiagnostics />
           <MeshControl />
           <ReplayEditor />
@@ -266,7 +347,7 @@ export default function NetworkDashboard() {
       </main>
 
       <footer className="border-t border-white/10 mt-auto py-4 text-center text-[11px] text-slate-600 font-mono tracking-wide bg-[#020617]/60 backdrop-blur-md">
-        DinGelSchwinG • NEXUS-BUILDER • WASM BLE Modul • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
+        NEXUS Manager • Enterprise Device Control • WASM BLE • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
       </footer>
 
       {agentOpen && <AgentConsole role="admin" onClose={() => setAgentOpen(false)} />}

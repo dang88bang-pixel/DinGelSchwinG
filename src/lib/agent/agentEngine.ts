@@ -12,7 +12,8 @@ import {
   ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, CHAT_SYSTEM_INSTRUCTION,
   MODE_LABELS,
 } from '../../config/systemInstructions';
-import { MOCK_DEVICES } from '../../mocks/devices.mock';
+import { registry } from '../devices/registry';
+import { api, ensureSession } from '../api/client';
 import { TransformersBackend } from './transformersBackend';
 
 export interface AgentMessage {
@@ -190,7 +191,7 @@ export class AgentEngine {
   async tryLLM(text: string): Promise<string> {
     const context =
       `Aktueller Kontext:\n- Rolle: ${this.role}\n` +
-      `- Geräte: ${MOCK_DEVICES.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ')}\n` +
+      `- Geräte: ${registry.list().map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ') || 'keine'}\n` +
       `- Aktive Workflows: ${this.activeWorkflows().length}\n${skillsToPrompt(this.skills)}`;
     try {
       const raw = await this.backend.generate(this.systemInstruction + '\n\n' + context, text);
@@ -285,13 +286,13 @@ export class AgentEngine {
         '5. Compliance: DSGVO; nur autorisierte Geräte\n\n' +
         'Risikohinweis: Rescue liest nur Daten (kein Bricking-Risiko).');
     }
-    if (/\b(pentest|sicherheitscheck|auditiere|schwachstellen)\b/.test(t)) {
-      return this.planAdb('pentest',
-        '1. Analyse: Rechtliche Zulässigkeit (eigenes Gerät / schriftliche Genehmigung)\n' +
-        '2. Zielgruppe: Penetrationstester (autorisiert)\n' +
-        '3. Tools: adb + optionale Analyse (Frida/Objection NUR nach Freigabe)\n' +
+    if (/\b(pentest|integrit[aä]tspr[uü]fung|sicherheits(check|überwachung)|auditiere|schwachstellen|compliance)\b/.test(t)) {
+      return this.planAdb('audit',
+        '1. Analyse: Autorisierung (eigenes Gerät / schriftlicher Auftrag in der eigenen IT-Umgebung)\n' +
+        '2. Zielgruppe: IT-Administratoren / Compliance / Service\n' +
+        '3. Tools: adb (read-only Inventur: Pakete, Berechtigungen, Gerätestatus)\n' +
         '4. Workflow: Geräteinfo → Paketliste → Berechtigungen → Logs → Bericht\n' +
-        '5. Compliance: Keine rechtswidrigen Zugriffe, kein Datendiebstahl');
+        '5. Compliance: Nur autorisierte Geräte; Bericht DSGVO-konform aufbewahren');
     }
     if (/\b(logcat|gerätelogs|logdaten|logs)\b/.test(t)) {
       return this.planAdb('logs',
@@ -304,7 +305,7 @@ export class AgentEngine {
     if (/(wifi|tcpip|kabellos)/.test(t) && /(verbind|connect)/.test(t)) {
       return this.planAdb('connect',
         '1. Analyse: USB-Debugging aktiv, Gerät autorisiert\n' +
-        '2. Zielgruppe: Admin / Pentester (autorisiert)\n' +
+        '2. Zielgruppe: IT-Administratoren / Service-Teams\n' +
         '3. Tools: adb tcpip + adb connect\n' +
         '4. Workflow: USB-Status → tcpip <port> → connect <ip>:<port> → Verifikation\n' +
         '5. Compliance: Keine sensiblen Daten über unverschlüsselte öffentliche Netze\n\n' +
@@ -333,14 +334,15 @@ export class AgentEngine {
 
   intentAdbDevices(): string {
     this.audit('adb_devices', 'Geräteliste abgefragt');
-    return (
-      '📱 ADB-Geräte (USB/WiFi):\n' +
-      '- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n' +
-      '- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n' +
-      '- `offline` R22X987DEF – Gerät reaktivieren\n' +
-      '- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n' +
-      'Hinweis: `adb devices -l` liefert Details (Modell, Transport).'
-    );
+    const usb = registry.list().filter((d) => d.source === 'usb' || d.kind === 'dongle');
+    if (!usb.length) {
+      return '📱 Keine USB-Serial-Geräte am Host erkannt. Schließe ein autorisiertes Dongle an und starte Discovery.';
+    }
+    const lines = ['📱 USB-/Serial-Geräte:'];
+    for (const d of usb) {
+      lines.push(`- ${d.online ? 'device' : 'offline'}  ${d.name} (${d.path || d.id}${d.usbVendorId ? ', ' + d.usbVendorId : ''})`);
+    }
+    return lines.join('\n');
   }
 
   generateAdbScript(kind: string): string {
@@ -393,31 +395,41 @@ export class AgentEngine {
     const subnet = m ? m[1] : '192.168.1.0/24';
     this.startTask('network_scan', 5);
     this.audit('scan_network', `subnet=${subnet}`);
-    // Simulation: Task läuft ~8 s im Hintergrund
     const started = now();
-    window.setTimeout(() => this.finishTask('network_scan'), 8000);
-    return `✅ Netzwerk-Scan für ${subnet} gestartet (Skript network_scan.py).\n▶️ Status im Status-Panel: network_scan läuft (seit ${started}).`;
+    void (async () => {
+      try {
+        await ensureSession();
+        await api('/api/scripts/run', {
+          method: 'POST',
+          body: JSON.stringify({ script: 'network_scan.py', args: { subnet } }),
+        });
+        await registry.scan(true);
+      } catch {
+        await registry.scan(true);
+      } finally {
+        this.finishTask('network_scan');
+      }
+    })();
+    return `✅ Netzwerk-Scan für ${subnet} gestartet.\n▶️ Status: network_scan läuft (seit ${started}).`;
   }
 
   intentDevices(): string {
-    this.audit('show_devices', `${MOCK_DEVICES.length} Geräte`);
-    const lines = [`📡 Gefundene Geräte: ${MOCK_DEVICES.length}`];
-    for (const d of MOCK_DEVICES) {
+    const devices = registry.list();
+    this.audit('show_devices', `${devices.length} Geräte`);
+    const lines = [`📡 Gefundene Geräte: ${devices.length}`];
+    for (const d of devices) {
       const icon = d.bound ? '🟢' : d.type === 'target' ? '🔴' : '🟡';
-      lines.push(`- ${icon} ${d.name} (${d.id}, RSSI ${d.rssi} dBm)`);
+      lines.push(`- ${icon} ${d.name} (${d.id}${d.ip ? ', ' + d.ip : ''}, RSSI ${d.rssi} dBm)`);
     }
     return lines.join('\n');
   }
 
   intentClients(): string {
-    const clients = [
-      { name: 'admin', role: 'admin', device: 'MASTER-Gold', last_action: 'login' },
-      { name: 'service-1', role: 'service', device: 'Client-A-Grün', last_action: 'scan_network' },
-    ];
-    this.audit('show_clients', `${clients.length} Clients`);
-    const lines = [`👥 Eingeloggte Clients: ${clients.length}`];
-    for (const c of clients) {
-      lines.push(`- ${c.name} (${c.role}) – ${c.device} – zuletzt: ${c.last_action}`);
+    const devices = registry.list().filter((d) => d.bound);
+    this.audit('show_clients', `${devices.length} Clients`);
+    const lines = [`👥 Gebundene Clients: ${devices.length}`];
+    for (const c of devices) {
+      lines.push(`- ${c.name} (${c.source || c.kind || 'device'}) – ${c.online ? 'online' : 'offline'}`);
     }
     return lines.join('\n');
   }
@@ -439,7 +451,8 @@ export class AgentEngine {
     const name = m[1];
     const rest = t.split(name)[1]?.trim() ?? '';
     this.audit('run_script', `${name} ${rest}`);
-    return `▶️ Skript '${name}' ${rest ? `mit Argumenten '${rest}' ` : ''}gestartet.\nErgebnisse werden im Status-Panel angezeigt.`;
+    void this.runRemoteScript(name);
+    return `▶️ Skript '${name}' ${rest ? `mit Argumenten '${rest}' ` : ''}an das Backend übergeben.`;
   }
 
   intentExport(t: string): string {
@@ -509,7 +522,8 @@ export class AgentEngine {
     if (action.startsWith('script:')) {
       const name = action.split(':')[1];
       this.audit('run_script', name);
-      return `▶️ Skript '${name}' gestartet (simulierte Ausführung).`;
+      void this.runRemoteScript(name);
+      return `▶️ Skript '${name}' an das Backend übergeben.`;
     }
     if (action.startsWith('workflow:')) {
       const name = action.split(':')[1];
@@ -557,11 +571,22 @@ export class AgentEngine {
   // ------------------------------------------------------------------
   // Status-Bar
   // ------------------------------------------------------------------
+  async runRemoteScript(name: string): Promise<void> {
+    try {
+      await ensureSession();
+      await api('/api/scripts/run', { method: 'POST', body: JSON.stringify({ script: name }) });
+      await registry.scan(true);
+    } catch {
+      await registry.scan(true);
+    }
+  }
+
   summary(): string {
-    const devices = MOCK_DEVICES.filter((d) => d.bound).length;
+    const all = registry.list();
+    const devices = all.filter((d) => d.bound).length;
     const wf = this.activeWorkflows().length;
     const state = wf > 0 ? 'BUSY' : 'IDLE';
-    return `🟢 Geräte: ${devices}  |  👥 Clients: 2  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
+    return `🟢 Geräte: ${devices}  |  👥 Clients: ${all.length}  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
   }
 
   modelStatus(): string {
