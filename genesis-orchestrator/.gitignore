@@ -1,0 +1,30 @@
+# --- Python / FastAPI backend ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Android / Gradle ---
+android-app/.gradle/
+android-app/**/build/
+android-app/local.properties
+android-app/.idea/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+captures/
+
+# --- IDEs / OS ---
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# --- Misc ---
+*.log

@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package genesis.telemetry.v1;
+
+// Shared telemetry contract between the Honeywell CT45 XP Android client and
+// the FastAPI "MOE Agent" backend. Messages are transported as binary frames
+// over a WebSocket (see android-app/.../websocket and fastapi-backend/app/main.py).
+//
+// Regenerate bindings with:
+//   Android:  Gradle `com.google.protobuf` plugin (configured in android-app/app/build.gradle.kts)
+//   Python:   scripts/generate_proto.py  (uses grpcio-tools)
+
+option java_package = "com.genesis.orchestrator.proto";
+option java_outer_classname = "TelemetryProto";
+option java_multiple_files = true;
+
+option go_package = "github.com/dang88bang-pixel/genesis-orchestrator-v1/gen/telemetry;telemetryv1";
+
+// ---------------------------------------------------------------------------
+// Actions the client may request for a given node.
+// ---------------------------------------------------------------------------
+enum Action {
+  ACTION_UNSPECIFIED = 0;
+  // Fetch structured details + AI summary for a node (main happy path).
+  GET_DETAILS = 1;
+  // Request a state change (e.g. toggle a switch) with params.
+  SET_STATE = 2;
+  // Start streaming telemetry frames for a node.
+  STREAM_TELEMETRY = 3;
+  // Heartbeat / keep-alive.
+  PING = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Node details as returned by the backend (Neo4j + Gemini enrichment).
+// ---------------------------------------------------------------------------
+message NodeDetails {
+  string node_id = 1;
+  string label = 2;
+  string device_type = 3;              // e.g. "switch", "vesc", "ninebot"
+  string status = 4;                   // e.g. "ONLINE", "OFFLINE", "FAULT"
+  map<string, string> attributes = 5;  // arbitrary key/value properties from the graph
+}
+
+// A single outgoing relationship of a node.
+message Relationship {
+  string type = 1;          // relationship type, e.g. "POWERS", "CONNECTS_TO"
+  string target_id = 2;     // id of the neighbouring node
+  string target_label = 3;  // label of the neighbouring node
+}
+
+// ---------------------------------------------------------------------------
+// Request: Android UI -> backend.
+// ---------------------------------------------------------------------------
+message ClientRequest {
+  string request_id = 1;  // correlation id echoed back in the response
+  string node_id = 2;     // target node id
+  Action action = 3;
+  map<string, string> params = 4;  // optional per-action parameters
+}
+
+// ---------------------------------------------------------------------------
+// Response: backend -> Android UI.
+// ---------------------------------------------------------------------------
+message ServerResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    OK = 1;
+    ERROR = 2;
+    NOT_FOUND = 3;
+  }
+
+  string request_id = 1;
+  string node_id = 2;
+  NodeDetails details = 3;
+  string ai_summary = 4;                 // Gemini-generated explanation
+  repeated Relationship relationships = 5;  // graph context (neighbours)
+  Status status = 6;
+  string error = 7;                      // human-readable error, set when status != OK
+}
+
+// ---------------------------------------------------------------------------
+// Streaming telemetry frame (e.g. from a dynamically loaded controller parser).
+// ---------------------------------------------------------------------------
+message TelemetryFrame {
+  string node_id = 1;
+  string source = 2;         // parser/protocol name, e.g. "vesc", "ninebot_uart"
+  int64 timestamp_ms = 3;    // epoch milliseconds
+  map<string, string> fields = 4;  // telemetry key/values (speed, voltage, ...)
+}
