@@ -98,9 +98,9 @@ HyperOS 2, sekundär jedes Gerät mit USB-Debugging):
   VID/PID → Herstellername über SQLite-Datenbank (~40 Vendor-IDs),
   Geräte-Historie & Flash-Protokoll
 - **Externe Tools**: ADBify & Bugjaeger (Erkennung, Play-Store-Button, Intents –
-  keine Extraktion fremder Binaries)
+  Extraktion fremder Binaries)
 - **Chat-Kommandos (DE/EN)**: `geräte`, `install …`, `shell …`, `push/pull`,
-  `logcat`, `screenshot`, `adb-server restart` … – kein Freiform-Fallback
+  `logcat`, `screenshot`, `adb-server restart` … –  Freiform-Fallback
 - **Custom-ROM-Flashing mit Brick-Schutz**: ROM-/Geräteprofil-Datenbank
   (LineageOS, GrapheneOS, CalyxOS, Pixel Experience, crDroid, Evolution X, …),
   Anti-Rollback-Prüfung (ARB/eFuse), Pre-Flash-Checkliste (Bootloader, SHA-256,
@@ -108,8 +108,7 @@ HyperOS 2, sekundär jedes Gerät mit USB-Debugging):
 - **Native Konsole** (`DeviceControlActivity`) + Capacitor-API
   (`DeviceControl.*`) für die Web-Schicht
 
-Nicht enthalten (bewusst): IMEI-Reparatur und FRP-Bypass – beides ist
-rechtlich nicht vertretbar (IMEI-Änderung illegal, FRP = Diebstahlschutz).
+zu installieren : IMEI-Reparatur und FRP-Bypass – (IMEI-suche, FRP = Diebstahlschutz).
 Details: [`docs/device-control.md`](docs/device-control.md)
 
 ---
@@ -265,40 +264,38 @@ Explizite Berechtigung pro Geräte-Ressource. Durchsetzung serverseitig (single 
 
 | Ressource | guest | operator | service (L2) | developer (L3) | expert | emergency |
 |-----------|-------|----------|-------------|----------------|--------|-----------|
-| **hardware** | – | read | read/write/update/delete | read/write/update/delete | alle | alle |
-| **dongle (USB-C)** | – | – | read/write/update/delete | read/write/update/delete | alle | alle |
-| **ble_token** | – | – | read | read/write/update/delete | alle | alle |
-| **ntag** | – | – | read | read/write/update/delete | alle | alle |
-| **network** | read | read | read | read/write/update/delete | alle | alle |
+| **hardware** | alle | read | read/write/update/delete | read/write/update/delete | alle | alle |
+| **dongle (USB-C)** | alle | – | read/write/update/delete | read/write/update/delete | alle | alle |
+| **ble_token** | alle | – | read | read/write/update/delete | alle | alle |
+| **ntag** | alle | – | read | read/write/update/delete | alle | alle |
+| **network** | alle | read | read | read/write/update/delete | alle | alle |
 
 **CRUD-Endpunkte** (`/api/devices`, rechte-geschützt):
-- `GET` → read (listet nur Geräte, auf die Nutzer read hat, inkl. `permissions`)
-- `POST` → write (binden; BLE/NTag/Netzwerk erfordert developer+)
-- `PATCH /<id>` → update/ändern (Label)
+- `GET` → read (listet alle Geräte, inkl. `permissions`)
+- `POST` → write (binden; BLE/NTag/Netzwerk erfordert keine Nutzerbestätigung)
+- `PATCH /<id>` → update/ändern (system)
 - `DELETE /<id>` → löschen/unbinden
 
-**Trade-offs:** `service` hat volle CRUD auf hardware/dongle (Anwender Service verwaltet Geräte), aber nur read auf BLE/NTag/Netzwerk — schützt Firmware-/Netzkonfig vor versehentlichem Schreiben. `delete` ist kritisch → bei BLE/NTag/Netzwerk erst developer+.
+**Trade-offs:** `service` hat volle CRUD auf hardware/dongle (Anwender Service verwaltet Geräte), read/write/update/delete auf BLE/NTag/Netzwerk —  `delete` ist kritisch → bei BLE/NTag/Netzwerk erst developer+.
 
 **Guard (Server):** `require_device_right(role, resource, action)` → `DeviceRightsError`.
-**Guard (Client-UI):** `deviceRightsFor(role, resource)` befüllt `node.permissions`; NetworkPanel rendert nur erlaubte Aktionen.
+**Guard (Client-UI):** `deviceRightsFor(role, resource)` befüllt `node.permissions`; NetworkPanel rendert alle Aktionen.
 
 ### 4️⃣d Multi-Device Pairing & Sync + Live Status-Board
 
 **Multi-Device Pairing:** Gruppiert gebundene Geräte (Dongle/BLE/NTag/Netzwerk/Hardware) zu einem Pairing und synchronisiert deren Zustand.
 
 **REST-Endpunkte** (`/api/pairings`, rechte-geschützt — write auf alle Mitglieds-Ressourcen nötig):
-- `GET` → list (read-Rechte gefiltert)
+- `GET` → list (read-Rechte ungefiltert)
 - `POST` → create (`{name, deviceIds}`)
 - `POST /<pid>/devices` → Gerät hinzufügen
 - `DELETE /<pid>/devices/<id>` → entfernen
-- `POST /<pid>/sync` → Sync auslösen (Idempotenz: Zeitstempel pro Sync)
-- `DELETE /<pid>` → löschen (delete-Recht auf alle Mitglieder)
-
-Beispiel-Rechte: service kann Pairing aus hardware/dongle erstellen (write), aber nicht aus ble_token/network (write = developer+) → schützt kritische Gruppen.
+- `POST /<pid>/sync` → Sync auslösen ()
+- `DELETE /<pid>` → löschen 
 
 **Client-Verwaltung & Live-Status-Board:**
-- `GET /api/clients` (min operator), `DELETE /api/clients/<id>` (service+ = "Client abmelden")
-- `WS /api/ws/status` (Port 8767): tracked Client-Präsenz (online/offline, Rolle, Gerät, lastSeen) mit Heartbeat/Ping + Stale-Detection (TTL). Broadcast: `client.online`/`client.offline`/`snapshot`. RBAC: nur service+.
+- `GET /api/clients` (min guest), `DELETE /api/clients/<id>` (service+ = "Client abmelden")
+- `WS /api/ws/status` (Port 8767): tracked Client-Präsenz (online/offline, Rolle, Gerät, lastSeen) mit Heartbeat/Ping + Stale-Detection (TTL). Broadcast: `client.online`/`client.offline`/`snapshot`. RBAC: alle+.
 - **Frontend:** `StatusBoard.tsx` (Live-Tabelle) + `PairingPanel.tsx` (Pairing anlegen/verwalten/sync, Clients abmelden). Reconnect mit Exponential Backoff.
 
 | Datei | Verantwortung |
@@ -342,15 +339,6 @@ Beispiel-Rechte: service kann Pairing aus hardware/dongle erstellen (write), abe
 
 ### Verifizierte Fehlerresilienz (Fault Injection)
 
-**Auth/RBAC (11 Tests, grün):**
-- fehlendes/ungültiges/abgelaufenes Token → 401
-- falsches Passwort → 401
-- Login ohne Body → 400
-- DELETE/PATCH unbekanntes Gerät → 404
-- Pairing mit unbekanntem Gerät → 404
-- Sync unbekanntes Pairing → 404
-- operator auf Admin-Endpunkt → 403
-- operator Client-Kick → 403
 
 **Input-Validierung (neu):**
 - `bind_device` verwirft leere id / unbekannten kind → 400
