@@ -114,11 +114,41 @@ jobs:
             fi
           done
 
+      # Bei einem Fehlschlag landet das Ende des Gradle-Logs im Step-Summary,
+      # damit der Fehler auch ohne Log-Download lesbar bleibt (Check-Run-API).
       - name: Build Debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          cd android
+          if ! ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-build.log; then
+            {
+              echo "## ❌ Gradle-Fehler: assembleDebug"
+              echo '```'
+              grep -E "FAILURE|What went wrong|Caused by|error:|e: |Could not|Unsupported|requires" -A 2 /tmp/gradle-build.log | tail -c 12000
+              echo '```'
+              echo '```'
+              tail -c 8000 /tmp/gradle-build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Build Release APK
-        run: cd android && ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          cd android
+          if ! ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-build.log; then
+            {
+              echo "## ❌ Gradle-Fehler: assembleRelease"
+              echo '```'
+              grep -E "FAILURE|What went wrong|Caused by|error:|e: |Could not|Unsupported|requires" -A 2 /tmp/gradle-build.log | tail -c 12000
+              echo '```'
+              echo '```'
+              tail -c 8000 /tmp/gradle-build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Collect APKs
         run: |
