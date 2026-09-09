@@ -36,6 +36,10 @@ try:  # pragma: no cover - Importbrücke
     from . import clients as _clients
 except Exception:  # noqa: BLE001
     _clients = None
+try:  # pragma: no cover - Seiten-Ingest (URL → prüfen → ablegen)
+    from . import page_ingest as _page_ingest
+except Exception:  # noqa: BLE001
+    _page_ingest = None
 try:  # pragma: no cover
     from .agentGallery import AgentGallery, KnowledgeBase, ensure_catalog
 except Exception:  # noqa: BLE001
@@ -367,10 +371,14 @@ class Agent:
         # PortView zuerst: „finde den Server-Port“ hat nichts mit dem Gateway-Status zu tun
         if re.search(r"portview|port\s+(finden|suchen|check|pr(ü|ue)f)|server-?port|wo\s+(läuft|steht)\s+der\s+server|endpoint\s+finden", t):
             return self._intent_portview(t)
-        # Grabber: URL + Import-Verb – aber „importiere X in mein Wissen“ bleibt RAG
+        # Grabber: URL + Import-Verb; mit „Bibliothek/Wissen“ ⇒ Seiten-Ingest (prüfen + ablegen)
         grab_url = re.search(r"https?://[^\s\"'<>()]+", text)
-        if grab_url and re.search(r"importier|import|grabbe|hole dir|downloa", t) and not re.search(r"wissen|wissensbasis|doku|dokument|indexier", t):
+        if grab_url and re.search(r"importier|import|grabbe|hole dir|downloa", t):
+            if re.search(r"bibliothek|wissensbasis|wissen\b|doku|dokument|indexier", t):
+                return self._intent_page_ingest(grab_url.group(0), t, review_only=False)
             return self._intent_grabber(grab_url.group(0), t)
+        if grab_url and re.search(r"(pr(ü|ue)f|check|analysier|auswerten).*(inhalt|seite|url)|inhalt.*(pr(ü|ue)f|check)", t):
+            return self._intent_page_ingest(grab_url.group(0), t, review_only=True)
         if re.search(r"^\s*(lern(?:e)?|indexiere|importiere)\b", t):
             return self._intent_knowledge_add(t)
         if re.search(r"\bgateway\b|\bct45p\b|\bhoneywell\b|\btoken\b|handshake|\bgrant\b|\bfreigabe\b|\bsid\b", t):
@@ -733,6 +741,28 @@ class Agent:
             )
         lines.append(f"✅ gemerkte Basis: {_clients.gateway_base()}")
         return "\n".join(lines)
+
+    def _intent_page_ingest(self, url: str, t: str, review_only: bool = False) -> str:
+        """Seite ziehen → Inhalt prüfen → Software + Info + Bibliothek intern ablegen."""
+        if _page_ingest is None:
+            return "⚠️ utils/page_ingest.py fehlt – Seiten-Ingest nicht verfügbar."
+        want_library = not review_only
+        want_software = not review_only and not re.search(r"nur seite|keine software|ohne software", t)
+        res = _page_ingest.ingest_url(
+            url,
+            knowledge=self.knowledge if want_library else None,
+            import_software=want_software,
+            to_library=want_library,
+            tags=["desktop-ingest"],
+            persist=not review_only,
+        )
+        self._audit("page_ingest", json.dumps({"url": url[:120], "verdict": res.get("verdict"),
+                                              "software": len(res.get("software") or []),
+                                              "library": bool(res.get("library"))}, ensure_ascii=False)[:200])
+        report = _page_ingest.format_ingest_report(res)
+        if review_only:
+            report += "\n\nℹ️ Nur Prüfung – nichts in die Bibliothek geschrieben. Mit „importiere " + url + " in die bibliothek“ lege ich alles ab."
+        return report
 
     def _intent_grabber(self, url: str, t: str) -> str:
         """URL → Mobile-Server-Import (Beats, Samples, Styles, Effekte, Filter)."""

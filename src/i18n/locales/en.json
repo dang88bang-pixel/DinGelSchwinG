@@ -133,7 +133,22 @@
       "native": "native",
       "pwa": "PWA",
       "demo": "Load demo pack",
-      "demoHint": "Fills the field with the demo pack from public/demo/packs/"
+      "demoHint": "Fills the field with the demo pack from public/demo/packs/",
+      "pageTitle": "Page → info + software + library",
+      "pageHint": "The agent pulls the page through the mobile server (SSRF filter, catalogue), reviews the content and files everything internally: the page as an asset, linked beats/samples/styles/effects/filters, and a library entry for RAG search. In the chat window simply drop the URL (or a file).",
+      "pagePlaceholder": "https://media.internal/handbuch/rampe-12",
+      "ingestBtn": "Review & file",
+      "reviewBtn": "Review only",
+      "working": "reviewing & filing…",
+      "dropHintPill": "Drag & drop in chat",
+      "needPageUrl": "Please enter the http(s) URL of a page.",
+      "toLibrary": "Library",
+      "libraryHint": "Review the content and file it as a knowledge document (scripts removed, secrets masked)",
+      "checking": "checking content…",
+      "chunks": "chunk(s)",
+      "nothingStored": "nothing filed",
+      "noTextShort": "no text",
+      "pageDemoHint": "Demo page: /demo/seite/index.html"
     }
   },
   "gateway": {

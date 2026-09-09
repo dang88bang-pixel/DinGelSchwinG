@@ -13,6 +13,10 @@ Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration:
   des Mobile-Servers per UDP-Broadcast (`:18791`) und HTTP-Probe, sobald die konfigurierte
   Adresse nicht antwortet (`portview_status()`, Chat-Intent `portview`; aus mit `DGS_PORTVIEW=0`,
   übersprungen wenn `DGS_GATEWAY_URL` gesetzt ist)
+- 🧲 **Seiten-Ingest** – `utils/page_ingest.py`: Seite ziehen, Inhalt prüfen (lesbarer Text,
+  Gliederung, Skript-Anteil, Secret-Muster, Duplikat), dann Seite als Asset, verlinkte Software
+  und ein `data/knowledge/`-Dokument ablegen; `format_ingest_report()` liefert den Chat-Text.
+  Chat: „prüf den inhalt von <url>“ (schreibt nichts) bzw. „importiere <url> in die bibliothek“
 - 📥 **Software-Grabber** – `import_url()`, `list_imports()`, `delete_import()`,
   `import_asset_path()`, `describe_imports()` sprechen die `/import`-Endpunkte des Gateways
   (Beats, Samples, UI-Styles, Effekte, Filter; Dedupe per SHA-256, SSRF-Filter);
@@ -102,6 +106,8 @@ Skills mit klarem Offline-Hinweis statt Fehler.
 | `lern: Rufnummern: 0221 555` · `suche im wissen: batteriewarnung` | Wissensbasis schreiben/lesen |
 | `portview` · `finde den server-port` | Mobile-Server automatisch aufspüren (PortView) |
 | `importiere http://…/pack.json als styles` | URL-Import in den Asset-Katalog (Grabber) |
+| `prüf den inhalt von http://…` | Seiten-Gutachten ohne Ablage (Ingest) |
+| `importiere http://… in die bibliothek` | Seite + verlinkte Software + Wissensbasis-Dokument |
 | `dashboard` · `leere den cache` · `exportiere das log als json` | Kennzahlen, Cache, Export |
 
 Die Schnellzugriffsleiste (über den sechs Aktionsbuttons) sendet dieselben Befehle:

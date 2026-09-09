@@ -10,6 +10,7 @@
 import { apiUrl, describeEndpoint, getEndpoint } from '../endpoint';
 import { autoConfigure, formatCandidate } from '../portview';
 import { grabFromUrl } from '../grabber';
+import { formatIngestReport, ingestPage } from '../pageIngest';
 import { formatBytes, shortHash, type PackCategory } from '../packs';
 import { SKILLS, Skill, skillsToPrompt } from '../../config/skills';
 import {
@@ -586,6 +587,54 @@ export class AgentEngine {
     return lines.join('\n');
   }
 
+  async intentPageIngest(
+    url: string,
+    opts: { toLibrary?: boolean; importSoftware?: boolean; reviewOnly?: boolean } = {},
+  ): Promise<string> {
+    const result = await ingestPage({ url }, {
+      toLibrary: opts.toLibrary !== false && !opts.reviewOnly,
+      importSoftware: opts.importSoftware !== false && !opts.reviewOnly,
+      toDeviceCache: !opts.reviewOnly,
+      tags: ['chat-ingest'],
+      reviewOnly: opts.reviewOnly,
+    });
+    this.audit('page_ingest', `${result.ok ? result.review?.verdict ?? 'ok' : result.error ?? 'fehler'} ${url.slice(0, 80)}`);
+    const report = formatIngestReport(result);
+    if (opts.reviewOnly) {
+      return `${report}\n\nℹ️ Nur Prüfung – nichts in die Bibliothek geschrieben. Mit „importiere ${url} in die bibliothek“ lege ich Seite, Software und Text ab.`;
+    }
+    return report;
+  }
+
+  /** Drag & Drop im Chatfenster: gezogene Datei prüfen und ablegen (PDF/Text/Markdown). */
+  async ingestDroppedFile(file: File, opts: { toLibrary?: boolean; reviewOnly?: boolean } = {}): Promise<string> {
+    const header = `📎 ${file.name} · ${(file.size / 1024).toFixed(1)} KB${file.type ? ` · ${file.type}` : ''}`;
+    try {
+      const { readFileAsText } = await import('../rag');
+      const { text } = await readFileAsText(file);
+      const result = await ingestPage({ text, name: file.name }, {
+        toLibrary: opts.toLibrary !== false && !opts.reviewOnly,
+        importSoftware: false,
+        toDeviceCache: false,
+        reviewOnly: opts.reviewOnly,
+      });
+      this.audit('page_ingest_file', `${result.ok ? 'abgelegt' : result.error ?? 'fehler'} ${file.name}`.slice(0, 160));
+      return `${header}\n${formatIngestReport(result)}`;
+    } catch (e) {
+      const detail = String((e as Error)?.message ?? e);
+      if (/OCR|Textschicht/.test(detail)) {
+        return `${header}\n⚠️ ${detail}\n   Für gescannte PDFs: als .txt/.md exportieren und ziehen, oder URL des Originals ziehen.`;
+      }
+      return `${header}\n❌ Datei nicht verwertbar: ${detail.slice(0, 160)}`;
+    }
+  }
+
+  /** Drag & Drop im Chatfenster: gezogene URL → Agent-Auftrag (prüfen + ablegen). */
+  async ingestDroppedUrl(url: string): Promise<string> {
+    this.audit('page_ingest_drop', url.slice(0, 120));
+    return `🧲 URL aus dem Chatfenster – Seite ziehen, prüfen, ablegen\n\n${await this.intentPageIngest(url, {})}`;
+  }
+
   async intentGrabber(url: string, lower: string): Promise<string> {
     const wanted = /(beats?|samples?|styles?|effekte?|effects?|filters?|shader|lut)/.exec(lower)?.[0] ?? '';
     const category: PackCategory | '' =
@@ -637,8 +686,16 @@ export class AgentEngine {
     if (/portview|port\s+(finden|suchen|check|pr(ü|ue)f|scan)|server-?port|wo\s+(l(ä|a)uft|steht)\s+der\s+server|endpoint\s+finden/.test(lower)) {
       return this.intentPortview(/(erzwinge|force|berschreib|überschreib)/.test(lower));
     }
-    // Grabber: „importiere https://…/pack.json als styles“
     const grabUrl = t.match(/https?:\/\/[^\s"'<>()]+/);
+    // Seiten-Ingest: „importiere <url> in die bibliothek“ / „prüf den inhalt von <url>“
+    if (grabUrl && /(bibliothek|wissensbasis|wissen\b|doku|dokument|sammlung|info\b|software\b)/.test(lower)
+      && /(importier|import|hol|nimm|leg|ablage|ablegen|speicher|bibliothek|doku)/.test(lower)) {
+      return this.intentPageIngest(grabUrl[0], { toLibrary: true, importSoftware: !/nur seite|ohne software/.test(lower) });
+    }
+    if (grabUrl && /(pr(ü|ue)f|check|analysier|auswert)/.test(lower) && /(inhalt|seite|url|text)/.test(lower)) {
+      return this.intentPageIngest(grabUrl[0], { toLibrary: false, importSoftware: false, reviewOnly: true });
+    }
+    // Grabber: „importiere https://…/pack.json als styles“
     if (grabUrl && /(importier|import|grabbe|hole dir|downloa)/.test(lower)) {
       return this.intentGrabber(grabUrl[0], lower);
     }

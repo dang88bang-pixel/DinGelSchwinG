@@ -243,6 +243,121 @@ class TestAgentModes(unittest.TestCase):
         self.assertIn("Test-Agent", agent.system_instruction)
 
 
+class TestPageIngest(unittest.TestCase):
+    """Seiten-Ingest: Inhalt → prüfen → Software/Info/Bibliothek (Desktop-Spiegel der App)."""
+
+    SAMPLE = (
+        "<html><head><title>Rampenhandbuch</title>"
+        '<meta name="description" content="Arbeitsanleitung Rampe 12.">'
+        "<style>a{color:red}</style></head><body>"
+        "<script>track()</script><h1>Anleitung</h1><h2>Schritt 1</h2>"
+        "<p>Eröffnung Text mit genuegend Woertern damit die Schwelle gerissen wird. "
+        "Weitere Zeile mit Inhalt, der in die Wissensbasis gehoert. Und noch ein Satz.</p>"
+        '<a href="sounds/loop_4bar.wav">loop</a> <a href="/ui/dunkel.css">css</a> '
+        '<a href="javascript:void(0)">kein asset</a>'
+        "<p>passwort = SuperSecret4242</p></body></html>"
+    )
+
+    def setUp(self) -> None:
+        from utils import page_ingest
+
+        self.pi = page_ingest
+
+    def test_extract_readable(self) -> None:
+        ex = self.pi.extract_readable(self.SAMPLE)
+        self.assertEqual(ex["title"], "Rampenhandbuch")
+        self.assertEqual([h["text"] for h in ex["headings"]], ["Anleitung", "Schritt 1"])
+        self.assertNotIn("track()", ex["text"])
+        self.assertNotIn("color:red", ex["text"])
+        self.assertIn("genuegend Woertern", ex["text"])
+        self.assertTrue(ex["summary"].startswith("Arbeitsanleitung"))
+        self.assertGreater(ex["words"], 20)
+        self.assertFalse(ex["binary"])
+
+    def test_extract_binary_and_title_fallback(self) -> None:
+        ex = self.pi.extract_readable("GIF89a\x00\x01\x02" + "\x00" * 200)
+        self.assertTrue(ex["binary"])
+        self.assertEqual(ex["title"], "Ohne Titel")
+        self.assertEqual(self.pi.extract_readable("")["title"], "Ohne Titel")
+
+    def test_find_asset_links_filters_and_categories(self) -> None:
+        links = self.pi.find_asset_links(self.SAMPLE, "http://files.internal/handbuch/index.html")
+        self.assertEqual([l["category"] for l in links], ["samples", "styles"])
+        self.assertTrue(links[0]["url"].endswith("sounds/loop_4bar.wav"))
+        self.assertTrue(all("javascript:" not in item["url"] for item in links))
+        self.assertEqual(self.pi.find_asset_links('<a href="notes.txt">x</a>', "http://h/"), [])
+        self.assertEqual(len(self.pi.find_asset_links(self.SAMPLE, "http://h/", limit=1)), 1)
+
+    def test_mask_secrets(self) -> None:
+        masked, hits = self.pi.mask_secrets("vorher\npasswort = SuperSecret4242\nnachher\n" + "0" * 64)
+        self.assertNotIn("SuperSecret4242", masked)
+        self.assertIn("MASKIERT", masked)
+        self.assertIn("Passwort-Zuweisung", hits)
+        self.assertIn("Langer Hex-Key", hits)
+
+    def test_review_content_verdicts(self) -> None:
+        ex = self.pi.extract_readable(self.SAMPLE)
+        checks = self.pi.review_content(ex, {"bytes": 900, "mime": "text/html", "via": "gateway"}, [{"category": "styles", "url": "u", "name": "d.css", "ext": "css"}])
+        self.assertEqual(self.pi.verdict_of(checks), "attention")  # skripte + schutzbedarf
+        blocked = self.pi.review_content(ex, {"bytes": 0, "mime": "", "via": "gateway", "block_reason": "host_gesperrt: 169.254.169.254"}, [])
+        self.assertEqual(self.pi.verdict_of(blocked), "blockiert")
+        self.assertTrue(any(c["id"] == "quelle" and "host_gesperrt" in c["detail"] for c in blocked))
+
+    def test_ingest_url_via_opener_and_knowledge(self) -> None:
+        from utils import page_ingest
+
+        class FakeKnowledge:
+            def __init__(self) -> None:
+                self.titles: list[str] = []
+                self.last = ""
+
+            def add(self, title: str, text: str) -> str:
+                self.titles.append(title)
+                self.last = text
+                return "/tmp/data/knowledge/" + title.lower().replace(" ", "-") + ".md"
+
+            def stats(self) -> dict:
+                return {"documents": 1, "chunks": 3}
+
+        kb = FakeKnowledge()
+        res = page_ingest.ingest_url(
+            "http://files.internal/handbuch/index.html",
+            knowledge=kb,
+            import_software=True,
+            to_library=True,
+            opener=lambda url: self.SAMPLE.encode("utf-8"),
+        )
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["verdict"], "attention")  # skripte + schutzbedarf
+        self.assertEqual([l["category"] for l in res["links"]], ["samples", "styles"])
+        self.assertEqual(len(res["software"]), 2, res["software"])
+        self.assertEqual(kb.titles, ["Rampenhandbuch"])
+        self.assertNotIn("SuperSecret4242", kb.last)
+        self.assertIn("http://files.internal/handbuch/index.html", kb.last)
+        self.assertIn("sounds/loop_4bar.wav", kb.last)
+        text = page_ingest.format_ingest_report(res)
+        for needle in ("Inhalt geprüft", "Prüfpunkte", "Software von der Seite", "Bibliothek"):
+            self.assertIn(needle, text, text)
+
+    def test_ingest_url_blocked_source(self) -> None:
+        from utils import clients, page_ingest
+
+        original = clients.import_url
+        try:
+            clients.import_url = lambda url, **kw: {"ok": False, "error": "host_gesperrt", "detail": "169.254.169.254", "hint": "Metadaten-Dienst"}  # type: ignore[assignment]
+            res = page_ingest.ingest_url("http://169.254.169.254/latest/meta-data", knowledge=None, import_software=False)
+        finally:
+            clients.import_url = original  # type: ignore[assignment]
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["verdict"], "blockiert")
+        self.assertEqual(res["error"], "host_gesperrt")
+        self.assertIn("⛔", page_ingest.format_ingest_report(res))
+
+    def test_selftest_helper(self) -> None:
+        report = self.pi.selftest()
+        self.assertTrue(report["ok"], report)
+
+
 class TestPortViewAndGrabber(unittest.TestCase):
     """PortView (automatische Port-Findung) und Grabber-Helfer der Desktop-Konsole."""
 

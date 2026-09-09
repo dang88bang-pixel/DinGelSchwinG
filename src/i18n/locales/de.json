@@ -133,7 +133,22 @@
       "native": "nativ",
       "pwa": "PWA",
       "demo": "Demo-Pack laden",
-      "demoHint": "Füllt das Feld mit dem Demo-Pack aus public/demo/packs/"
+      "demoHint": "Füllt das Feld mit dem Demo-Pack aus public/demo/packs/",
+      "pageTitle": "Seite → Info + Software + Bibliothek",
+      "pageHint": "Der Agent zieht die Seite über den Mobile-Server (SSRF-Filter, Katalog), prüft den Inhalt und legt alles intern ab: Seite als Asset, verlinkte Beats/Samples/Styles/Effekte/Filter und ein Bibliothekseintrag für die RAG-Suche. Im Chatfenster genügt es, die URL (oder eine Datei) herüberzuziehen.",
+      "pagePlaceholder": "https://media.internal/handbuch/rampe-12",
+      "ingestBtn": "Prüfen & ablegen",
+      "reviewBtn": "Nur prüfen",
+      "working": "prüfe & lege ab…",
+      "dropHintPill": "Drag & Drop im Chat",
+      "needPageUrl": "Bitte eine http(s)-URL einer Seite eintragen.",
+      "toLibrary": "Bibliothek",
+      "libraryHint": "Inhalt prüfen und als Wissensbasis-Dokument ablegen (Skripte raus, Geheimnisse maskiert)",
+      "checking": "prüfe inhalt…",
+      "chunks": "Abschnitt/Abschnitte",
+      "nothingStored": "nichts abgelegt",
+      "noTextShort": "kein Text",
+      "pageDemoHint": "Demo-Seite: /demo/seite/index.html"
     }
   },
   "gateway": {

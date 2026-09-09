@@ -249,6 +249,69 @@ findet das Werk-Gateway üblicherweise als IP). Für TLS-Rollouts liegt
 
 ---
 
+### 2b. Seiten-Ingest: URL ins Chatfenster ziehen → prüfen → intern ablegen
+
+Der Grabber kann mehr als Dateien importieren: Der Agent zieht eine **Seite**, liest ihren
+Inhalt, **prüft** ihn und legt **alles intern** ab. Auslöser ist ein Drag & Drop ins Chatfenster
+(`AgentConsole`) oder ein Chat-Befehl.
+
+```
+URL/Datei ziehen ──▶ AgentConsole.onDrop ──▶ engine.ingestDroppedUrl(url)
+                                              │
+                    "importiere <url> in die bibliothek"  (Intent im Agenten)
+                                              ▼
+      grabber.grabFromUrl(url) ──▶ POST /gateway/import {url}      (SSRF-Filter, Limits, Dedupe)
+                                              │  Asset der Seite + Text (textOfAsset)
+                                              ▼
+      pageIngest.extractReadable(html)   → Titel, Gliederung, Volltext, Skripte/Style raus
+      pageIngest.maskSecrets(text)       → Key-/Passwort-Muster werden maskiert
+      pageIngest.findAssetLinks(html)    → verlinkte .wav/.mp3/.css/.jsfx/.glsl/.cube/Manifeste
+      pageIngest.reviewContent(…)        → Prüfpunkte (siehe unten) ⇒ verdict ok|attention|blockiert
+                                              ▼
+                          ┌───────────────────┼───────────────────────┐
+                 Seite als Asset      Software-Links importieren   RAG-Dokument
+                 (data/imports/)      (Katalog + Offline-Cache)   (data/knowledge/ bzw. IndexedDB)
+```
+
+**Prüfpunkte** (`reviewContent`, identisch in `src/lib/pageIngest.ts` und
+`desktop/utils/page_ingest.py`):
+
+| Prüfpunkt | ok | warn | blockiert |
+|---|---|---|---|
+| Quelle abrufbar | via gateway/browser/datei | – | Fehler des Grabbers (`host_gesperrt`, `zu_gross`, `netzwerk`, …) |
+| Größe | ≤ 24 MiB | größer (Vorschau gekürzt) | – |
+| Lesbarer Text | ≥ 40 Wörter | < 40 Wörter oder Binärdatei | – |
+| Gliederung | ≥ 1 Überschrift (H1–H3) | keine erkannt | – |
+| Skripte/Formatierung | kein `<script>`/`<style>` | entfernt (Zähler im Bericht) | – |
+| Schutzbedarf | keine Muster | maskiert (`Privater Schlüssel`, `AWS-Style Key`, `Passwort-Zuweisung`, `PSK/Secret`, `Langer Hex-Key`) | – |
+| Verlinkte Software | ≥ 1 Treffer | keine | – |
+| Duplikat | neu | gleicher SHA-256 bereits im Katalog | – |
+
+`blockiert` ⇒ es wird **nichts** abgelegt, der Bericht nennt Grund + Hinweis. `attention` wird
+abgelegt, der Hinweis bleibt im Bericht sichtbar.
+
+**Rufarten**
+
+| Ich will… | Chat / Panel |
+|---|---|
+| alles ablegen | URL ins Chatfenster ziehen, oder „importiere https://… in die bibliothek“, oder 📥 → „Prüfen & ablegen“ |
+| nur schauen, nichts schreiben | „prüf den inhalt von https://…“, 📥 → „Nur prüfen“ (läuft über `persist:false` + `text_preview`) |
+| Text einer Datei ins Wissen | Datei (.md/.txt/.pdf) ins Chatfenster ziehen |
+| Einzelnes Asset erschließen | 📥 Katalog → „📚 Bibliothek“ am Asset (Prüfung + RAG-Eintrag, maskiert) |
+| ohne verlinkte Software | „importiere <url> in die bibliothek, nur seite“ |
+
+Der Bibliothekseintrag enthält Titel, Quelle, Abrufzeit, Kurzinfo (Meta-Description oder erste
+Sätze), Gliederung, bereinigten Volltext und die Liste der verlinkten Dateien — damit ist die
+Seite über „suche im wissen: …“ wieder auffindbar und im Chat kontextgebend.
+
+Demo zum Ausprobieren (liegt im Repo und wird vom Dev-Server ausgeliefert):
+`http://127.0.0.1:5173/demo/seite/index.html` → ziehen, „Prüfen & ablegen“, danach
+`suche im wissen: türsensor abfrage`.
+
+**Neu am Gateway:** `POST /import` mit `persist:false` (und `GET /import/preview?url=`)
+liefern im Eintrag zusätzlich `text_preview` (bis 120 000 Zeichen, `null`-frei, bei
+Binärinhalten weggelassen) – nur so ist „Nur prüfen“ wirklich rückwirkungsfrei.
+
 ### Grenzen (bewusst benannt)
 
 * **PWA über https**: `http://192.168.x.x:8791` ist Mixed Content – der Browser blockt.
@@ -272,8 +335,12 @@ python3 mobile-server/mobile_ble_server.py selftest
 #   ✅ portview-udp-announce … portview-http-probe … grabber-import
 #   ✅ grabber-katalog+datei · grabber-dedupe-sha · grabber-ssrf-filter
 
-python3 mobile-server/tests/test_gateway.py      # 32 Tests (inkl. PortView/Grabber)
-cd desktop && python3 -m unittest discover -s tests   # 36 Tests (PortView/Grabber-Helfer)
+python3 mobile-server/tests/test_gateway.py      # 32 Tests (PortView, Grabber, Ingest-Helfer)
+cd desktop && python3 -m unittest discover -s tests   # 44 Tests (PortView, Grabber, Seiten-Ingest)
+
+# Seiten-Ingest ohne UI durchspielen (Gateway + Demo-Seite müssen laufen):
+curl -s -X POST http://127.0.0.1:8791/import -H 'content-type: application/json' \
+     -d '{"url":"http://127.0.0.1:8123/demo/seite/index.html","persist":false}' | head -c 300
 
 # Live, mit laufendem Gateway (--mock):
 curl -s http://127.0.0.1:8791/status | python3 -m json.tool | head -6

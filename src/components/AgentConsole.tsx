@@ -98,6 +98,8 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const msgId = useRef(1);
+  const dragDepth = useRef(0);
+  const [dragKind, setDragKind] = useState<'url' | 'datei' | null>(null);
 
   const addMessage = useCallback((sender: AgentMessage['sender'], text: string) => {
     setMessages((prev) => [
@@ -178,6 +180,57 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
     [engine, addMessage],
   );
 
+  // --- Drag & Drop: URL oder Datei ins Chatfenster → Agent-Auftrag -----------------
+  const urlsFromDataTransfer = (dt: DataTransfer | null): string[] => {
+    if (!dt) return [];
+    const raw = dt.getData('text/uri-list') || dt.getData('text/plain') || dt.getData('URL') || '';
+    const found = raw.match(/https?:\/\/[^\s"'<>()]+/g) ?? [];
+    return [...new Set(found)].slice(0, 4);
+  };
+
+  const handleDrop = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      dragDepth.current = 0;
+      setDragKind(null);
+      const dt = event.dataTransfer;
+      const urls = urlsFromDataTransfer(dt);
+      const files = Array.from(dt?.files ?? []).slice(0, 3);
+      if (!urls.length && !files.length) {
+        addMessage('system', 'ℹ️ Ich verstehe gezogene Links (http/https) und Text-/Markdown-/PDF-Dateien.');
+        return;
+      }
+      if (busy) {
+        addMessage('system', '⏳ Der Agent arbeitet noch – bitte gleich noch einmal ablegen.');
+        return;
+      }
+      setBusy(true);
+      try {
+        for (const url of urls) {
+          addMessage('user', `importiere ${url} in die bibliothek`);
+          addMessage('agent', await engine.ingestDroppedUrl(url));
+        }
+        for (const file of files) {
+          addMessage('user', `📎 ${file.name} – Inhalt prüfen und ablegen`);
+          addMessage('agent', await engine.ingestDroppedFile(file));
+        }
+      } catch (e) {
+        addMessage('agent', `⚠️ Ingest fehlgeschlagen: ${String(e).slice(0, 200)}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [addMessage, busy, engine],
+  );
+
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    const types = event.dataTransfer?.types;
+    if (types && (types.includes('Files') || types.includes('text/uri-list') || types.includes('text/plain') || types.includes('URL'))) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }, []);
+
   const loadModel = useCallback(async () => {
     setModelProgress(0);
     setModelStatus('Modell wird geladen…');
@@ -213,7 +266,41 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
     sender === 'user' ? 'Du' : sender === 'agent' ? 'Agent' : 'System';
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#020617]/95 backdrop-blur-xl flex flex-col">
+    <div
+      className="fixed inset-0 z-[100] bg-[#020617]/95 backdrop-blur-xl flex flex-col"
+      onDragEnter={(event) => {
+        const types = event.dataTransfer?.types;
+        if (!types) return;
+        const isFile = types.includes('Files');
+        const isLink = types.includes('text/uri-list') || types.includes('text/plain') || types.includes('URL');
+        if (!isFile && !isLink) return;
+        event.preventDefault();
+        dragDepth.current += 1;
+        setDragKind(isFile ? 'datei' : 'url');
+      }}
+      onDragOver={handleDragOver}
+      onDragLeave={() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDragKind(null);
+      }}
+      onDrop={handleDrop}
+    >
+      {dragKind && (
+        <div className="absolute inset-0 z-[120] pointer-events-none flex items-center justify-center p-6">
+          <div className="rounded-3xl border-2 border-dashed border-cyan-400/70 bg-cyan-950/70 backdrop-blur-md px-8 py-7 text-center max-w-lg shadow-2xl">
+            <div className="text-3xl mb-2">{dragKind === 'datei' ? '📎' : '🧲'}</div>
+            <div className="text-base font-black text-white">
+              {dragKind === 'datei' ? 'Datei hier ablegen' : 'URL hier ablegen'}
+            </div>
+            <div className="text-[12px] text-cyan-100/90 mt-1.5 leading-relaxed">
+              {dragKind === 'datei'
+                ? 'Agent prüft den Dateiinhalt und übernimmt ihn in die Wissensbasis (Skripte raus, Geheimnisse maskiert).'
+                : 'Agent zieht die Seite, prüft den Inhalt, importiert verlinkte Software und legt Text + Info in der Bibliothek ab.'}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex items-center gap-3 px-5 py-3 border-b border-white/10 bg-[#050a18]/90">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -413,7 +500,7 @@ export default function AgentConsole({ role = 'admin', onClose }: AgentConsolePr
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
-          placeholder="Nachricht eingeben… (Enter zum Senden)"
+          placeholder="Nachricht eingeben…  ·  URL/Datei herüberziehen = prüfen + ablegen  ·  Enter zum Senden"
           className="flex-1 px-4 py-3 rounded-xl bg-slate-900/80 border border-slate-700/60 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-500/60 transition"
         />
         <button

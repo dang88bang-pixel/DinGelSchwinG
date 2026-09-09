@@ -194,6 +194,26 @@ export const SKILLS: Skill[] = [
     example: 'gateway_grant sid=S6AA0B32C-0003 granted=true',
   },
   {
+    name: 'page_ingest',
+    description:
+      'Seiten-Ingest: URL (oder gezogene Datei) aus dem Chatfenster – Inhalt ziehen, prüfen und intern ablegen: Seite als Asset, verlinkte Software, Info-Satz und Bibliothekseintrag (RAG, maskiert).',
+    calls: [
+      '"importiere https://media.internal/handbuch in die bibliothek"',
+      '"nimm die seite in die wissensbasis"',
+      '"URL ins Chatfenster ziehen"',
+    ],
+    params: '<url> [ohne software] – Links folgen an, außer „nur seite“',
+    example: 'src/lib/pageIngest.ts → ingestPage({ url }, { toLibrary: true })  ·  Desktop: utils/page_ingest.py',
+  },
+  {
+    name: 'content_review',
+    description:
+      'Inhalts-Gutachten vor dem Ablegen: lesbarer Text, Gliederung, Skript-Anteil, Secret-Muster, Duplikat, verlinkte Software – blockierte Quellen werden gemeldet statt gespeichert.',
+    calls: ['"prüf den inhalt von https://…"', '"check die seite https://…"'],
+    params: '<url> – schreibt nichts in die Bibliothek',
+    example: 'src/lib/pageIngest.ts → reviewContent(extractReadable(html), …)',
+  },
+  {
     name: 'portview_scan',
     description:
       'PortView: Mobile-Server im Netz automatisch finden (UDP-Broadcast :18791 + HTTP-Probe) und Gateway-/Bridge-Port in der App setzen.',

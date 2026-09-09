@@ -343,6 +343,28 @@ def download(url: str, policy: ImportPolicy, opener=None) -> dict[str, Any]:
     return {"ok": False, "error": "zu_viele_redirects"}
 
 
+TEXTY_MIMES = ("text/", "application/json", "application/xml", "application/javascript", "application/x-javascript", "+json", "+xml")
+
+
+def text_preview(data: bytes, mime: str, max_chars: int = 120_000) -> str | None:
+    """Entworfener Text für die Vorschau – None bei Binärinhalten."""
+    if not data:
+        return ""
+    low = (mime or "").lower()
+    if low and not any(tag in low for tag in TEXTY_MIMES):
+        return None
+    try:
+        text = data[: max_chars * 4].decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text = data[: max_chars * 4].decode("latin-1")
+        except Exception:  # noqa: BLE001 - Vorschau ist optional
+            return None
+    if "\x00" in text[:4096]:
+        return None
+    return text[:max_chars]
+
+
 def looks_like_pack(data: bytes, content_type: str = "") -> bool:
     if len(data) > MAX_BODY_FOR_SNIFF:
         return False
@@ -464,12 +486,16 @@ class ImportStore:
         by_cat: dict[str, int] = {}
         for item in items:
             by_cat[item.get("category", "other")] = by_cat.get(item.get("category", "other"), 0) + 1
+        counters = dict(self.stats_counters)
+        since_start = int(counters.pop("bytes", 0) or 0)
         return {
             "count": len(items),
+            # echte Kataloggröße – überlebt Neustarts (der Zähler unten gilt pro Prozess)
             "bytes": sum(int(x.get("bytes") or 0) for x in items),
+            "bytes_since_start": since_start,
             "by_category": by_cat,
             "dir": str(self.root),
-            **self.stats_counters,
+            **counters,
         }
 
     def delete(self, asset_id: str) -> bool:
@@ -585,7 +611,12 @@ class ImportStore:
             entry["local_url"] = "%s/import/file/%s" % (self.gateway_base.rstrip("/"), entry["id"])
 
         if not persist:
-            return {"ok": True, "kind": "preview", "imported": [entry], "url": goal["url"][:200], "bytes": len(data), "preview": True}
+            # Vorschau ohne Ablage: Textauszug mitgeben, damit "nur prüfen" nichts schreibt.
+            preview = dict(entry)
+            excerpt = text_preview(data, entry.get("mime") or "")
+            if excerpt is not None:
+                preview["text_preview"] = excerpt
+            return {"ok": True, "kind": "preview", "imported": [preview], "url": goal["url"][:200], "bytes": len(data), "preview": True}
 
         with self._lock:
             self._ensure_loaded()

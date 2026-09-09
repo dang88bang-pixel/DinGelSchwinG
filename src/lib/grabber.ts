@@ -43,6 +43,8 @@ export interface ImportResponse {
   skipped?: { url: string; reason?: string }[];
   pack?: { name: string; version?: string; category?: string; items?: unknown[] };
   bytes?: number;
+  /** true, wenn der Gateway-Inhalt bereits mit gleichem SHA-256 gespeichert war */
+  deduped?: boolean;
   error?: string;
   detail?: string;
   hint?: string;
@@ -65,6 +67,7 @@ function normalizeGatewayAsset(raw: Record<string, unknown>): ImportedAsset {
     tags: Array.isArray(raw.tags) ? (raw.tags as string[]) : [],
     pack: raw.pack ? String(raw.pack) : undefined,
     importedAt: Number(raw.imported_at ?? 0) || undefined,
+    textPreview: raw.text_preview ? String(raw.text_preview) : undefined,
     localOnly: false,
     via: 'gateway',
   };
@@ -132,6 +135,7 @@ async function grabViaGateway(url: string, opts: ImportOptions): Promise<ImportR
     skipped: Array.isArray(payload.skipped) ? (payload.skipped as { url: string; reason?: string }[]) : [],
     pack: payload.pack ? (payload.pack as ImportResponse['pack']) : undefined,
     bytes: Number(payload.bytes ?? 0) || undefined,
+    deduped: Boolean(payload.deduped),
     error: payload.error ? String(payload.error) : undefined,
     detail: payload.detail ? String(payload.detail) : undefined,
     hint: payload.hint ? String(payload.hint) : undefined,

@@ -612,6 +612,8 @@ async def selftest(cfg: GatewayConfig) -> int:
     checks.append(("grabber-http-post", bool(posted.get("ok")) and posted.get("kind") == "preview"
                    and posted_asset.get("category") == "effects",
                    "kind=%s kat=%s bytes=%s" % (posted.get("kind"), posted_asset.get("category"), posted.get("bytes"))))
+    checks.append(("grabber-vorschau-text", '"product"' in str(posted_asset.get("text_preview") or ""),
+                   "zeichen=%s" % len(str(posted_asset.get("text_preview") or ""))))
     checks.append(("grabber-http-blockiert", state.imports.import_url("http://169.254.169.254/latest/meta-data/").get("error")
                    in ("host_gesperrt", "linklokal_blockiert", "privatnetz_blockiert"),
                    "metadaten-ip abgewiesen"))

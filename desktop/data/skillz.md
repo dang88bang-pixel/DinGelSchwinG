@@ -152,3 +152,15 @@ Beschreibung: Importiert eine URL (Datei oder Pack-Manifest) in den Asset-Katalo
 Aufruf: "importiere http://files.internal/packs/dgs-demo-pack.json" | "grabbe … als beats" | "importiere … als styles"
 Parameter: <url> [als <kategorie>]  ·  ENV: DGS_IMPORT_MAX_MB, DGS_IMPORT_TIMEOUT_S, DGS_IMPORT_ALLOW_PRIVATE
 Beispiel: curl -X POST http://127.0.0.1:8791/import -d '{"url":"http://127.0.0.1:5173/demo/packs/dgs-demo-pack.json","tags":["werk"]}'
+
+## page_ingest
+Beschreibung: Seiten-Ingest – der Agent zieht eine Seite (URL aus dem Chat-Fenster-Drop oder Befehl), prüft den Inhalt und legt intern ab: Seite als Asset im Katalog, verlinkte Beats/Samples/UI-Styles/Effekte/Filter, Kurzinfo im Chat und ein Dokument in data/knowledge/ (Skripte entfernt, Secret-Muster maskiert).
+Aufruf: "importiere http://media.internal/handbuch in die bibliothek" | "nimm die seite in die wissensbasis" | "URL ins Chatfenster ziehen"
+Parameter: <url>  ·  „ohne software“/„nur seite“ überspringt die Link-Importe
+Beispiel: python3 -c "import sys;sys.path.insert(0,'desktop');from utils import page_ingest as P;print(P.format_ingest_report(P.ingest_url('http://127.0.0.1:8123/demo/seite/index.html')))"
+
+## content_review
+Beschreibung: Gutachten über den Inhalt einer URL, ohne etwas abzulegen – Prüfpunkte: Quelle, Größe, lesbarer Text, Gliederung, Skript-/Style-Anteil, Schutzbedarf (Secret-Muster), verlinkte Software, Duplikat.
+Aufruf: "prüf den inhalt von http://media.internal/rampe-12" | "check die seite https://…"
+Parameter: <url>
+Beispiel: utils/page_ingest.py → review_content(extract_readable(html), meta, links)  (Ergebnis: ok | attention | blockiert)

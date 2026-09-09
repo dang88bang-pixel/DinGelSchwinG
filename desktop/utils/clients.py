@@ -266,8 +266,8 @@ def gateway_command(action: str, base: str | None = None, **extra: Any) -> dict[
 # ---------------------------------------------------------------------------
 # Software-Grabber (URL-Import) – dieselben Endpunkte wie die Web-App
 # ---------------------------------------------------------------------------
-def import_url(url: str, category: str = "", tags: list[str] | None = None, base: str | None = None) -> dict[str, Any]:
-    payload: dict[str, Any] = {"url": url}
+def import_url(url: str, category: str = "", tags: list[str] | None = None, base: str | None = None, persist: bool = True) -> dict[str, Any]:
+    payload: dict[str, Any] = {"url": url, "persist": bool(persist)}
     if category:
         payload["category"] = category
     if tags:

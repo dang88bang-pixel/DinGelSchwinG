@@ -45,6 +45,8 @@ export interface ImportedAsset {
   tags?: string[];
   pack?: string;
   importedAt?: number;
+  /** Vorschau-Auszug des Gateway-Previews (persist=false) – nichts auf der Platte */
+  textPreview?: string;
   /** gesetzt, wenn das Asset nur im Browser/WebView liegt (kein Gateway-Katalog) */
   localOnly?: boolean;
   via?: 'gateway' | 'browser';

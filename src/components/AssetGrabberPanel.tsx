@@ -16,7 +16,8 @@ import {
   prefetchOffline,
   textOfAsset,
   type ImportResponse,
-} from '../lib/grabber';
+} from '../lib/grabber'
+import { formatIngestReport, ingestPage } from '../lib/pageIngest';
 import { CATEGORIES, categoryInfo, detectCategory, filenameFromUrl, formatBytes, shortHash, type ImportedAsset, type PackCategory } from '../lib/packs';
 import { Mono, PanelSection, PanelShell, Pill, StatTile, useAsyncPoll } from './panels/ui';
 
@@ -51,6 +52,9 @@ function AssetGrabberPanel({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [cache, setCache] = useState({ count: 0, bytes: 0, available: true });
   const [style, setStyle] = useState<{ id: string; title?: string } | null>(null);
+  const [pageUrl, setPageUrl] = useState('');
+  const [pageBusy, setPageBusy] = useState(false);
+  const [pageReport, setPageReport] = useState('');
   const backend = useMemo(() => importBackendInfo(), []);
 
   const reload = useCallback(async () => {
@@ -107,6 +111,30 @@ function AssetGrabberPanel({ onClose }: { onClose: () => void }) {
     setBusy(false);
     await reload();
   }, [urls, category, tags, reload, t]);
+
+  const runPage = useCallback(
+    async (reviewOnly: boolean) => {
+      const url = pageUrl.trim().split(/\s+/)[0] ?? '';
+      if (!/^https?:\/\//i.test(url)) {
+        setPageReport(t('panels.grabber.needPageUrl', 'Bitte eine http(s)-URL einer Seite eintragen.'));
+        return;
+      }
+      setPageBusy(true);
+      try {
+        const result = await ingestPage(
+          { url },
+          { reviewOnly, toLibrary: !reviewOnly, importSoftware: !reviewOnly, toDeviceCache: !reviewOnly, tags: ['panel-ingest'] },
+        );
+        setPageReport(formatIngestReport(result));
+        if (!reviewOnly) await reload();
+      } catch (e) {
+        setPageReport(`❌ ${String((e as Error)?.message ?? e).slice(0, 200)}`);
+      } finally {
+        setPageBusy(false);
+      }
+    },
+    [pageUrl, reload, t],
+  );
 
   const preview = useCallback(async (row: Row) => {
     if (row.text) return patchRow(row.asset.id, { text: undefined });
@@ -203,7 +231,51 @@ function AssetGrabberPanel({ onClose }: { onClose: () => void }) {
           </p>
         </PanelSection>
 
+        <PanelSection
+          title={t('panels.grabber.pageTitle', 'Seite → Info + Software + Bibliothek')}
+          right={<Pill tone={pageBusy ? 'warn' : pageReport ? 'ok' : 'slate'}>{pageBusy ? '…' : t('panels.grabber.dropHintPill', 'Drag & Drop im Chat')}</Pill>}
+        >
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              {t('panels.grabber.pageHint', 'Der Agent zieht die Seite über den Mobile-Server (SSRF-Filter, Katalog), prüft den Inhalt und legt alles intern ab: Seite als Asset, verlinkte Beats/Samples/Styles/Effekte/Filter und ein Bibliothekseintrag für die RAG-Suche. Im Chatfenster genügt es, die URL herüberzuziehen.')}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={pageUrl}
+                onChange={(e) => setPageUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void runPage(false);
+                }}
+                placeholder={t('panels.grabber.pagePlaceholder', 'https://media.internal/handbuch/rampe-12')}
+                className="flex-1 min-w-[220px] px-3 py-2 rounded-xl bg-slate-900/70 border border-white/10 text-[12px] font-mono text-slate-100 outline-none focus:border-cyan-400/60"
+              />
+              <button
+                type="button"
+                onClick={() => void runPage(false)}
+                disabled={pageBusy}
+                className="px-3 py-2 rounded-xl bg-violet-700 hover:bg-violet-600 text-white text-[11px] font-black disabled:opacity-40"
+              >
+                {pageBusy ? t('panels.grabber.working', 'prüfe & lege ab…') : t('panels.grabber.ingestBtn', 'Prüfen & ablegen')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void runPage(true)}
+                disabled={pageBusy}
+                className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/15 text-[11px] font-bold text-slate-200 border border-white/10 disabled:opacity-40"
+              >
+                {t('panels.grabber.reviewBtn', 'Nur prüfen')}
+              </button>
+            </div>
+            {pageReport ? (
+              <pre className="whitespace-pre-wrap break-words text-[11px] font-mono leading-relaxed text-slate-200 bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 max-h-64 overflow-y-auto">
+                {pageReport}
+              </pre>
+            ) : null}
+          </div>
+        </PanelSection>
+
         {imports.length > 0 && (
+
           <PanelSection title={t('panels.grabber.lastRun', 'Letzter Import')} right={<Pill tone={imports.every((i) => i.ok) ? 'ok' : 'warn'}>{imports.filter((i) => i.ok).length}/{imports.length}</Pill>}>
             <ul className="space-y-1.5">
               {imports.map((item, index) => (
@@ -329,6 +401,34 @@ function AssetGrabberPanel({ onClose }: { onClose: () => void }) {
                         >
                           {t('panels.grabber.cache', 'Offline holen')}
                         </button>
+                        {isText && (
+                          <button
+                            type="button"
+                            disabled={row.busy}
+                            title={t('panels.grabber.libraryHint', 'Inhalt prüfen und als Wissensbasis-Dokument ablegen (Skripte raus, Geheimnisse maskiert)')}
+                            onClick={async () => {
+                              patchRow(row.asset.id, { busy: true, message: t('panels.grabber.checking', 'prüfe inhalt…') });
+                              const text = await textOfAsset(row.asset, 200_000);
+                              if (!text) {
+                                patchRow(row.asset.id, { busy: false, message: t('panels.grabber.noTextShort', 'kein Text') });
+                                return;
+                              }
+                              const res = await ingestPage(
+                                { text, name: row.asset.title || row.asset.name },
+                                { importSoftware: false, toDeviceCache: false, toLibrary: true },
+                              );
+                              patchRow(row.asset.id, {
+                                busy: false,
+                                message: res.library
+                                  ? `📚 ${res.library.chunks} ${t('panels.grabber.chunks', 'Abschnitt/Abschnitte')}${res.library.masked ? ' · maskiert' : ''}`
+                                  : res.notes[0] ?? t('panels.grabber.nothingStored', 'nichts abgelegt'),
+                              });
+                            }}
+                            className="px-2 py-1 rounded-lg bg-violet-800 hover:bg-violet-700 text-white text-[10px] font-bold disabled:opacity-40"
+                          >
+                            📚 {t('panels.grabber.toLibrary', 'Bibliothek')}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={async () => {
