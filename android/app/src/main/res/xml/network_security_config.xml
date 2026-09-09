@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Netzwerk-Sicherheit der App (Referenz im AndroidManifest).
+
+  Warum cleartextTrafficPermitted=true im base-config:
+  PortView findet den Mobile-Server typischerweise als http://10.x.x.x:8791 – eine
+  IP-Adresse im Werks-WLAN. Android würde reines http in Release-Builds sonst
+  pauschal blockieren und damit die Automatik entwerten. Die sensiblen Inhalte
+  (Token-Challenge/Response, agent_proof) sind trotzdem verschlüsselt bzw. per
+  PSK-HMAC signiert – das Netz ist Transport, nicht Vertrauensanker.
+
+  Härtere Variante für Rollouts mit TLS am Gateway:
+  android:networkSecurityConfig="@xml/network_security_config_hardened"
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Lokale Entwicklung / Emulator: immer erlaubt -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

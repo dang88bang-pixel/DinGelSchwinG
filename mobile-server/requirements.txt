@@ -1,0 +1,23 @@
+# Mobiles BLE-Gateway (Honeywell CT45P Xon+ Modell) — Python ≥ 3.9, sonst keine Abhängigkeiten.
+#
+# Basisbetrieb (TCP/HTTP-Gateway, Selbsttest, Tests) läuft mit der reinen Standardbibliothek.
+# Die optionalen Pakete schalten reale BLE-Schichten und schnellere Krypto frei:
+
+# ── Empfohlen ────────────────────────────────────────────────────────────────
+# AES-128 in C-Tempo; ohne dieses Paket nutzt honeywell.py einen reinen
+# Python-Fallback (gleiche Ergebnisse, ~10× langsamer — für 28-Byte-Frames unkritisch).
+cryptography>=42.0 ; python_version >= "3.9"
+
+# ── BLE-Zugriff (nur wenn Hardware angeschlossen ist) ────────────────────────
+# Scanner/Central-Seite. Achtung: bleak kann KEIN GATT-Peripheral betreiben —
+# dafür verwendet das Gateway BlueZ via `gdbus` (System-Pakete, siehe unten).
+bleak>=0.22 ; python_version >= "3.9"
+
+# ── NFC-Auslöser am Haupt-Agenten (RPi 4) ────────────────────────────────────
+# liest PN532/ACR122U und meldet die UID an das Gateway (POST /nfc).
+# Bewusst NICHT hart installiert: nur auspacken, wenn ein Leser an USB/UART hängt.
+#   pip install -r requirements-nfc.txt
+
+# Systempakete für gdbus-Backend (Debian/Raspberry Pi OS):
+#   sudo apt install bluez libglib2.0 python3-gi gir1.2-glib-2.0
+#   sudo systemctl restart bluetooth   (bzw. bluetoothd --experimental für GattManager1)

@@ -243,6 +243,235 @@ class TestAgentModes(unittest.TestCase):
         self.assertIn("Test-Agent", agent.system_instruction)
 
 
+class TestPageIngest(unittest.TestCase):
+    """Seiten-Ingest: Inhalt → prüfen → Software/Info/Bibliothek (Desktop-Spiegel der App)."""
+
+    SAMPLE = (
+        "<html><head><title>Rampenhandbuch</title>"
+        '<meta name="description" content="Arbeitsanleitung Rampe 12.">'
+        "<style>a{color:red}</style></head><body>"
+        "<script>track()</script><h1>Anleitung</h1><h2>Schritt 1</h2>"
+        "<p>Eröffnung Text mit genuegend Woertern damit die Schwelle gerissen wird. "
+        "Weitere Zeile mit Inhalt, der in die Wissensbasis gehoert. Und noch ein Satz.</p>"
+        '<a href="sounds/loop_4bar.wav">loop</a> <a href="/ui/dunkel.css">css</a> '
+        '<a href="javascript:void(0)">kein asset</a>'
+        "<p>passwort = SuperSecret4242</p></body></html>"
+    )
+
+    def setUp(self) -> None:
+        from utils import page_ingest
+
+        self.pi = page_ingest
+
+    def test_extract_readable(self) -> None:
+        ex = self.pi.extract_readable(self.SAMPLE)
+        self.assertEqual(ex["title"], "Rampenhandbuch")
+        self.assertEqual([h["text"] for h in ex["headings"]], ["Anleitung", "Schritt 1"])
+        self.assertNotIn("track()", ex["text"])
+        self.assertNotIn("color:red", ex["text"])
+        self.assertIn("genuegend Woertern", ex["text"])
+        self.assertTrue(ex["summary"].startswith("Arbeitsanleitung"))
+        self.assertGreater(ex["words"], 20)
+        self.assertFalse(ex["binary"])
+
+    def test_extract_binary_and_title_fallback(self) -> None:
+        ex = self.pi.extract_readable("GIF89a\x00\x01\x02" + "\x00" * 200)
+        self.assertTrue(ex["binary"])
+        self.assertEqual(ex["title"], "Ohne Titel")
+        self.assertEqual(self.pi.extract_readable("")["title"], "Ohne Titel")
+
+    def test_find_asset_links_filters_and_categories(self) -> None:
+        links = self.pi.find_asset_links(self.SAMPLE, "http://files.internal/handbuch/index.html")
+        self.assertEqual([l["category"] for l in links], ["samples", "styles"])
+        self.assertTrue(links[0]["url"].endswith("sounds/loop_4bar.wav"))
+        self.assertTrue(all("javascript:" not in item["url"] for item in links))
+        self.assertEqual(self.pi.find_asset_links('<a href="notes.txt">x</a>', "http://h/"), [])
+        self.assertEqual(len(self.pi.find_asset_links(self.SAMPLE, "http://h/", limit=1)), 1)
+
+    def test_mask_secrets(self) -> None:
+        masked, hits = self.pi.mask_secrets("vorher\npasswort = SuperSecret4242\nnachher\n" + "0" * 64)
+        self.assertNotIn("SuperSecret4242", masked)
+        self.assertIn("MASKIERT", masked)
+        self.assertIn("Passwort-Zuweisung", hits)
+        self.assertIn("Langer Hex-Key", hits)
+
+    def test_review_content_verdicts(self) -> None:
+        ex = self.pi.extract_readable(self.SAMPLE)
+        checks = self.pi.review_content(ex, {"bytes": 900, "mime": "text/html", "via": "gateway"}, [{"category": "styles", "url": "u", "name": "d.css", "ext": "css"}])
+        self.assertEqual(self.pi.verdict_of(checks), "attention")  # skripte + schutzbedarf
+        blocked = self.pi.review_content(ex, {"bytes": 0, "mime": "", "via": "gateway", "block_reason": "host_gesperrt: 169.254.169.254"}, [])
+        self.assertEqual(self.pi.verdict_of(blocked), "blockiert")
+        self.assertTrue(any(c["id"] == "quelle" and "host_gesperrt" in c["detail"] for c in blocked))
+
+    def test_ingest_url_via_opener_and_knowledge(self) -> None:
+        from utils import page_ingest
+
+        class FakeKnowledge:
+            def __init__(self) -> None:
+                self.titles: list[str] = []
+                self.last = ""
+
+            def add(self, title: str, text: str) -> str:
+                self.titles.append(title)
+                self.last = text
+                return "/tmp/data/knowledge/" + title.lower().replace(" ", "-") + ".md"
+
+            def stats(self) -> dict:
+                return {"documents": 1, "chunks": 3}
+
+        kb = FakeKnowledge()
+        res = page_ingest.ingest_url(
+            "http://files.internal/handbuch/index.html",
+            knowledge=kb,
+            import_software=True,
+            to_library=True,
+            opener=lambda url: self.SAMPLE.encode("utf-8"),
+        )
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["verdict"], "attention")  # skripte + schutzbedarf
+        self.assertEqual([l["category"] for l in res["links"]], ["samples", "styles"])
+        self.assertEqual(len(res["software"]), 2, res["software"])
+        self.assertEqual(kb.titles, ["Rampenhandbuch"])
+        self.assertNotIn("SuperSecret4242", kb.last)
+        self.assertIn("http://files.internal/handbuch/index.html", kb.last)
+        self.assertIn("sounds/loop_4bar.wav", kb.last)
+        text = page_ingest.format_ingest_report(res)
+        for needle in ("Inhalt geprüft", "Prüfpunkte", "Software von der Seite", "Bibliothek"):
+            self.assertIn(needle, text, text)
+
+    def test_ingest_url_blocked_source(self) -> None:
+        from utils import clients, page_ingest
+
+        original = clients.import_url
+        try:
+            clients.import_url = lambda url, **kw: {"ok": False, "error": "host_gesperrt", "detail": "169.254.169.254", "hint": "Metadaten-Dienst"}  # type: ignore[assignment]
+            res = page_ingest.ingest_url("http://169.254.169.254/latest/meta-data", knowledge=None, import_software=False)
+        finally:
+            clients.import_url = original  # type: ignore[assignment]
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["verdict"], "blockiert")
+        self.assertEqual(res["error"], "host_gesperrt")
+        self.assertIn("⛔", page_ingest.format_ingest_report(res))
+
+    def test_selftest_helper(self) -> None:
+        report = self.pi.selftest()
+        self.assertTrue(report["ok"], report)
+
+
+class TestPortViewAndGrabber(unittest.TestCase):
+    """PortView (automatische Port-Findung) und Grabber-Helfer der Desktop-Konsole."""
+
+    def setUp(self) -> None:
+        from utils import clients
+
+        self.clients = clients
+        self._saved_base = list(clients._bridge_base)
+        self._saved_note = clients._discovery_note
+        self._saved_enabled = clients.PORTVIEW_ENABLED
+
+    def tearDown(self) -> None:
+        self.clients._bridge_base[:] = self._saved_base
+        self.clients._discovery_note = self._saved_note
+        self.clients.PORTVIEW_ENABLED = self._saved_enabled
+
+    def test_endpoint_from_announce_variants(self) -> None:
+        c = self.clients
+        gw, bridge = c.endpoint_from_announce({"ports": {"http": 8791, "bridge": 8790}, "_from": "10.8.0.5"})
+        self.assertEqual((gw, bridge), ("http://10.8.0.5:8791", "http://10.8.0.5:8790"))
+        # ohne ports, aber mit http_base ⇒ Host daraus ableiten, Default-Port nutzen
+        gw, bridge = c.endpoint_from_announce({"http_base": "http://192.168.4.9:28791"})
+        self.assertEqual(gw, "http://192.168.4.9:8791")
+        self.assertEqual(bridge, "")
+        self.assertEqual(c.endpoint_from_announce({}), ("", ""))
+
+    def test_discover_gateway_prefers_udp(self) -> None:
+        c = self.clients
+        c.PORTVIEW_ENABLED = True
+        announce = {"ports": {"http": 8791, "bridge": 8790}, "_from": "10.0.0.42", "product": "DinGelSchwinG"}
+        c._udp_announce = lambda timeout=0.4: [announce]  # type: ignore[assignment]
+        c._probe_http = lambda base, path="/status", timeout=0.35: {"ok": True, "product": "DinGelSchwinG"}  # type: ignore[assignment]
+        found = c.discover_gateway()
+        self.assertTrue(found["ok"], found)
+        self.assertEqual(found["gateway_base"], "http://10.0.0.42:8791")
+        self.assertEqual(found["bridge_base"], "http://10.0.0.42:8790")
+        self.assertEqual(found["via"], "10.0.0.42")
+
+    def test_discover_gateway_http_fallback_and_off_switch(self) -> None:
+        c = self.clients
+        c.PORTVIEW_ENABLED = True
+        c._udp_announce = lambda timeout=0.4: []  # type: ignore[assignment]
+        c._probe_http = lambda base, path="/status", timeout=0.35: (  # type: ignore[assignment]
+            {"ok": True, "product": "DinGelSchwinG"} if base.endswith(":8791") else None
+        )
+        found = c.discover_gateway()
+        self.assertTrue(found["ok"], found)
+        self.assertEqual(found["note"], "probe")
+        c.PORTVIEW_ENABLED = False
+        self.assertEqual(c.discover_gateway()["error"], "portview_deaktiviert")
+
+    def test_gateway_request_retries_on_discovered_base(self) -> None:
+        c = self.clients
+        c.PORTVIEW_ENABLED = True
+        calls: list[str] = []
+        c._bridge_base.clear()
+        c._bridge_base.append("http://127.0.0.1:1")  # bewusste tote Adresse
+
+        def fake_request(url, payload=None, timeout=6.0):  # noqa: ANN001, ANN003
+            calls.append(url)
+            if url.startswith("http://127.0.0.1:1"):
+                return {"ok": False, "error": "nicht_erreichbar", "url": url}
+            return {"ok": True, "product": "DinGelSchwinG", "url": url}
+
+        c._request = fake_request  # type: ignore[assignment]
+        c.discover_gateway = lambda timeout=0.6: {"ok": True, "gateway_base": "http://10.0.0.9:8791", "bridge_base": ""}  # type: ignore[assignment]
+        status = c.gateway_status()
+        self.assertTrue(status["ok"], status)
+        self.assertEqual(len(calls), 2, calls)
+        self.assertTrue(calls[1].startswith("http://10.0.0.9:8791/status"), calls)
+        # gemerkte Basis wird für Folgeaufrufe verwendet (keine Dauersuche)
+        status2 = c.gateway_status()
+        self.assertTrue(status2["ok"])
+        self.assertEqual(len(calls), 3, calls)
+
+    def test_explicit_base_skips_discovery(self) -> None:
+        c = self.clients
+        seen: list[str] = []
+
+        def fake_request(url, payload=None, timeout=6.0):  # noqa: ANN001, ANN003
+            seen.append(url)
+            return {"ok": True}
+
+        c._request = fake_request  # type: ignore[assignment]
+        c.discover_gateway = lambda timeout=0.6: (_ for _ in ()).throw(AssertionError("darf nicht suchen"))  # type: ignore[assignment]
+        c.gateway_tokens(base="http://127.0.0.1:8791")
+        c.gateway_command("ble_scan", base="http://127.0.0.1:8791")
+        self.assertEqual(seen[0], "http://127.0.0.1:8791/tokens")
+        self.assertEqual(seen[1], "http://127.0.0.1:8791/command")
+
+    def test_grabber_helpers_and_formatting(self) -> None:
+        c = self.clients
+        payload: dict = {}
+
+        def fake_request(url, data=None, timeout=6.0):  # noqa: ANN001, ANN003
+            payload["url"] = url
+            payload["data"] = data
+            return {"ok": True, "imported": [{"id": "abc12345def", "category": "beats", "bytes": 176, "name": "loop_4bar.wav"}]}
+
+        c._request = fake_request  # type: ignore[assignment]
+        result = c.import_url("http://files.internal/p/loop_4bar.wav", tags=["werk", "hall"], base="http://127.0.0.1:8791")
+        self.assertTrue(result["ok"])
+        self.assertEqual(payload["url"], "http://127.0.0.1:8791/import")
+        self.assertEqual(payload["data"]["tags"], ["werk", "hall"])
+        c.list_imports(category="styles", limit=5, base="http://127.0.0.1:8791")
+        self.assertIn("/imports?limit=5&category=styles", payload["url"])
+        text = c.describe_imports(result)
+        self.assertIn("importiert: 1", text)
+        self.assertIn("loop_4bar.wav", text)
+        self.assertIn("beats", text)
+        self.assertIn("❌", c.describe_imports({"ok": False, "error": "zu_gross", "hint": "Gateway-Limit"}))
+        self.assertIn("/import/file/a%20b", c.import_asset_path("a b", base="http://h:1"))
+
+
 class TestConfig(unittest.TestCase):
     def test_defaults_and_save(self) -> None:
         cfg = load_config()

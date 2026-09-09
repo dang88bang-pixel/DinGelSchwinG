@@ -1,0 +1,42 @@
+{
+  "_comment": "Token-Whitelist. `key_fingerprint` ist der SHA-256-Fingerabdruck des AES-128-Root-Keys des Tokens – das Gateway kennt den Schlüssel selbst NICHT. Der Root-Key lebt im Haupt-Agent (Raspberry Pi 4) bzw. im Vault.",
+  "tokens": [
+    {
+      "token_id": "CT45P-0001",
+      "label": "Werkstor Nord (LKW-Rampe)",
+      "key_fingerprint": "BE45:CB26:05BF:36BE:BDE6:8484:1A28:F0FD:43C6:9850:A3DC:E5FE:DBA6:9928:EE3A:8991",
+      "zone": "tor-nord",
+      "roles": [
+        "operator"
+      ],
+      "tamper_count": 0,
+      "max_tamper_count": 0,
+      "revoked": false
+    },
+    {
+      "token_id": "CT45P-0002",
+      "label": "Containerhof B",
+      "key_fingerprint": "",
+      "zone": "hof-b",
+      "roles": [
+        "operator",
+        "service"
+      ],
+      "tamper_count": 0,
+      "max_tamper_count": 0,
+      "revoked": false
+    },
+    {
+      "token_id": "CT45P-DEMO",
+      "label": "Demo-Token (Simulator)",
+      "key_fingerprint": "BE45:CB26:05BF:36BE:BDE6:8484:1A28:F0FD:43C6:9850:A3DC:E5FE:DBA6:9928:EE3A:8991",
+      "zone": "demo",
+      "roles": [
+        "operator"
+      ],
+      "tamper_count": 0,
+      "max_tamper_count": 0,
+      "revoked": false
+    }
+  ]
+}

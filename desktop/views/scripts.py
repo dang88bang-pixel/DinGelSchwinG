@@ -7,28 +7,10 @@ from typing import Callable
 
 import customtkinter as ctk
 
-from ..utils.script_executor import ScriptExecutor, ScriptResult
-
-DESC_PREFIXES = ("\"\"\"", "'''", "# ", "// ")
-
-
-def _describe(path: str) -> str:
-    """Erste Zeile des Skripts als Kurzbeschreibung verwenden."""
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            for line in f:
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                if stripped.startswith(("#!", "#!/")):
-                    continue
-                for prefix in DESC_PREFIXES:
-                    if stripped.startswith(prefix):
-                        return stripped[len(prefix):].strip()
-                return stripped[:80]
-    except OSError:
-        return ""
-    return ""
+try:                       # Paket-Aufruf:  python3 -m desktop.main (vom Repo-Root)
+    from ..utils.script_executor import ScriptExecutor, ScriptResult
+except ImportError:            # dokumentierter Aufruf:  cd desktop && python main.py
+    from utils.script_executor import ScriptExecutor, ScriptResult
 
 
 class ScriptsView(ctk.CTkFrame):
@@ -156,3 +138,28 @@ class ScriptsView(ctk.CTkFrame):
         ctk.CTkButton(bar, text="Abbrechen", fg_color="#334155", hover_color="#475569",
                       command=editor.destroy).pack(side="left", padx=4)
         self._editor = editor
+
+
+
+DESC_PREFIXES = ("\"\"\"", "'''", "# ", "// ")
+
+
+def _describe(path: str) -> str:
+    """Erste Zeile des Skripts als Kurzbeschreibung verwenden."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith(("#!", "#!/")):
+                    continue
+                for prefix in DESC_PREFIXES:
+                    if stripped.startswith(prefix):
+                        return stripped[len(prefix):].strip()
+                return stripped[:80]
+    except OSError:
+        return ""
+    return ""
+
+

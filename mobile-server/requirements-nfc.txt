@@ -1,0 +1,5 @@
+# Optionale Zusatzabhängigkeiten für den NFC-Auslöser am Haupt-Agenten.
+# Nur installieren, wenn ein PN532 (UART/I2C) oder ACR122U (USB-CCID) angeschlossen ist:
+#   pip install -r mobile-server/requirements-nfc.txt
+nfcpy>=1.8.6           # PN532/ACR122U: "pn532" bzw. "usb:04e6:5590"
+pyserial>=3.5          # PN532 über UART (/dev/serial0), Low-Level-Fallback

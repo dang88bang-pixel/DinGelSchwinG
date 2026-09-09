@@ -22,6 +22,68 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 
 ---
 
+## 🔌 MCP-Server installieren (`cristianoaredes/mcp-mobile-server`)
+
+Das GitHub-Projekt [cristianoaredes/mcp-mobile-server](https://github.com/cristianoaredes/mcp-mobile-server)
+(npm-Paket `@cristianoaredes/mcp-mobile-server@2.3.0`, MIT, Node ≥ 18, **stdio/JSON-RPC 2.0**, 31 Tools
+für Android/iOS/Flutter) ist als reguläre Abhängigkeit installiert und über `mcp/mcp.json` registriert.
+Der Browser kann keine Pipes öffnen, deshalb vermittelt eine dependency-freie Bridge
+(`mcp/bridge.mjs`, nur Node-Bordmittel → läuft auch auf RPi Zero 2 W):
+
+```bash
+npm install                 # holt u. a. @cristianoaredes/mcp-mobile-server
+npm run mcp:bridge          # :8790  → /mcp/health /mcp/tools /mcp/call /mcp/stats /metrics /gateway/*
+npm run mcp:list            # Tools katalogisieren (initialisieren + tools/list, hier: 31)
+npm run mcp:start           # MCP-Server allein im Stdio-Modus (Claude Desktop/Cursor/VS Code)
+npm run mcp:gateway         # mobiles BLE-Gateway im Mock (TCP :8765, HTTP :8791)
+npm run mcp:gateway:selftest  # 17 Prüfungen über echte Sockets + echte Krypto
+npm run mcp:gateway:tests     # 32 Unit-Prüfungen (Whitelist, TTL, Lockout, Tamper, Agent-Nachweis, Codec, PortView, Grabber)
+npm run mcp:portview          # PortView-Suchlauf von jeder Maschine im Netz (UDP + HTTP-Probe)
+npm run mcp:gateway:status    # /status des laufenden Gateways (product-Marker, Ports, Katalog)
+npm run dev:full              # Vite + Bridge + Gateway in einem Schritt
+```
+
+In der App (Chat-Header) öffnen: **🖼️ Galerien** · **📊 Dashboard** · **📚 Wissensdatenbank** · **🔌 MCP & Server** · **🧭 PortView** · **📥 Grabber**.
+Unter **🔌 MCP & Server → Konfiguration** liegt der kopierfertige `mcp.json`-Block (identisch zu
+`mcp/mcp.json`), damit Claude Desktop, Cursor, VS Code und der LobeChat-Import denselben Server nutzen.
+Der Agent versteht zusätzlich frei formulierte Kommandos, die als Skills in `src/config/skills.ts`
+dokumentiert sind (31 Skills, exakter Spiegel von `desktop/data/skillz.md`): `mcp_connect` · `mcp_list` ·
+`mcp_call` · `gateway_status` · `gateway_tokens` · `gateway_sessions` · `gateway_selftest` ·
+`gateway_grant` · `token_auth` · `token_demo` · `gallery_list` · `gallery_install` ·
+`knowledge_add` · `knowledge_search` · `show_metrics` · `portview_scan` · `grabber_import_url` ·
+`page_ingest` · `content_review`
+(z. B. *„mcp tools gateway“*, *„demo-handshake“*, *„installiere agent ble-security“*,
+*„lern: Rufnummern: 0221 555“*, *„suche im wissen: challenge ttl“*, *„dashboard“*,
+*„finde den server-port“*, *„importiere http://files.internal/packs/dgs-demo-pack.json als styles“*,
+*„prüf den inhalt von https://media.internal/handbuch“*). Gezogene **URLs und Dateien im Chatfenster**
+löst derselbe Ablauf aus: Inhalt prüfen → Seite + verlinkte Software + Bibliothekseintrag ablegen (`page_ingest`).
+
+### LobeChat-Fähigkeiten — portiert, nicht geklont
+
+LobeChat diente als Referenz; geklont wurde nichts (kein zweites UI-Framework, React + Capacitor bleiben).
+Umgesetzt in dieser App:
+
+| Fähigkeit | Umsetzung | Dokument |
+|---|---|---|
+| Agenten-/Persona-Galerie, JSON-Import/-Export | `src/config/agentGallery.ts`, `src/lib/galleryStore.ts`, `AgentGalleryPanel` | [`docs/agent-gallery.md`](docs/agent-gallery.md) |
+| Live-Statusleiste über dem Chat (Zeit · Tokens · Kosten · Cache) | `src/lib/liveMetrics.ts`, `src/components/LiveStatusStrip.tsx` | [`docs/monitoring.md`](docs/monitoring.md) |
+| Observability-Dashboard | `src/components/LiveDashboardPanel.tsx` | [`docs/monitoring.md`](docs/monitoring.md) |
+| RAG-Wissensdatenbank (Upload, BM25-Score, kontextinjektion) | `src/lib/rag.ts`, `KnowledgeBasePanel` | [`docs/agent-gallery.md`](docs/agent-gallery.md) |
+| MCP-Verwaltung + 31 Mobile-Dev-Tools | `mcp/bridge.mjs`, `src/lib/mcpClient.ts`, `McpServerPanel` | [`docs/mcp-integration.md`](docs/mcp-integration.md) |
+| Offline-PWA | [`public/sw.js`](public/sw.js) – App-Shell-Caching, `/mcp/*` und `/gateway/*` bewusst **nie** gecacht | [docs/i18n.md](docs/i18n.md) (Sprachrollout) |
+| Zugriffskontrolle via BLE-Token (Honeywell CT45P Xon+) | `mobile-server/` (AES-128-Challenge/Response, Whitelist, Audit) | [`docs/mobile-ble-gateway.md`](docs/mobile-ble-gateway.md) |
+| **PortView** – Host + Port automatisch (nativ via UDP/Probe, keine Tipperei) | `android/…/PortViewPlugin.java`, `src/lib/{portview,endpoint}.ts`, `PortViewPanel` | [`docs/portview-import.md`](docs/portview-import.md) |
+| **Software-Grabber** – URL → Beats/Samples/UI-Styles/Effekte/Filter, offline | `mobile-server/importer.py`, `src/lib/{grabber,assetStore,packs}.ts`, `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md) |
+| **Seiten-Ingest per Drag & Drop** – Inhalt prüfen, Seite + Software + Wissensbasis ablegen | `src/lib/pageIngest.ts`, `desktop/utils/page_ingest.py`, `AgentConsole` (Drop), `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md#2b-seiten-ingest-url-ins-chatfenster-ziehen--prüfen--intern-ablegen) |
+
+Alle vier Panels haben ein Gegenstück in der **Desktop-Konsole** (`desktop/utils/clients.py`,
+`desktop/utils/agentGallery.py`, neue Intents in `desktop/utils/agent.py`) und Buttons im Chat-Toolbar:
+`🖼️ Agenten` · `🔌 MCP` · `📡 Gateway` · `📊 Dashboard` · `📚 Wissen` · `🔐 Token`.
+Schlüsselmaterial verlässt weder Browser noch Rechner: `mobile-server/keys.json` (Root-Keys, PSK)
+liegt nur am Haupt-Agenten, `chmod 600`, und ist per `.gitignore` ausgeschlossen.
+
+---
+
 ## 📚 Ergänzende Dokumentation
 
 | Dokument | Inhalt |
@@ -33,7 +95,11 @@ Die App enthält jetzt eine chat-zentrierte Agenten-Steuerung:
 | [`docs/monitoring.md`](docs/monitoring.md) | Mitgelieferter Monitoring-Stack: Prometheus, Loki, Grafana-Dashboard, Slack-Alerting |
 | [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
-| [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Tag → Release, Signing-Secrets) |
+| [`docs/mcp-integration.md`](docs/mcp-integration.md) | 🔌 MCP: Installierte Server, Bridge-Endpunkte, Database-/GitHub-MCP-Katalog, LobeChat-Import, Troubleshooting |
+| [`docs/mobile-ble-gateway.md`](docs/mobile-ble-gateway.md) | 🔐 Mobiles BLE-Gateway (Honeywell CT45P Xon+): AES-128-Challenge/Response, Whitelist, Lockout, Tamper, Ports,_HW_, rechtlicher Rand |
+| [`docs/agent-gallery.md`](docs/agent-gallery.md) | 🖼️ Agenten-Galerie (13 Profile, Skills, JSON-Import/-Export), RAG-Wissensdatenbank, Live-Statusleiste |
+| [`docs/portview-import.md`](docs/portview-import.md) | 🧭📥 PortView (UDP-Discovery, HTTP-Probe, Endpoint-Layer, native Capacitor-Brücke), Software-Grabber (URL/Pack-Import, SSRF-Filter, Dedupe, Offline-Cache, UI-Styles) und Seiten-Ingest per Drag & Drop (Inhalt prüfen → Seite + Software + Wissensbasis) |
+| [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Android 11–16 / API 30–36, Tag → Release, Signing-Secrets, APK-Prüfung) |
 
 Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,
 Offline-Anzeige) — Details in [`public/sw.js`](public/sw.js).
@@ -90,6 +156,11 @@ flowchart LR
 | **NTag/NFC (neu)** | `components/NfcReader.tsx` | WebNFC-NDEF-Read für NTag-Smart-Tracker (Signal-Auswertung) |
 | **Netzwerk-Panel (neu)** | `components/NetworkPanel.tsx` | Live-Anzeige erkannte Geräte + RSSI + Dongle-Status |
 | **Scanner-Backend (neu)** | `scanner_service.py` | mDNS/SSDP/ARP + BLE-Scan, WS-Broadcast, Stale-Removal, RBAC |
+| **MCP-Bridge (neu)** | `mcp/bridge.mjs` | stdio-MCP ⇄ HTTP/SSE, Tool-Cache, `/metrics`, Gateway-Proxy |
+| **Mobiles BLE-Gateway (neu)** | `mobile-server/*.py` | GATT-Peripheral, AES-128-Challenge/Response, Whitelist, Agent-Nachweis, Audit, Prometheus |
+| **Schlüssel-/Prüfhelfer (neu)** | `mobile-server/{honeywell_keys,nfc_reader,bleak_token}.py` | keys.json (Root-Keys/PSK), NFC-Auslöser, Token-Simulator mit Replay-Gegenprobe |
+| **Agenten-Galerie + RAG (neu)** | `src/config/agentGallery.ts`, `src/lib/{galleryStore,rag,liveMetrics,mcpClient}.ts` | Personas, Skills, Wissensindex, Live-Metriken, MCP-Client |
+| **PortView + Grabber (neu)** | `android/…/PortViewPlugin.java`, `mobile-server/{discovery,importer}.py`, `src/lib/{portview,endpoint,grabber,assetStore,packs}.ts` | Automatische Endpunkt-Findung (App + Desktop) und URL-Import von Assets inkl. Offline-Cache |
 | **Terminal-Client** | `hooks/useTerminal.ts` | WS-Client mit Backoff + Circuit Breaker + Idle-Timeout |
 | **Terminal-UI** | `components/AccessConsole.tsx` / `hooks/useTerminal.ts` | xterm.js-Anbindung, RBAC-Preflight |
 | **Zugriffs-Konsole** | `components/AccessConsole.tsx` | Geräteauswahl, Ziel-Öffnung (rollenabhängig) |

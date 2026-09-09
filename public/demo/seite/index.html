@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Rampe 12 – Werkhof Tondocs</title>
+    <meta name="description" content="Arbeitsanleitung Rampe 12: Klangmaterial, UI-Style für die Hallen-Terminals und Effekte für die Abhörstrecke." />
+    <style>body { font: 15px/1.6 system-ui; margin: 3rem auto; max-width: 46rem; }</style>
+  </head>
+  <body>
+    <h1>Rampe 12</h1>
+    <p>
+      Diese Seite sammelt das Material für Rampe 12. Der Agent kann sie ziehen, den Inhalt
+      prüfen und alles intern ablegen: hier verlinkte Dateien im Asset-Katalog und der Text in
+      der Wissensbasis. Ladegeräte laufen über die Leitstand-Buchse 4, Frequenz der
+      Türsensor-Abfrage alle 20 Sekunden, Hallzeit in Halle B gemittelt 1,4 Sekunden.
+    </p>
+    <h2>Klangmaterial</h2>
+    <p>
+      Die Schleife <a href="../packs/hall-reverb.jsfx">hall-reverb.jsfx</a> passt zur Rampe, der
+      LUT-Filter <a href="../packs/cinem-lut-filter.json">cinem-lut-filter.json</a> ist für die
+      Nachtschicht-Kamera. Das komplette Set liegt im
+      <a href="../packs/dgs-demo-pack.json">Demo-Pack-Manifest</a>.
+    </p>
+    <h2>Oberfläche</h2>
+    <p>
+      Der Stil <a href="../packs/werkhof-dark.css">werkhof-dark.css</a> wird im Grabber-Panel mit
+      „als UI-Style anwenden“ live übernommen und überlebt ein Neuladen.
+    </p>
+    <h2>Hinweise für den Dienst</h2>
+    <ul>
+      <li>Belegscanner 3 steht, Rollenprüfung alle 45 Minuten.</li>
+      <li>Tor 7 bleibt ab 22 Uhr verriegelt, Freigabe nur per BLE-Token.</li>
+      <li>Bei Ausfall der Leitstand-Buchse: Gateway-Status im 🧭-Panel prüfen.</li>
+    </ul>
+    <p>
+      Für Rückfragen ist die Medienpflege unter interner Rufnummer 555 erreichbar. Zugangsdaten
+      stehen wie immer im Schlüsseltresor und nicht auf dieser Seite.
+    </p>
+    <script>
+      window.analytics = { tracker: 'bewusst entfernt – landet nicht in der Wissensbasis' };
+    </script>
+  </body>
+</html>

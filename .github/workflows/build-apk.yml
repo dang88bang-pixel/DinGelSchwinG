@@ -1,5 +1,8 @@
 name: Build APK
 
+# Baut das installierbare APK für Android 11–16 (API 30–36).
+# Auslöser: Push auf main, Pull Request, Tag v* (→ GitHub Release) und manuell.
+
 on:
   push:
     branches: [main]
@@ -7,14 +10,28 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      artifact_suffix:
+        description: 'Namenszusatz für das Artefakt (optional)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
 
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-apk:
-    name: Build & Release APK
+    name: Build & Release APK (Android 11–16)
     runs-on: ubuntu-latest
+    env:
+      ANDROID_COMPILE_SDK: '36'
+      ANDROID_TARGET_SDK: '36'
+      ANDROID_MIN_SDK: '30'
+      ANDROID_BUILD_TOOLS: '36.0.0'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,17 +39,24 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
-      - name: Set up JDK 17
+      # Capacitor 8 / AGP 8.13 bauen mit JDK 21 (die Module erzwingen VERSION_21).
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Install platform ${{ env.ANDROID_COMPILE_SDK }} and build-tools ${{ env.ANDROID_BUILD_TOOLS }}
+        run: |
+          sdkmanager --install "platforms;android-${ANDROID_COMPILE_SDK}" \
+                     "build-tools;${ANDROID_BUILD_TOOLS}" "platform-tools"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci
@@ -47,7 +71,10 @@ jobs:
         run: npm run build
 
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          npx cap doctor || true
+
       - name: Prepare release keystore (if secrets provided)
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -72,33 +99,83 @@ jobs:
           echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - name: Build Debug APK
-        run: cd android && ./gradlew assembleDebug --no-daemon
+        run: cd android && ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK
-        run: cd android && ./gradlew assembleRelease --no-daemon
+        run: cd android && ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Collect APKs
         run: |
           mkdir -p apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk apk/DinGelSchwinG-v$(node -p "require('./package.json').version")-debug.apk
-          if [ -f android/app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            rm -f android/app/build/outputs/apk/release/app-release-unsigned.apk
-          fi
+          VERSION="$(node -p "require('./package.json').version")"
+          SUFFIX="${{ github.event.inputs.artifact_suffix }}"
+          [ -n "$SUFFIX" ] && SUFFIX="-$SUFFIX"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "apk/DinGelSchwinG-v${VERSION}${SUFFIX}-debug.apk"
+          rm -f android/app/build/outputs/apk/release/app-release-unsigned.apk
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk apk/DinGelSchwinG-v$(node -p "require('./package.json').version")-release.apk
+            cp android/app/build/outputs/apk/release/app-release.apk "apk/DinGelSchwinG-v${VERSION}${SUFFIX}-release.apk"
           fi
+          ( cd apk && sha256sum *.apk > SHA256SUMS )
           ls -lh apk/
+          cat apk/SHA256SUMS
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: DinGelSchwinG-APK
-          path: apk/*.apk
+          path: |
+            apk/*.apk
+            apk/SHA256SUMS
           if-no-files-found: error
+          retention-days: 30
+
+      # Aufnahmeprüfung: die APKs müssen exakt Android 11 (API 30) bis Android 16 (API 36)
+      # abdecken. Sie läuft NACH dem Artefakt-Upload, damit ein Fund auch bei abweichender
+      # Prüfung herunterladbar bleibt – der Job bricht trotzdem ab (rotes X).
+      - name: Verify APK SDK range (min 30 / target 36)
+        run: |
+          set +e
+          AAPT2=""
+          for c in "$ANDROID_HOME"/build-tools/*/aapt2 "$ANDROID_SDK_ROOT"/build-tools/*/aapt2 "$(command -v aapt2)"; do
+            [ -x "$c" ] && AAPT2="$c" && break
+          done
+          echo "aapt2: ${AAPT2:-NICHT GEFUNDEN}  (ANDROID_HOME=${ANDROID_HOME:-unset})"
+          ls "$ANDROID_HOME/build-tools" 2>/dev/null
+          FAIL=0
+          for apk in android/app/build/outputs/apk/*/*.apk; do
+            [ -f "$apk" ] || continue
+            echo "══════════ $apk"
+            BADGE="$( "$AAPT2" dump badging "$apk" 2>&1 )"
+            echo "$BADGE" | head -30
+            [ -z "$BADGE" ] && { echo "❌ aapt2 lieferte keine Ausgabe"; FAIL=1; continue; }
+            MIN="$(  echo "$BADGE" | sed -n "s/^sdkVersion:'\{0,1\}\([0-9]\{1,3\}\)'\{0,1\}.*/\1/p" | head -1 )"
+            TGT="$(  echo "$BADGE" | sed -n "s/^targetSdkVersion:'\{0,1\}\([0-9]\{1,3\}\)'\{0,1\}.*/\1/p" | head -1 )"
+            [ -z "$MIN" ] && MIN="$(echo "$BADGE" | sed -n "s/^minSdkVersion=\{0,1\}'\{0,1\}\([0-9]\{1,3\}\).*/\1/p" | head -1)"
+            [ -z "$TGT" ] && TGT="$(echo "$BADGE" | sed -n "s/^targetSdkVersion=\{0,1\}'\{0,1\}\([0-9]\{1,3\}\).*/\1/p" | head -1)"
+            echo "extrahiert: minSdk=[${MIN}] targetSdk=[${TGT}]"
+            [ "$MIN" = "${ANDROID_MIN_SDK}" ]   || { echo "❌ minSdk ist nicht ${ANDROID_MIN_SDK} (Android 11)"; FAIL=1; }
+            [ "$TGT" = "${ANDROID_TARGET_SDK}" ] || { echo "❌ targetSdk ist nicht ${ANDROID_TARGET_SDK} (Android 16)"; FAIL=1; }
+            echo "$BADGE" | grep -q "BLUETOOTH_SCAN" || { echo "❌ BLE-Permissions fehlen"; FAIL=1; }
+            echo "$BADGE" | grep -q "^package: name='com.dingelschwinng.moeagent'" || echo "ℹ️ Paketname wie folgt: $(echo "$BADGE" | grep -m1 '^package:')"
+            echo "Größe: $(du -h "$apk" | cut -f1)"
+          done
+          if [ "$FAIL" = "0" ]; then
+            echo "✅ SDK-Bereich 30…36 und BLE-Permissions passen"
+          else
+            echo "❌ APK-Prüfung fehlgeschlagen – Ausgabe oben"
+            exit 1
+          fi
 
       - name: Create GitHub Release (on tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: apk/*.apk
+          files: |
+            apk/*.apk
+            apk/SHA256SUMS
+          body: |
+            DinGelSchwinG – Android 11 (API 30) bis Android 16 (API 36).
+            Das Debug-APK ist sideload-fähig; das Release-APK ist mit dem
+            Keystore-Secret signiert (falls konfiguriert).
+            Prüfung: minSdk/targetSdk werden im Build gegen `aapt2 dump badging` verifiziert.
           generate_release_notes: true

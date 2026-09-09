@@ -1,0 +1,28 @@
+/* DinGelSchwinG Demo-UI-Style „Werkhof Dunkel“
+   Import in der App: Grabber → diese URL → „als UI-Style anwenden“. */
+:root {
+  --dgs-bg: #03070f;
+  --dgs-panel: rgba(8, 20, 38, 0.92);
+  --dgs-accent: #22d3ee;
+  --dgs-ok: #34d399;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(34, 211, 238, 0.16), transparent 60%),
+    var(--dgs-bg) !important;
+}
+
+header,
+footer {
+  letter-spacing: 0.02em;
+}
+
+/* Statusleiste im Werks-Look: kantiger, höherer Kontrast */
+[class*="rounded-full"] {
+  border-radius: 0.375rem;
+}
+
+button {
+  outline: 1px solid rgba(34, 211, 238, 0.25);
+}

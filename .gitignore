@@ -27,6 +27,7 @@ dist-ssr
 .gradle/
 build/
 *.apk
+apk/
 *.aab
 
 # Capacitor (generierte Caches)
@@ -40,3 +41,34 @@ desktop/data/cache/
 desktop/data/models/
 desktop/**/__pycache__/
 desktop/data/system_instruction_custom.txt
+
+# ── MCP-Bridge & mobile-server: Laufzeit-/Schlüsseldateien ────────────────────
+# Schlüssel gehören nicht ins Git (Root-Keys am Agenten, PSK am Gateway)
+keys.json
+**/keys.json
+*.key
+*.keys
+*.pem
+*.p12
+mobile-server/data/gateway_audit.jsonl
+mobile-server/data/sessions.json
+mobile-server/data/ble_*.json
+# Software-Grabber: importierte Asset-Bytes + Katalog-Index sind Laufzeitdaten
+mobile-server/data/imports/
+# PortView/Discovery-Selbsttest-Hilfen
+mobile-server/data/.selftest-*/
+mobile-server/**/__pycache__/
+mobile-server/.venv/
+
+# Desktop-Konsole: Wissensbasis, Gallerie-Zustand, Laufzeit-Auswertung
+desktop/data/knowledge/
+desktop/data/gallery_state.json
+desktop/data/agent_runs.json
+desktop/data/agent_runs*.jsonl
+desktop/data/keys.json
+
+# Lokale Modell-Dateien (transformers.js / GGUF)
+public/models/
+*.onnx
+*.gguf
+*.safetensors

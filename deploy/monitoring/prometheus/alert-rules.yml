@@ -29,3 +29,33 @@ groups:
         annotations:
           summary: "Rate-Limiter greift (429)"
           description: "Login-Rate-Limiting aktiv – möglicher Brute-Force-Versuch."
+
+  - name: mcp-ble
+    rules:
+      - alert: McpBridgeDown
+        expr: up{job="mcp-bridge"} == 0
+        for: 3m
+        labels: {severity: warning}
+        annotations:
+          summary: "MCP-Bridge nicht erreichbar"
+          description: "npm run mcp:bridge läuft nicht - Agent verliert die 31 mobile-dev-Tools."
+      - alert: MobileGatewayDown
+        expr: up{job="mobile-gateway"} == 0
+        for: 3m
+        labels: {severity: critical}
+        annotations:
+          summary: "Mobiles BLE-Gateway offline"
+          description: "Token-Lesungen (CT45P Xon+) werden nicht mehr bedient."
+      - alert: AccessControlDenySpike
+        expr: rate(dingelschwing_gateway_denies[5m]) > 0.05
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Viele abgelehnte Lesevorgaenge"
+          description: "Mehr als 3 Ablehnungen pro Minute - Whitelist, Token-Batterie oder Manipulation pruefen."
+      - alert: BleTamperDetected
+        expr: increase(dingelschwing_gateway_tamper_events[10m]) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Tamper-Ereignis an einem Token"
+          description: "Gehaeuseoeffnung gemeldet - Token sperren und vor Ort pruefen."

@@ -11,11 +11,13 @@ abgefangen und als Antwort gemeldet – der Agent fällt nie um.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import threading
 import time
+from collections import Counter
 from typing import Any, Callable
 
 from .api_client import APIClient
@@ -26,6 +28,22 @@ from .skill_loader import (
     Skill, load_skills, load_system_instruction, save_system_instruction, skills_to_prompt,
 )
 from .status_manager import StatusManager
+
+# Optionale Erweiterungen (MCP / mobile-devices gateway / Gallerie / RAG).
+# Bewusst weich eingebunden: fehlen die Module (z. B. alter Stand), läuft der
+# Agent wie bisher – die Skills melden dann einen klaren Hinweis.
+try:  # pragma: no cover - Importbrücke
+    from . import clients as _clients
+except Exception:  # noqa: BLE001
+    _clients = None
+try:  # pragma: no cover - Seiten-Ingest (URL → prüfen → ablegen)
+    from . import page_ingest as _page_ingest
+except Exception:  # noqa: BLE001
+    _page_ingest = None
+try:  # pragma: no cover
+    from .agentGallery import AgentGallery, KnowledgeBase, ensure_catalog
+except Exception:  # noqa: BLE001
+    AgentGallery = KnowledgeBase = ensure_catalog = None
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
@@ -66,6 +84,21 @@ class Agent:
         self._audit_lock = threading.Lock()
         self._buttons = self._init_buttons()
         self._pending_plan: tuple[str, Callable[[], str]] | None = None
+        # Laufzeit-Messung (Spiegel der Web-App: src/lib/liveMetrics.ts)
+        self._runs: list[dict[str, Any]] = []
+        self._cache: dict[str, tuple[float, str]] = {}
+        self.cache_ttl = 8.0
+        self._run_lock = threading.Lock()
+        # Agenten-Gallerie + Wissensbasis
+        self.gallery = None
+        self.knowledge = None
+        if AgentGallery is not None:
+            try:
+                ensure_catalog()
+                self.gallery = AgentGallery()
+                self.knowledge = KnowledgeBase()
+            except Exception:  # noqa: BLE001
+                self.gallery = self.knowledge = None
         self._load_audit()
         os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -185,21 +218,123 @@ class Agent:
         return ""
 
     def _process(self, text: str) -> str:
+        started = time.time()
+        self._begin_run(text)
         try:
-            # 0) Ausstehender Plan (Modus B): Freigabe-Bestätigung zuerst prüfen
-            if self._pending_plan is not None and APPROVAL_WORDS.match(text.strip()):
-                description, executor = self._pending_plan
-                self._pending_plan = None
-                self._audit("approve_plan", description)
-                return "✅ Freigabe erteilt.\n" + executor()
-            handled = self._try_intents(text)
-            if handled is not None:
-                return handled
-            if self.backend.is_llm:
-                return self._try_llm(text)
-            return self._fallback(text)
+            reply = self._answer(text)
+            self._end_run(text, reply, started, "done")
+            return reply
         except Exception as exc:  # noqa: BLE001 – Agent darf nie crashen
+            self._end_run(text, f"⚠️ Interner Fehler: {exc}", started, "error")
             return f"⚠️ Interner Fehler: {exc}"
+
+    def _answer(self, text: str) -> str:
+        # 0) Ausstehender Plan (Modus B): Freigabe-Bestätigung zuerst prüfen
+        if self._pending_plan is not None and APPROVAL_WORDS.match(text.strip()):
+            description, executor = self._pending_plan
+            self._pending_plan = None
+            self._audit("approve_plan", description)
+            return "✅ Freigabe erteilt.\n" + executor()
+        # 1) Kurzzeit-Cache identischer Fragen
+        cached = self._cache_get(text)
+        if cached and not re.match(r"^\s*(hilfe|help)\b", text.strip(), re.I):
+            self._audit("cache_hit", text.strip()[:60])
+            return f"⚡ Aus dem Laufzeit-Cache ({self.cache_ttl:.0f} s TTL):\n\n{cached}"
+        # 2) Deterministische Skills (inkl. MCP / Gateway / Gallerie / RAG)
+        handled = self._try_intents(text)
+        if handled is not None:
+            self._cache_put(text, handled)
+            return handled
+        # 3) LLM mit Retrieval-Kontext
+        if self.backend.is_llm:
+            reply = self._try_llm(text)
+            self._cache_put(text, reply)
+            return reply
+        return self._fallback(text)
+
+    # -- Laufzeit-Messung ---------------------------------------------------
+    def _begin_run(self, text: str) -> None:
+        with self._run_lock:
+            self._current = {"started": time.time(), "preview": text.strip()[:80], "input_tokens": _estimate_tokens(text), "tools": []}
+
+    def _end_run(self, text: str, reply: str, started: float, status: str) -> None:
+        with self._run_lock:
+            run = {
+                "started": started,
+                "ms": int((time.time() - started) * 1000),
+                "preview": text.strip()[:80],
+                "input_tokens": _estimate_tokens(text),
+                "output_tokens": _estimate_tokens(reply),
+                "tools": list((getattr(self, "_current", None) or {}).get("tools", [])),
+                "status": status,
+            }
+            run["cost_usd"] = round((run["input_tokens"] / 1e6) * 0.0, 6)
+            self._runs = [run, *self._runs][:50]
+            self._current = run
+        self._push_run_to_bridge(run)
+
+    def _push_run_to_bridge(self, run: dict[str, Any]) -> None:
+        """Kennzahlen in die MCP-Bridge melden (Prometheus). Offline-tolerant."""
+        if _clients is None:
+            return
+        try:  # pragma: no cover - Netzwerk
+            import json as _json
+            import urllib.request
+
+            body = _json.dumps({
+                "ms": run.get("ms", 0),
+                "tokens": run.get("input_tokens", 0) + run.get("output_tokens", 0),
+                "cost_usd": run.get("cost_usd", 0.0),
+                "cache_hit": False,
+                "tools": run.get("tools", []),
+                "status": run.get("status", "done"),
+            }).encode()
+            req = urllib.request.Request("http://127.0.0.1:8790/mcp/metrics/run", data=body, method="POST")
+            req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, timeout=1.0):  # noqa: S310
+                pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _cache_get(self, text: str) -> str | None:
+        key = re.sub(r"\s+", " ", text.strip().lower())
+        hit = self._cache.get(key)
+        if not hit:
+            return None
+        at, value = hit
+        if time.time() - at > self.cache_ttl:
+            self._cache.pop(key, None)
+            return None
+        return value
+
+    def _cache_put(self, text: str, reply: str) -> None:
+        key = re.sub(r"\s+", " ", text.strip().lower())
+        self._cache[key] = (time.time(), reply[:2000])
+        if len(self._cache) > 40:
+            oldest = min(self._cache.items(), key=lambda kv: kv[1][0])[0]
+            self._cache.pop(oldest, None)
+
+    def clear_run_cache(self) -> int:
+        n = len(self._cache)
+        self._cache.clear()
+        return n
+
+    def metrics_summary(self) -> str:
+        runs = [r for r in self._runs if r.get("status") != "running"]
+        total_tokens = sum(r.get("input_tokens", 0) + r.get("output_tokens", 0) for r in runs)
+        total_cost = sum(r.get("cost_usd", 0.0) for r in runs)
+        avg = int(sum(r.get("ms", 0) for r in runs) / len(runs)) if runs else 0
+        tools: Counter = Counter()
+        for r in runs:
+            tools.update(r.get("tools", []))
+        lines = [
+            f"🟢 Läufe {len(runs)} | Ø {avg} ms | Tokens {total_tokens} | Kosten {total_cost:.4f} $ | Cache {len(self._cache)} einträge",
+        ]
+        if tools:
+            lines.append("- werkzeuge: " + ", ".join(f"{k}×{v}" for k, v in tools.most_common(6)))
+        for r in runs[:5]:
+            lines.append(f"  · {r.get('preview','')[:50]} – {r.get('ms')} ms, {r.get('input_tokens',0)+r.get('output_tokens',0)} tok, {r.get('status')}")
+        return "\n".join(lines)
 
     # ------------------------------------------------------------------
     # Intent-Erkennung (deterministisch)
@@ -215,7 +350,7 @@ class Agent:
             adb = self._try_adb_intents(t)
             if adb is not None:
                 return adb
-        if re.search(r"\bstopp|abbrechen|beenden", t):
+        if re.search(r"\bstopp\w*|\bstop\b|abbruch|abbrechen|\bbeend\w*|brich\s+ab", t):
             return self._intent_stop()
         if re.search(r"\bscann|netzwerk-?scan", t):
             return self._intent_scan(t)
@@ -225,6 +360,35 @@ class Agent:
             return self._intent_clients()
         if re.search(r"\b(workflows?|tasks?|angriffe|aufgaben)\b", t) and re.search(r"(laufen|status|show|zeige|welche|aktive)", t):
             return self._intent_workflows()
+        if re.search(r"gallerie|gallery|marktplatz", t):
+            return self._intent_gallery(t)
+        if re.search(r"installiere\s+(den\s+)?agent|aktiviere\s+den\s+agent", t):
+            return self._intent_gallery_install(t)
+        if re.search(r"\bdashboard\b|metriken|kennzahlen|was (haben|kostet).*läufe", t):
+            return self._intent_metrics()
+        if re.search(r"(wissen|wissensbasis|doku|dokumentation).*(suche|find|steht|zeigen)|suche im wissen", t):
+            return self._intent_knowledge_search(t)
+        # PortView zuerst: „finde den Server-Port“ hat nichts mit dem Gateway-Status zu tun
+        if re.search(r"portview|port\s+(finden|suchen|check|pr(ü|ue)f)|server-?port|wo\s+(läuft|steht)\s+der\s+server|endpoint\s+finden", t):
+            return self._intent_portview(t)
+        # Grabber: URL + Import-Verb; mit „Bibliothek/Wissen“ ⇒ Seiten-Ingest (prüfen + ablegen)
+        grab_url = re.search(r"https?://[^\s\"'<>()]+", text)
+        if grab_url and re.search(r"importier|import|grabbe|hole dir|downloa", t):
+            if re.search(r"bibliothek|wissensbasis|wissen\b|doku|dokument|indexier", t):
+                return self._intent_page_ingest(grab_url.group(0), t, review_only=False)
+            return self._intent_grabber(grab_url.group(0), t)
+        if grab_url and re.search(r"(pr(ü|ue)f|check|analysier|auswerten).*(inhalt|seite|url)|inhalt.*(pr(ü|ue)f|check)", t):
+            return self._intent_page_ingest(grab_url.group(0), t, review_only=True)
+        if re.search(r"^\s*(lern(?:e)?|indexiere|importiere)\b", t):
+            return self._intent_knowledge_add(t)
+        if re.search(r"\bgateway\b|\bct45p\b|\bhoneywell\b|\btoken\b|handshake|\bgrant\b|\bfreigabe\b|\bsid\b", t):
+            gw = self._intent_gateway(t)
+            if gw is not None:
+                return gw
+        if re.search(r"\bmcp\b", t):
+            mcp = self._intent_mcp(t)
+            if mcp is not None:
+                return mcp
         if re.search(r"\b(exportiere|export)\b", t):
             return self._intent_export(t)
         if re.search(r"\b(audit|audit-log)\b|wer hat (was|wann)", t):
@@ -457,6 +621,375 @@ class Agent:
         return "⏹️ Keine aktiven Workflows zu stoppen."
 
     # ------------------------------------------------------------------
+    # MCP (mobile-dev) · mobiles BLE-Gateway · Gallerie · Wissensbasis
+    # ------------------------------------------------------------------
+    def _note_tool(self, name: str) -> None:
+        current = getattr(self, "_current", None)
+        if isinstance(current, dict):
+            current.setdefault("tools", []).append(name)
+
+    def _intent_mcp(self, t: str) -> str | None:
+        if _clients is None:
+            return "⚠️ utils/clients.py fehlt – MCP-Skills sind in diesem Stand nicht verfügbar."
+        if re.search(r"\btools?\b", t) and not re.search(r"tool=", t):
+            query = (re.search(r"tools?\s+([a-z0-9_-]{2,20})", t) or [None, ""])[1]
+            tools = _clients.mcp_tools()
+            if not tools:
+                return _clients.describe_mcp_offline("Tool-Liste")
+            if query:
+                tools = [x for x in tools if query in f"{x.get('name')} {x.get('description')}".lower()]
+            if not tools:
+                return (f"🔌 Kein MCP-Tool passt zu „{query}“ – der Server hat {len(_clients.mcp_tools())} Tools "
+                        f"(android_*, flutter_*, ios_*, native_run_*, health_check). „mcp tools“ zeigt alle.")
+            lines = [f"🔌 MCP-Server „mobile-dev“ – {len(tools)} Tools:"]
+            for tool in tools[:40]:
+                req = ",".join((tool.get("inputSchema") or {}).get("required") or [])
+                lines.append(f"- `{tool.get('name')}`" + (f" (pflicht: {req})" if req else ""))
+            lines.append('Aufruf: „mcp tool=health_check“')
+            self._audit("mcp_list", str(len(tools)))
+            return "\n".join(lines)
+        if re.search(r"verbind|connect|status|prüfen|pruefen|bridge", t):
+            self._audit("mcp_connect", "status")
+            return self._mcp_connect_text()
+        match = re.search(r"(?:tool|call|aufruf|ausführen|ausfuehren)[=:\s]+([a-z0-9_]{3,40})", t, re.I)
+        if match:
+            return self._mcp_call_tool(match.group(1).lower(), t)
+        if re.search(r"\bhealth|verbind|status", t):
+            return self._mcp_connect_text()
+        return "❓ MCP-Absicht erkannt, aber kein Tool genannt. Beispiele: „mcp tools android“, „mcp tool=health_check verbose=true“, „mcp verbinden“."
+
+    def _mcp_call_tool(self, tool: str, raw: str) -> str:
+        self._note_tool(f"mcp:{tool}")
+        args: dict[str, Any] = {}
+        for key, val in re.findall(r"(?:--)?([a-z0-9_-]{2,40})[=:]\s*([\w./:+-]+)", raw, re.I):
+            if key.lower() in {"tool", "call", "mcp", "mit", "und"}:
+                continue
+            if val.lower() in {"true", "false"}:
+                args[key] = val.lower() == "true"
+            elif re.fullmatch(r"-?\d+(\.\d+)?", val):
+                args[key] = float(val) if "." in val else int(val)
+            else:
+                args[key] = val
+        res = _clients.mcp_call(tool, args)
+        self._audit("mcp_call", f"{tool} {json.dumps(args, ensure_ascii=False)}"[:120])
+        if not res.get("ok"):
+            detail = res.get("detail") or res.get("error") or "unbekannter fehler"
+            return f"⚠️ MCP-Aufruf „{tool}“ fehlgeschlagen: {detail}\n{res.get('hint', _clients.describe_mcp_offline())}"
+        body = _clients.tool_text(res.get("result")) or "(leere antwort)"
+        clipped = body[:1400] + ("\n… (gekürzt)" if len(body) > 1400 else "")
+        head = f"✅ {tool} ({res.get('ms', 0)} ms{', Cache' if res.get('cached') else ''})"
+        return f"{head}\n```\n{clipped}\n```"
+
+    def _mcp_connect_text(self) -> str:
+        h = _clients.mcp_health()
+        g = _clients.gateway_status()
+        tools = _clients.mcp_tools()
+        lines = []
+        if h.get("ok"):
+            info = (h.get("mcp") or {})
+            lines.append(
+                f"✅ Bridge aktiv auf Port {h.get('port', 8790)} · Uptime {info.get('tools', 0) and round(h.get('uptime_s', 0))}s\n"
+                f"   Server: {(info.get('serverInfo') or {}).get('name', '—')} v{(info.get('serverInfo') or {}).get('version', '—')}"
+                f" · Protokoll {info.get('protocolVersion', '—')} · {info.get('tools', 0)} Tools"
+            )
+        else:
+            lines.append(f"❌ Bridge offline – {h.get('detail') or h.get('error')}\n   Start: npm run mcp:bridge")
+        if g.get("ok"):
+            w = g.get("whitelist") or {}
+            m = g.get("metrics") or {}
+            lines.append(
+                f"✅ Mobiles BLE-Gateway: {w.get('active', 0)} Token aktiv, {g.get('open_challenges', 0)} offene "
+                f"Challenges · Grants {m.get('grants', 0)}/Denies {m.get('denies', 0)}"
+            )
+        else:
+            lines.append("❌ Gateway offline – Start: python3 mobile-server/mobile_ble_server.py --mock")
+        if tools:
+            lines.append("   Erste Tools: " + ", ".join(t.get("name", "?") for t in tools[:6]))
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # PortView & Software-Grabber
+    # ------------------------------------------------------------------
+    def _intent_portview(self, t: str) -> str:
+        """Server-Adresse automatisch finden (UDP-Broadcast + HTTP-Probe)."""
+        if _clients is None:
+            return "⚠️ utils/clients.py fehlt – PortView nicht verfügbar."
+        forced = bool(re.search(r"erzwinge|force|überschreib", t))
+        if os.environ.get("DGS_GATEWAY_URL") and not forced:
+            return (
+                "🧭 PortView übersprungen – DGS_GATEWAY_URL ist gesetzt:\n"
+                f"   {os.environ['DGS_GATEWAY_URL']}\n"
+                "Mit „portview erzwingen“ (oder ENV löschen) wird neu gesucht."
+            )
+        found = _clients.discover_gateway()
+        self._audit("portview", json.dumps({k: found.get(k) for k in ("ok", "gateway_base", "note")}, ensure_ascii=False)[:160])
+        if not found.get("ok"):
+            detail = " ".join(str(x) for x in (found.get("error"), found.get("note")) if x)
+            return f"❌ PortView: kein Gateway gefunden – {detail or 'unbekannt'}"
+        lines = [
+            f"🧭 PortView: Gateway über {found.get('via', found.get('note'))} gefunden",
+            f"- Gateway: `{found.get('gateway_base')}`",
+        ]
+        if found.get("bridge_base"):
+            lines.append(f"- MCP-Bridge: `{found['bridge_base']}`")
+        status = _clients.gateway_status(base=found.get("gateway_base"))
+        if status.get("ok"):
+            ports = (status.get("config") or {}).get("ports") or {}
+            lines.append(
+                f"- Antwort: {status.get('product', '?')} · {len(status.get('tokens') or [])} Token(s) · "
+                f"Ports http {ports.get('http', status.get('config', {}).get('http', '—'))} / bridge {ports.get('bridge', '—')}"
+            )
+        lines.append(f"✅ gemerkte Basis: {_clients.gateway_base()}")
+        return "\n".join(lines)
+
+    def _intent_page_ingest(self, url: str, t: str, review_only: bool = False) -> str:
+        """Seite ziehen → Inhalt prüfen → Software + Info + Bibliothek intern ablegen."""
+        if _page_ingest is None:
+            return "⚠️ utils/page_ingest.py fehlt – Seiten-Ingest nicht verfügbar."
+        want_library = not review_only
+        want_software = not review_only and not re.search(r"nur seite|keine software|ohne software", t)
+        res = _page_ingest.ingest_url(
+            url,
+            knowledge=self.knowledge if want_library else None,
+            import_software=want_software,
+            to_library=want_library,
+            tags=["desktop-ingest"],
+            persist=not review_only,
+        )
+        self._audit("page_ingest", json.dumps({"url": url[:120], "verdict": res.get("verdict"),
+                                              "software": len(res.get("software") or []),
+                                              "library": bool(res.get("library"))}, ensure_ascii=False)[:200])
+        report = _page_ingest.format_ingest_report(res)
+        if review_only:
+            report += "\n\nℹ️ Nur Prüfung – nichts in die Bibliothek geschrieben. Mit „importiere " + url + " in die bibliothek“ lege ich alles ab."
+        return report
+
+    def _intent_grabber(self, url: str, t: str) -> str:
+        """URL → Mobile-Server-Import (Beats, Samples, Styles, Effekte, Filter)."""
+        if _clients is None:
+            return "⚠️ utils/clients.py fehlt – Grabber nicht verfügbar."
+        wanted = (re.search(r"beats?|samples?|styles?|effekte?|effects?|filters?|shader|lut", t) or [None, ""])[0]
+        category = {
+            "beat": "beats", "beats": "beats",
+            "sample": "samples", "samples": "samples",
+            "style": "styles", "styles": "styles",
+            "effekt": "effects", "effekte": "effects", "effect": "effects", "effects": "effects",
+        }.get(wanted, "" if not wanted or wanted in ("shader", "lut") else "filters")
+        if wanted in ("shader", "lut"):
+            category = "filters"
+        res = _clients.import_url(url, category=category, tags=["desktop-chat"])
+        self._audit("grabber_import", json.dumps({"ok": res.get("ok"), "url": url[:120]}, ensure_ascii=False)[:200])
+        if not res.get("ok"):
+            hint = res.get("hint") or res.get("raw") or ""
+            return f"❌ Grabber: {res.get('error', 'unbekannt')} {hint}".strip()
+        listing = _clients.list_imports(category=category, limit=5)
+        text = _clients.describe_imports(res)
+        if listing.get("ok") and listing.get("assets"):
+            text += f"\nKatalog: {listing.get('stats', {}).get('count', len(listing['assets']))} Asset(s) im Server-Katalog"
+        return text
+
+    def _intent_gateway(self, t: str) -> str | None:
+        if _clients is None:
+            return "⚠️ utils/clients.py fehlt – Gateway-Skills nicht verfügbar."
+        # zuerst: gemeldetes Ergebnis aus dem delegated-Modus („freigabe für sid …“)
+        grant = self._gateway_grant_from_text(t)
+        if grant is not None:
+            return grant
+        # Groß-/Kleinschreibung egal: der Chat läuft mit lower()-Text
+        token = (re.search(r"\b(ct45p-[0-9a-z-]{2,24})\b", t, re.I) or [None, ""])[1]
+        if token:
+            token = token.upper()
+        uid = (re.search(r"((?:[0-9a-f]{2}:){2,5}[0-9a-f]{2}|\b[0-9a-f]{8,12}\b)", t, re.I) or [None, ""])[1]
+        if token and re.search(r"token|nfc|uid|öffne|oeffne|auth|les", t):
+            return self._gateway_token_auth(token, uid, t)
+        if re.search(r"demo|durchlauf|handshake", t):
+            self._note_tool("gateway:demo_handshake")
+            res = _clients.gateway_command("demo_handshake")
+            self._audit("gateway_demo", json.dumps(res, ensure_ascii=False)[:120])
+            if not res.get("ok"):
+                return f"❌ Demo-Handshake: {json.dumps(res, ensure_ascii=False)[:400]}"
+            verify = res.get("verify") or {}
+            return (
+                f"🔐 Demo-Handshake: sid `{res.get('sid')}` · BLE-Write {'ok' if res.get('ble_write_ok') else 'fehlgeschlagen'}\n"
+                f"- Prüfung: {'✅ verifiziert' if verify.get('ok') else '❌ ' + str(verify.get('reason'))} · "
+                f"Batterie {verify.get('battery_mv', '—')} mV · Latenz {verify.get('latency_ms', '—')} ms\n"
+                "- Falscher Root-Key wurde mitgespielt und muss DENY ergeben."
+            )
+        if re.search(r"scan|umfeld|geräte finden|geraete finden", t):
+            self._note_tool("gateway:ble_scan")
+            res = _clients.gateway_command("ble_scan", timeout=4)
+            if not res.get("ok"):
+                return f"❌ Scan: {json.dumps(res, ensure_ascii=False)[:300]}"
+            devices = res.get("devices") or []
+            if not devices:
+                return "📡 Kein BLE-Gerät gefunden."
+            return f"📡 Scan über `{res.get('backend')}`: {len(devices)} Geräte\n" + "\n".join(
+                f"- `{d.get('id')}` {d.get('name', '')} (RSSI {d.get('rssi', '—')})" for d in devices
+            )
+        if re.search(r"whitelist|token-?liste|berechtigte|freischalt|gesperrt", t):
+            res = _clients.gateway_tokens()
+            if not res.get("ok"):
+                return _gateway_offline_hint(res)
+            lines = [f"💳 Token-Whitelist ({len(res.get('tokens') or [])}):"]
+            for entry in res.get("tokens") or []:
+                icon = "🔴" if entry.get("revoked") else "🔒" if entry.get("locked") else "🟢"
+                lines.append(f"- {icon} `{entry.get('token_id')}` – {entry.get('label', '')} (zone {entry.get('zone', '—')}, tamper {entry.get('tamper_count', 0)})")
+            self._audit("gateway_tokens", str(len(res.get("tokens") or [])))
+            return "\n".join(lines)
+        if re.search(r"sessions|protokoll|lesungen|lesevorg|abgelehnt", t):
+            res = _clients.gateway_sessions(limit=12)
+            if not res.get("ok"):
+                return _gateway_offline_hint(res)
+            sessions = res.get("sessions") or []
+            if not sessions:
+                return "⚡ Noch keine Lesevorgänge aufgezeichnet."
+            self._audit("gateway_sessions", str(len(sessions)))
+            return f"⚡ Letzte {len(sessions)} Lesevorgänge:\n" + "\n".join(
+                f"- {icon_for(s)} `{s.get('token_id')}` – {s.get('reason', '')} ({s.get('duration_ms')} ms"
+                + (f", {s.get('battery_mv') / 1000} V" if isinstance(s.get("battery_mv"), int) else "")
+                + ")"
+                for s in sessions
+            )
+        if re.search(r"selbsttest|selftest", t):
+            return "🧪 " + json.dumps(_clients.gateway_command("selftest"), ensure_ascii=False)[:600] + "\n(Vollständig: 10 Prüfungen – `python3 mobile-server/mobile_ble_server.py selftest`)"
+        if re.search(r"status|prüfung|pruefung|bereit|da sein", t):
+            res = _clients.gateway_status()
+            if not res.get("ok"):
+                return _gateway_offline_hint(res)
+            ble = res.get("ble") or {}
+            m = res.get("metrics") or {}
+            w = res.get("whitelist") or {}
+            auth = res.get("agent_auth") or {}
+            proof = (
+                "PSK aktiv" if auth.get("secret_present") else
+                "erzwungen, aber kein Geheimnis" if auth.get("mode") in ("1", "true", "on") else
+                "optional (kein keys.json gefunden)"
+            )
+            if auth.get("bad_proofs"):
+                proof += f" · {auth['bad_proofs']} Fehlversuch(e)"
+            if auth.get("suspended_agents"):
+                proof += f" · suspendiert: {', '.join(auth['suspended_agents'])}"
+            self._audit("gateway_status", "ok")
+            return (
+                "🛰️ Mobiles BLE-Gateway (Honeywell CT45P Xon+)\n"
+                f"- Laufzeit {round(res.get('uptime_s', 0))} s · Agenten {res.get('connected_agents', 0)} · BLE `{ble.get('backend')}` "
+                f"{'(Werbung aktiv)' if ble.get('advertising') else '(keine Werbung)'}\n"
+                f"- Authen {m.get('auth_requests', 0)} · gewährt {m.get('grants', 0)} · abgelehnt {m.get('denies', 0)} · Tamper {m.get('tamper_events', 0)}\n"
+                f"- Whitelist {w.get('active', 0)}/{w.get('count', 0)} aktiv · gesperrt {w.get('locked', 0)} · offene Challenges {res.get('open_challenges', 0)}\n"
+                f"- Agent-Nachweis: {proof}"
+            )
+        return None
+
+    def _gateway_grant_from_text(self, t: str) -> str | None:
+        """delegated-Modus: Der Agent meldet das selbst geprüfte Ergebnis (GRANT/DENY pro sid)."""
+        m = re.search(r"\b(?:sid|session)[=\s]+([0-9a-z][0-9a-f-]{5,23})\b", t, re.I)
+        if not m:
+            return None
+        if not re.search(r"grant|freigab|erlaub|gew[aä]hrt|erteilen|deny|verweig", t):
+            return None
+        sid = m.group(1)
+        granted = not bool(re.search(r"\b(?:deny|verweigern|abgelehnt|nicht)\b", t))
+        self._note_tool("gateway:grant")
+        res = _clients.gateway_command(
+            "grant",
+            sid=sid,
+            granted=granted,
+            reason="agent_verified" if granted else "agent_denied",
+        )
+        self._audit("gateway_grant", f"{sid} {granted}")
+        if not res.get("ok"):
+            return f"❌ Grant-Meldung fehlgeschlagen: {json.dumps(res, ensure_ascii=False)[:300]}"
+        return (f"📤 Ergebnis für `{sid}` gemeldet: {'GRANT' if granted else 'DENY'} "
+                f"(Gateway-Log aktualisiert, delegated-Modus abgeschlossen).")
+
+    def _gateway_token_auth(self, token: str, uid: str, raw: str) -> str:
+        self._note_tool("gateway:auth")
+        material = (re.search(r"session_material[=:\s]+([0-9a-f]{32})", raw, re.I) or [None, ""])[1]
+        res = _clients.gateway_nfc(token, uid, material)
+        self._audit("token_auth", f"{token} uid={uid}")
+        if not res.get("ok"):
+            reason = res.get("reason", res.get("error", "unbekannt"))
+            hint = {
+                "agent_proof_missing": (
+                    "Der Desktop-Client hat kein Agent-Geheimnis gefunden. Setze "
+                    "`DGS_AGENT_SHARED_SECRET` (64 Hex) oder lege `desktop/data/keys.json` ab – "
+                    "die Konsole signiert Lesungen dann automatisch."
+                ),
+                "agent_proof_invalid": "Secret stimmt nicht mit dem Gateway überein (andere keys.json?).",
+                "agent_suspended": "Zu viele Fehlversuche – Sperre läuft nach DGS_LOCKOUT_SECONDS ab.",
+                "not_whitelisted": f"`{token}` fehlt in `mobile-server/data/whitelist.json`.",
+                "revoked": f"`{token}` ist revokiert.",
+                "locked": f"`{token}` ist gesperrt (Brute-Force-Sperre).",
+            }.get(str(reason), "Rohe UIDs werden nicht durchgereicht – ohne Whitelist-Eintrag und Nachweis kein Grant.")
+            return (
+                f"⛔ Zugriff verweigert für `{token}`: {reason}"
+                + (f" (erneut in {res.get('retry_in_s')} s)" if res.get("retry_in_s") else "")
+                + f"\n{hint}"
+            )
+        chal = res.get("challenge") or {}
+        mode = res.get("mode", "")
+        head = f"🔑 Autorisierung für `{token}` angenommen (sid `{res.get('sid')}`, Modus {mode})"
+        if mode == "gateway_crypto":
+            return (
+                f"{head}\n- Challenge {str(chal.get('challenge'))[:16]}… · {chal.get('cipher')} · TTL {chal.get('expires_in_s')} s\n"
+                "- Das Token antwortet nur bei korrekter Entschlüsselung; GRANT/DENY im Gateway-Protokoll."
+            )
+        return f"{head}\n- Kein Session-Material am Gateway → Krypto läuft im Agent; Ergebnis als `gateway command grant` melden."
+
+    def _intent_gallery(self, t: str) -> str:
+        if self.gallery is None:
+            return "⚠️ utils/agentGallery.py fehlt – Gallerie nicht verfügbar."
+        query = (re.search(r"(?:gallerie|gallery|marktplatz)\s+([a-zäöüß0-9-]{2,20})", t.lower()) or [None, ""])[1]
+        if query:
+            found = self.gallery.search(query)
+            lines = [f"🖼️ {len(found)} Treffer für „{query}“:"]
+            for a in found[:12]:
+                d = a.as_dict()
+                lines.append(f"- {'★' if d['installed'] else '·'} `{d['id']}` {d['emoji']} {d['name']} – {d['tagline']}")
+            lines.append("Aktivieren: „installiere agent <id>“")
+            return "\n".join(lines)
+        self._audit("gallery_list", str(len(self.gallery.agents)))
+        return self.gallery.summary()
+
+    def _intent_gallery_install(self, t: str) -> str:
+        if self.gallery is None:
+            return "⚠️ utils/agentGallery.py fehlt – Gallerie nicht verfügbar."
+        agent_id = (re.search(r"agent[=\s]+([a-z0-9-]{2,40})", t.lower()) or [None, ""])[1]
+        if not agent_id:
+            return "❌ Bitte Agent-ID nennen: „installiere agent android-dev“ (Liste: „gallerie“)."
+        self._audit("gallery_install", agent_id)
+        return self.gallery.install(agent_id)
+
+    def _intent_metrics(self) -> str:
+        base = self.metrics_summary()
+        stats = self.knowledge.stats() if self.knowledge else {}
+        if stats:
+            base += f"\n- wissensbasis: {stats.get('documents', 0)} dokumente / {stats.get('chunks', 0)} abschnitte"
+        return base
+
+    def _intent_knowledge_search(self, t: str) -> str:
+        if self.knowledge is None:
+            return "⚠️ utils/agentGallery.py fehlt – Wissensbasis nicht verfügbar."
+        query = re.sub(r"^(suche im wissen|wissen|doku|dokumentation)\b[:.\s]*", "", t.strip(), flags=re.I)
+        query = re.sub(r"^(suche|finde|was steht in)\b", "", query.strip(), flags=re.I).strip(" .:?")
+        top = int((re.search(r"top=(\d+)", t) or [None, "4"])[1])
+        hits = self.knowledge.search(query, top_k=top)
+        self._audit("knowledge_search", f"{len(hits)} treffer: {query[:40]}")
+        return self.knowledge.format_hits(hits)
+
+    def _intent_knowledge_add(self, t: str) -> str:
+        if self.knowledge is None:
+            return "⚠️ utils/agentGallery.py fehlt – Wissensbasis nicht verfügbar."
+        match = re.match(r"^\s*(?:lern(?:e)?|indexiere|importiere)(?:\s+in\s+die\s+Wissensbasis)?\s*:?(?:\s*([^:\n]{2,60}):)?\s*([\s\S]{6,})$", t.strip(), re.I)
+        if not match:
+            return '❌ Format: „lern: <titel>: <text>“'
+        title, body = (match.group(1) or f"chat-import {time.strftime('%H:%M:%S')}").strip(), match.group(2).strip()
+        path = self.knowledge.add(title, body)
+        self._audit("knowledge_add", f"{len(body)} zeichen → {os.path.basename(path)}")
+        stats = self.knowledge.stats()
+        return f"📥 indexiert → {os.path.relpath(path, DATA_DIR)}\nWissensbasis jetzt: {stats['documents']} dokumente / {stats['chunks']} abschnitte."
+
+    # ------------------------------------------------------------------
     # LLM-Pfad
     # ------------------------------------------------------------------
     def _llm_context(self) -> str:
@@ -465,11 +998,23 @@ class Agent:
         except Exception:
             devices = []
         dev_summary = ", ".join(f"{d.get('name')} ({d.get('ip')})" for d in devices[:6]) or "keine"
+        active = getattr(self.gallery, "active", None) if self.gallery else None
+        knowledge = ""
+        if self.knowledge is not None:
+            try:
+                hits = self.knowledge.search(self._current.get("preview", "") if isinstance(getattr(self, "_current", None), dict) else "", top_k=4)
+                knowledge = self.knowledge.build_context(hits)
+            except Exception:  # noqa: BLE001
+                knowledge = ""
         return (f"Aktueller Kontext:\n"
                 f"- Rolle: {self.role}\n"
-                f"- Geräte: {dev_summary}\n"
+                + (f"- Aktiver Agent: {active.name} – {active.tagline}\n" if active else "")
+                + (f"- System-Anweisung des aktiven Agenten:\n{active.system_prompt}\n" if active and active.system_prompt else "")
+                + f"- Geräte: {dev_summary}\n"
                 f"- Aktive Workflows: {len(self.status.workflows)}\n"
-                f"{skills_to_prompt(self.skills)}")
+                f"- Laufzeit: {self.metrics_summary().splitlines()[0]}\n"
+                + (f"\n## Wissensbasis-Auszug (nur daraus antworten, mit Quelle zitieren)\n{knowledge}\n" if knowledge else "")
+                + skills_to_prompt(self.skills))
 
     def _try_llm(self, text: str) -> str:
         system = self.system_instruction + "\n\n" + self._llm_context()
@@ -511,6 +1056,28 @@ class Agent:
                 return self._intent_run_script(f"führe {name} aus")
             if skill == "export_log":
                 return self._intent_export("export " + params.get("format", "json"))
+            if skill == "gateway_status":
+                return self._intent_gateway("gateway status")
+            if skill in {"gateway_tokens", "gateway_sessions", "token_demo"}:
+                key = {"gateway_tokens": "whitelist", "gateway_sessions": "sessions", "token_demo": "demo"}[skill]
+                return self._intent_gateway(f"gateway {key}")
+            if skill == "show_metrics":
+                return self._intent_metrics()
+            if skill == "gateway_selftest":
+                return self._intent_gateway("gateway selbsttest")
+            if skill == "gateway_grant":
+                granted = str(params.get("granted", "true")).lower() != "false"
+                return self._intent_gateway(
+                    f"gateway-freigabe sid={params.get('sid', '')} " + ("grant" if granted else "deny")
+                )
+            if skill == "gallery_list":
+                return self._intent_gallery("gallerie " + params.get("query", ""))
+            if skill == "gallery_install":
+                return self._intent_gallery_install("installiere agent " + params.get("id", ""))
+            if skill == "knowledge_search":
+                return self._intent_knowledge_search("suche im wissen: " + params.get("query", ""))
+            if skill in {"mcp_call", "mcp_list", "mcp_connect"}:
+                return self._intent_mcp(f"mcp {params.get('tool', 'tools')}")
             return f"⚠️ Unbekannter Skill im Tool-Aufruf: {skill}"
         except Exception as exc:  # noqa: BLE001
             return f"⚠️ Tool-Ausführung fehlgeschlagen: {exc}"
@@ -518,8 +1085,9 @@ class Agent:
     def _fallback(self, text: str) -> str:
         return (f"🤖 Ich habe '{text.strip()}' verstanden.\n"
                 f"Das ist keine meiner bekannten Aktionen. Schau in die Skill-Liste "
-                f"(„hilfe“), oder probiere z.B. „zeige alle Geräte“ / „scanne das "
-                f"Netzwerk 192.168.1.0/24“.")
+                f"(„hilfe“), nutze die Agenten-Gallerie („gallerie“), die Wissensbasis "
+                f"(„suche im wissen: …“) oder MCP („mcp tools“ / „gateway status“).\n"
+                f"{self.metrics_summary().splitlines()[0]}")
 
     # ------------------------------------------------------------------
     # Button-Aktionen
@@ -771,3 +1339,23 @@ echo "==> adb shell $CMD"
 "$ADB" shell "$CMD"
 echo "==> Exit-Code: $?"
 """
+
+
+def _estimate_tokens(text: str) -> int:
+    """Grobe, ehrliche Schätzung (~4 Zeichen ≈ 1 Token, plus Wortfaktor)."""
+    if not text:
+        return 0
+    words = len(re.findall(r"\S+", text))
+    return max(1, round((len(text) / 4 + words * 1.35) / 2))
+
+
+def _gateway_offline_hint(res: dict[str, Any]) -> str:
+    return (
+        f"⚠️ Mobiles BLE-Gateway offline – {res.get('detail') or res.get('error', 'keine antwort')}.\n"
+        "Starten:  python3 mobile-server/mobile_ble_server.py --mock   (Port 8791)"
+    )
+
+
+def icon_for(session: dict[str, Any]) -> str:
+    state = str(session.get("state") or "")
+    return {"granted": "🟢", "denied": "🔴", "locked": "🔒", "pending": "🟡", "challenged": "🟡", "delegated": "🟠"}.get(state, "⚪")

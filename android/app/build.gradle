@@ -11,7 +11,8 @@ def hasReleaseKeystore = keystorePath != null && !keystorePath.isEmpty() && file
 
 android {
     namespace "com.dingelschwinng.moeagent"
-    compileSdkVersion rootProject.ext.compileSdkVersion
+    // compileSdk/targetSdk 36 (Android 16), minSdk 30 (Android 11) – siehe variables.gradle
+    compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.dingelschwinng.moeagent"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -19,11 +20,16 @@ android {
         versionCode Integer.parseInt(System.getenv('APP_VERSION_CODE') ?: '1')
         versionName System.getenv('APP_VERSION') ?: '1.0'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+        androidResources {
+            // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+            // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+    }
+    // Capacitor 8 / AGP 8.13 bauen mit JDK 21 (Bytecode-Ziel 21).
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
     }
     signingConfigs {
         release {
@@ -42,10 +48,15 @@ android {
             signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
         }
     }
+    packaging {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*']
+        }
+    }
 }
 
 repositories {
-    flatDir{
+    flatDir {
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
     }
 }

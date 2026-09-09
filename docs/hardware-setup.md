@@ -134,6 +134,51 @@ docker run --net=host --cap-add=NET_ADMIN -v /var/run/dbus:/var/run/dbus ...
 - **NTag/NFC** läuft bewusst clientseitig (WebNFC im Browser/Android) — kein
   Host-Bluetooth nötig.
 
+## 5b. Mobiles BLE-Gateway (RPi Zero 2 W + XIAO nRF52840)
+
+Für den CT45P-Xon+-Pfad (Challenge/Response statt rohem UID-Relay) braucht der mobile
+Rechner einen Adapter, der **BLE-Peripheral** kann. Vollständige Beschreibung des
+Gateway-Programms: [docs/mobile-ble-gateway.md](mobile-ble-gateway.md).
+
+| Rolle | Gerät | Aufgabe |
+|---|---|---|
+| Auslöser + Krypto-Verwaltung | RPi 4 | PN532 (UART) liest UID, hält `keys.json` (Root-Keys, PSK), verbindet TCP `:8765` |
+| Mobiler Leser | RPi Zero 2 W + XIAO nRF52840 | BlueZ-GATT-Peripheral, Challenge schreiben, Antwort lesen, HTTP `:8791` für UI/Bridge |
+| Token | Honeywell CT45P Xon+ | antwortet nur bei korrekter Entschlüsselung |
+
+```bash
+# RPi Zero 2 W (Raspberry Pi OS Lite, 64-bit)
+sudo apt update && sudo apt install -y bluez libglib2.0 python3-gi gir1.2-glib-2.0 python3-pip
+sudo sed -i 's/^#MainExecutable=.*/MainExecutable=/usr/lib/bluetooth/bluetoothd --experimental/' \
+  /lib/systemd/system/bluetooth.service          # GattManager1 benötigt --experimental
+sudo systemctl daemon-reload && sudo systemctl restart bluetooth
+python3 -m pip install --break-system-packages cryptography   # optional, sonst Pure-Python-AES
+
+git clone <repo> ~/DinGelSchwinG && cd ~/DinGelSchwinG
+cp mobile-server/keys.example.json mobile-server/data/keys.json   # NUR shared_secret eintragen
+chmod 600 mobile-server/data/keys.json
+python3 mobile-server/mobile_ble_server.py --ble-backend auto     # auto → gdbus, sonst mock
+python3 mobile-server/mobile_ble_server.py selftest               # 10 Prüfungen, frei wählbare Ports
+```
+
+XIAO nRF52840 als HCI-Dongle (falls kein Onboard-BT): `nrfutil`/`west flash` mit
+`usb_rx_tx`-HCI-Bild bespielen – danach erscheint er als normaler Adapter (`hci0`) und
+`bluetoothctl`/`gdbus` funktionieren unverändert. `bleak` kann **kein** Peripheral betreiben,
+die Peripheral-Seite ist deshalb BlueZ-basiert (`ble_adapter.py`).
+
+Prüfen, ob der Rechner Peripheral darf:
+
+```bash
+hciconfig hci0 | grep -o "Peripheral"        # muss appearing sein
+busctl --system get-property io.bluez /org/bluez/hci0 io.bluez.Adapter1 Powered   # true
+busctl --system call io.bluez /org/bluez org.bluez.GattManager1 \
+  ListApplications a{oa{?}} 2>&1 | head -3   # Dienst erreichbar? (sonst --experimental fehlt)
+```
+
+Strom/Zeitkritisch im Feldeinsatz: Challenge-TTL 20 s, Grant-Hold 4 s. Funkstrecke RPi 4 ⇄
+Zero 2 W nur über LAN/VPN mit bekanntem PSK (`agent_proof`), damit nicht jeder Port-Nachbar
+Lesevorgänge anstoßen kann. Der Leser selbst ist bewusst **kein** Trust-Anker.
+
 ## 6. Verifikations-Checkliste
 
 - [ ] `lsusb` zeigt Dongle, VID in Whitelist (Client **und** Server)
@@ -142,3 +187,6 @@ docker run --net=host --cap-add=NET_ADMIN -v /var/run/dbus:/var/run/dbus ...
 - [ ] SSH: Login mit Service-Key ohne Passwort, `known_hosts` gepinnt
 - [ ] BLE: `bluetoothctl scan le` liefert Beacons auf dem Host
 - [ ] Interlock-Test: nicht-gewhitelistetes Gerät → `DONGLE_MISSING`
+- [ ] BLE-Scan am Zero 2 W liefert das Ziel-Token (`… selftest` → 10/10, `ble-scan backend≠none`)
+- [ ] `data/keys.json` (0600) vorhanden, `/status.agent_auth.enforced` verhält wie geplant
+- [ ] Whitelist-Zwang: unbekanntes Token → `denied not_whitelisted` (kein stiller Auto-Enroll)

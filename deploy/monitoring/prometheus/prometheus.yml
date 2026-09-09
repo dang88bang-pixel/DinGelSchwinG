@@ -26,3 +26,18 @@ scrape_configs:
   - job_name: loki
     static_configs:
       - targets: ["loki:3100"]
+
+  # MCP-Bridge (mcp/bridge.mjs): Tool-Aufrufe, Cache-Trefferquote, Agent-Läufe.
+  # Läuft auf dem Host, nicht im Container -> host.docker.internal.
+  - job_name: mcp-bridge
+    static_configs:
+      - targets: ["host.docker.internal:8790"]
+    metrics_path: /metrics
+
+  # Mobiles BLE-Gateway (Honeywell CT45P Xon+ Modell): Grants/Denies/Tamper,
+  # offene Challenges, BLE-Werbung. Port 8791 (mobile-server/).
+  - job_name: mobile-gateway
+    static_configs:
+      - targets: ["host.docker.internal:8791"]
+        labels: {tier: "edge"}
+    metrics_path: /metrics
