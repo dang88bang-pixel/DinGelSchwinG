@@ -209,6 +209,39 @@ await DeviceControl.openConsole();               // native Konsole öffnen
 
 Vollständige Methodenliste: `DeviceControlPlugin.kt` (Kopfkommentar).
 
+Typisierte Gegenstelle für die React-Oberfläche: `src/lib/deviceControl.ts`.
+Sie spricht in der Capacitor-Hülle das native Plugin an und fällt im Browser
+(Dev-Server / PWA) auf einen Datenbank-Modus zurück, der die **realen** JSON-
+Datenbanken aus `public/devicecontrol/*` (identische Kopien der App-Assets) liest.
+Aktionen, die echte USB-Prozesse brauchen, liefern im Browser eine klare
+„nur nativ“-Meldung statt zu simulieren.
+
+---
+
+## 8a. Bedienoberfläche in der App (React-Panels)
+
+Zwei Panels sind über die Header-Leiste (bzw. die mobile Schnellwahl unten links)
+erreichbar:
+
+- **📱 Geräte** (`src/components/DevicePortViewPanel.tsx`) — die automatische,
+  sich selbst aktualisierende **Geräte-Port-View**: alle über USB/ADB gefundenen
+  Geräte mit Label/Modell, Serial, Hersteller (aus der VID/PID-Datenbank),
+  VID/PID, Verbindungstyp und Farbstatus (🟢/🟡/🔴). Auto-Refresh alle 4 s.
+  Zusätzlich zeigt es transparent **alle Anbindungen** — Tools (Platform-Tools,
+  ADBify, Bugjaeger), Bibliotheken (Brick-Schutz), Datenbanken (ChimeraTool-
+  Modellreferenz, USB-Vendor-DB, ROM-/Geräteprofil-DB, Geräte-Historie), APIs
+  (USB-Host) und Protokolle (ADB/Fastboot) — sowie den Engine- und Tool-Status.
+- **🚀 Flash** (`src/components/FlashCenterPanel.tsx`) — das **Flash-Center** für
+  gerätespezifisches Custom-OS-Flashing mit Brick-Schutz in vier Schritten:
+  1. Gerät + Custom-OS aus der realen ROM-/Geräteprofil-DB wählen (zeigt
+     Flash-Methode, Unlock-Pflicht, Partitionen, ARB-Warnung);
+  2. Brick-Schutz-Report (ARB/Firmware/Bootloader) lesen;
+  3. Pre-Flash-Check (6 Punkte) — blockiert bei Risiko;
+  4. 5-Schritte-Einrichtungsassistent mit ausdrücklicher Datenverlust-
+     Bestätigung, Backup-Checkliste und Live-Protokoll.
+  Der rechtliche Rahmen (nur eigene Geräte; kein IMEI-Repair / FRP-Bypass) wird
+  prominent angezeigt.
+
 ---
 
 ## 9. Fehlerbehebung

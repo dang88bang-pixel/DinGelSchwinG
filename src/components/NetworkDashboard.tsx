@@ -13,6 +13,8 @@ import KnowledgeBasePanel from './KnowledgeBasePanel';
 import LiveDashboardPanel from './LiveDashboardPanel';
 import McpServerPanel from './McpServerPanel';
 import PortViewPanel from './PortViewPanel';
+import DevicePortViewPanel from './DevicePortViewPanel';
+import FlashCenterPanel from './FlashCenterPanel';
 import AssetGrabberPanel from './AssetGrabberPanel';
 import LiveStatusStrip from './LiveStatusStrip';
 import { useSensors } from '../hooks/useSensors';
@@ -46,7 +48,7 @@ export default function NetworkDashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
-  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'grabber' | null>(null);
+  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'devices' | 'flash' | 'grabber' | null>(null);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -114,6 +116,8 @@ export default function NetworkDashboard() {
             ['knowledge', '📚', t('app.knowledge'), t('panels.knowledge.subtitle')],
             ['mcp', '🔌', t('app.mcp'), t('panels.mcp.subtitle')],
             ['portview', '🧭', t('app.portview', 'PortView'), t('panels.portview.subtitle', 'Server-Port automatisch finden (nativ)')],
+            ['devices', '📱', t('app.devices', 'Geräte'), t('panels.deviceportview.subtitle', 'USB + ADB automatisch · Hersteller, VID/PID, Status')],
+            ['flash', '🚀', t('app.flash', 'Flash'), t('panels.flashcenter.subtitle', 'Custom-OS · Brick-Schutz · Einrichtung')],
             ['grabber', '📥', t('app.grabber', 'Grabber'), t('panels.grabber.subtitle', 'URLs importieren: Beats, Samples, Styles, Effekte, Filter')],
           ] as const).map(([id, icon, label, title]) => (
             <button
@@ -305,6 +309,8 @@ export default function NetworkDashboard() {
           ['knowledge', '📚', 'Wissensbasis'],
           ['mcp', '🔌', 'MCP & Plugins'],
           ['portview', '🧭', 'PortView (automatischer Port)'],
+          ['devices', '📱', 'Geräte-Port-View (USB/ADB)'],
+          ['flash', '🚀', 'Flash-Center (Custom-OS)'],
           ['grabber', '📥', 'Grabber (URL-Import)'],
         ] as const).map(([id, icon, title]) => (
           <button
@@ -324,6 +330,8 @@ export default function NetworkDashboard() {
       {panel === 'knowledge' && <KnowledgeBasePanel onClose={() => setPanel(null)} />}
       {panel === 'mcp' && <McpServerPanel onClose={() => setPanel(null)} />}
       {panel === 'portview' && <PortViewPanel onClose={() => setPanel(null)} />}
+      {panel === 'devices' && <DevicePortViewPanel onClose={() => setPanel(null)} />}
+      {panel === 'flash' && <FlashCenterPanel onClose={() => setPanel(null)} />}
       {panel === 'grabber' && <AssetGrabberPanel onClose={() => setPanel(null)} />}
     </div>
   );
