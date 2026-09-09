@@ -69,7 +69,7 @@ class DeviceControlActivity : AppCompatActivity() {
                 processCommand(text)
             }
         }
-        input.setOnEditorAction { _, _, _ ->
+        input.setOnEditorActionListener { _, _, _ ->
             findViewById<View>(R.id.sendButton).performClick()
             true
         }
