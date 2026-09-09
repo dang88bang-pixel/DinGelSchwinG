@@ -126,10 +126,15 @@ jobs:
               echo '```'
               grep -E "FAILURE|What went wrong|Caused by|error:|e: |Could not|Unsupported|requires" -A 2 /tmp/gradle-build.log | tail -c 12000
               echo '```'
-              echo '```'
-              tail -c 8000 /tmp/gradle-build.log
-              echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+            # Zusaetzlich als Annotation (ueber die Check-Run-API lesbar,
+            # auch wenn der Log-Download nicht erreichbar ist)
+            grep -E "^e: |FAILURE: |\* What went wrong|\* Where|Caused by:|error:" /tmp/gradle-build.log \
+              | sort -u | head -8 \
+              | while IFS= read -r line; do
+                  echo "::error::[assembleDebug] ${line}"
+                done
+            echo "::error::[assembleDebug] Log-Tail: $(tail -c 900 /tmp/gradle-build.log | tr '\n' ' ')"
             exit 1
           fi
 
@@ -143,10 +148,15 @@ jobs:
               echo '```'
               grep -E "FAILURE|What went wrong|Caused by|error:|e: |Could not|Unsupported|requires" -A 2 /tmp/gradle-build.log | tail -c 12000
               echo '```'
-              echo '```'
-              tail -c 8000 /tmp/gradle-build.log
-              echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+            # Zusaetzlich als Annotation (ueber die Check-Run-API lesbar,
+            # auch wenn der Log-Download nicht erreichbar ist)
+            grep -E "^e: |FAILURE: |\* What went wrong|\* Where|Caused by:|error:" /tmp/gradle-build.log \
+              | sort -u | head -8 \
+              | while IFS= read -r line; do
+                  echo "::error::[assembleRelease] ${line}"
+                done
+            echo "::error::[assembleRelease] Log-Tail: $(tail -c 900 /tmp/gradle-build.log | tr '\n' ' ')"
             exit 1
           fi
 
