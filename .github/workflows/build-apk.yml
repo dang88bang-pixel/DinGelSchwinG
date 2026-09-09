@@ -104,27 +104,6 @@ jobs:
       - name: Build Release APK
         run: cd android && ./gradlew assembleRelease --no-daemon --stacktrace
 
-      # Harte Aufnahmeprüfung: das APK muss exakt Android 11 (API 30) bis
-      # Android 16 (API 36) abdecken – sonst bricht der Build statt still
-      # ein APK mit falschem SDK-Bereich zu liefern.
-      - name: Verify APK SDK range (min 30 / target 36)
-        run: |
-          AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
-          [ -x "$AAPT2" ] || AAPT2="$(command -v aapt2)"
-          for apk in android/app/build/outputs/apk/*/*.apk; do
-            [ -f "$apk" ] || continue
-            echo "== $apk"
-            "$AAPT2" dump badging "$apk" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|uses-permission)" || true
-            BADGE="$("$AAPT2" dump badging "$apk")"
-            echo "$BADGE" | grep -q "sdkVersion:'${ANDROID_MIN_SDK}'" \
-              || { echo "❌ minSdk ist nicht ${ANDROID_MIN_SDK} (Android 11)"; exit 1; }
-            echo "$BADGE" | grep -q "targetSdkVersion:'${ANDROID_TARGET_SDK}'" \
-              || { echo "❌ targetSdk ist nicht ${ANDROID_TARGET_SDK} (Android 16)"; exit 1; }
-            echo "$BADGE" | grep -q "BLUETOOTH_SCAN" \
-              || { echo "❌ BLE-Permissions fehlen in der App"; exit 1; }
-            echo "✅ SDK-Bereich 30…36 passt"
-          done
-
       - name: Collect APKs
         run: |
           mkdir -p apk
@@ -149,6 +128,43 @@ jobs:
             apk/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
+
+      # Aufnahmeprüfung: die APKs müssen exakt Android 11 (API 30) bis Android 16 (API 36)
+      # abdecken. Sie läuft NACH dem Artefakt-Upload, damit ein Fund auch bei abweichender
+      # Prüfung herunterladbar bleibt – der Job bricht trotzdem ab (rotes X).
+      - name: Verify APK SDK range (min 30 / target 36)
+        run: |
+          set +e
+          AAPT2=""
+          for c in "$ANDROID_HOME"/build-tools/*/aapt2 "$ANDROID_SDK_ROOT"/build-tools/*/aapt2 "$(command -v aapt2)"; do
+            [ -x "$c" ] && AAPT2="$c" && break
+          done
+          echo "aapt2: ${AAPT2:-NICHT GEFUNDEN}  (ANDROID_HOME=${ANDROID_HOME:-unset})"
+          ls "$ANDROID_HOME/build-tools" 2>/dev/null
+          FAIL=0
+          for apk in android/app/build/outputs/apk/*/*.apk; do
+            [ -f "$apk" ] || continue
+            echo "══════════ $apk"
+            BADGE="$( "$AAPT2" dump badging "$apk" 2>&1 )"
+            echo "$BADGE" | head -30
+            [ -z "$BADGE" ] && { echo "❌ aapt2 lieferte keine Ausgabe"; FAIL=1; continue; }
+            MIN="$(  echo "$BADGE" | sed -n "s/^sdkVersion:'\{0,1\}\([0-9]\{1,3\}\)'\{0,1\}.*/\1/p" | head -1 )"
+            TGT="$(  echo "$BADGE" | sed -n "s/^targetSdkVersion:'\{0,1\}\([0-9]\{1,3\}\)'\{0,1\}.*/\1/p" | head -1 )"
+            [ -z "$MIN" ] && MIN="$(echo "$BADGE" | sed -n "s/^minSdkVersion=\{0,1\}'\{0,1\}\([0-9]\{1,3\}\).*/\1/p" | head -1)"
+            [ -z "$TGT" ] && TGT="$(echo "$BADGE" | sed -n "s/^targetSdkVersion=\{0,1\}'\{0,1\}\([0-9]\{1,3\}\).*/\1/p" | head -1)"
+            echo "extrahiert: minSdk=[${MIN}] targetSdk=[${TGT}]"
+            [ "$MIN" = "${ANDROID_MIN_SDK}" ]   || { echo "❌ minSdk ist nicht ${ANDROID_MIN_SDK} (Android 11)"; FAIL=1; }
+            [ "$TGT" = "${ANDROID_TARGET_SDK}" ] || { echo "❌ targetSdk ist nicht ${ANDROID_TARGET_SDK} (Android 16)"; FAIL=1; }
+            echo "$BADGE" | grep -q "BLUETOOTH_SCAN" || { echo "❌ BLE-Permissions fehlen"; FAIL=1; }
+            echo "$BADGE" | grep -q "^package: name='com.dingelschwinng.moeagent'" || echo "ℹ️ Paketname wie folgt: $(echo "$BADGE" | grep -m1 '^package:')"
+            echo "Größe: $(du -h "$apk" | cut -f1)"
+          done
+          if [ "$FAIL" = "0" ]; then
+            echo "✅ SDK-Bereich 30…36 und BLE-Permissions passen"
+          else
+            echo "❌ APK-Prüfung fehlgeschlagen – Ausgabe oben"
+            exit 1
+          fi
 
       - name: Create GitHub Release (on tag)
         if: startsWith(github.ref, 'refs/tags/')
