@@ -1,41 +1,373 @@
 {
-  "title": "NEXUS – Übersicht",
+  "title": "NEXUS \u2013 \u00dcbersicht \u00b7 MCP & BLE-Gateway",
   "uid": "nexus-overview",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
-  "time": { "from": "now-6h", "to": "now" },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "panels": [
     {
       "id": 1,
       "type": "stat",
       "title": "Backend up",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
       "targets": [
-        { "expr": "up{job=\"nexus-backend\"}", "refId": "A" }
+        {
+          "expr": "up{job=\"nexus-backend\"}",
+          "refId": "A"
+        }
       ]
     },
     {
       "id": 2,
       "type": "timeseries",
       "title": "HTTP-Requests/s",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
       "targets": [
-        { "expr": "sum(rate(http_requests_total[5m]))", "refId": "A", "legendFormat": "gesamt" },
-        { "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))", "refId": "B", "legendFormat": "5xx" }
+        {
+          "expr": "sum(rate(http_requests_total[5m]))",
+          "refId": "A",
+          "legendFormat": "gesamt"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m]))",
+          "refId": "B",
+          "legendFormat": "5xx"
+        }
       ]
     },
     {
       "id": 3,
       "type": "logs",
       "title": "App-Logs (Loki, trace_id filterbar)",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
-      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "Loki"
+      },
       "targets": [
-        { "expr": "{container=~\".+\"} |~ \"\\\\\\\"level\\\\\\\":\\\\\\\"(error|warning)\\\\\\\"\"", "refId": "A" }
+        {
+          "expr": "{container=~\".+\"} |~ \"\\\\\\\"level\\\\\\\":\\\\\\\"(error|warning)\\\\\\\"\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "MCP & mobiles BLE-Gateway",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "MCP-Tools",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 23
+      },
+      "targets": [
+        {
+          "expr": "dingelschwing_mcp_tools_total",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "MCP-Verbunden",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 23
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "getrennt",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "verbunden",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "dingelschwing_mcp_up",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Gateway: Grants / Denies (rate 5m)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 23
+      },
+      "targets": [
+        {
+          "expr": "rate(dingelschwing_gateway_grants[5m])",
+          "legendFormat": "gewaehrt",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(dingelschwing_gateway_denies[5m])",
+          "legendFormat": "abgelehnt",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Offene Challenges",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 23
+      },
+      "targets": [
+        {
+          "expr": "dingelschwing_gateway_open_challenges",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Whitelist-Gr\u00f6\u00dfe",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 23
+      },
+      "targets": [
+        {
+          "expr": "dingelschwing_gateway_whitelist_size",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "BLE-Werbung",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "aus",
+                  "color": "orange"
+                },
+                "1": {
+                  "text": "aktiv",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "dingelschwing_gateway_ble_advertising",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Tamper-Ereignisse",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 27
+      },
+      "targets": [
+        {
+          "expr": "dingelschwing_gateway_tamper_events",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Agent-Laeufe: Zeit & Kosten",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      },
+      "targets": [
+        {
+          "expr": "rate(dingelschwing_agent_run_duration_ms_sum[5m]) / 1000",
+          "legendFormat": "s/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(dingelschwing_agent_cost_usd_sum[5m])",
+          "legendFormat": "USD/s",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Tokens & Cache (MCP + Agent)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      },
+      "targets": [
+        {
+          "expr": "rate(dingelschwing_agent_tokens_total[5m])",
+          "legendFormat": "tokens/s",
+          "refId": "A"
+        },
+        {
+          "expr": "dingelschwing_mcp_cache_hit_ratio",
+          "legendFormat": "cache-trefferquote",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(dingelschwing_mcp_errors_total[5m])",
+          "legendFormat": "fehler/s",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "logs",
+      "title": "Gateway-Ereignisse (Loki)",
+      "datasource": {
+        "type": "loki",
+        "uid": "Loki"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "targets": [
+        {
+          "expr": "{job=\"mobile-gateway\"}",
+          "refId": "A"
+        }
       ]
     }
+  ],
+  "tags": [
+    "access-control",
+    "ble",
+    "mcp"
   ]
 }

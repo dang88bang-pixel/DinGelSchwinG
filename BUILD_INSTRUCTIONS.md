@@ -2,12 +2,16 @@
 
 ## Prerequisites
 
-✅ **Required Software:**
-- Node.js 18+ & npm
-- Java Development Kit (JDK) 17 (Gradle 8)
-- Android SDK (API 34+)
-- Android Build Tools 34.0.0+
-- Gradle 8.0+
+✅ **Required Software** (Stand: Capacitor 8 / AGP 8.13 / Gradle 8.14.3)
+- Node.js 20+ (empfohlen 22 – der CI-Workflow nutzt 22) & npm
+- Java Development Kit **JDK 21** – die Android-Module kompilieren auf `VERSION_21`
+- Android SDK **Platform `android-36`** (Android 16) – `compileSdk`/`targetSdk` = 36
+- Android Build Tools **36.0.0**, `platform-tools` (adb)
+- Gradle 8.14.3 (wird über `android/gradle/wrapper` automatisch geholt)
+
+Zielbereich der APKs: **Android 11 (API 30) bis Android 16 (API 36)** – `minSdk 30`
+in `android/variables.gradle`, `targetSdk 36` (Play-Store-Pflicht seit 2026-08-31).
+Der Build bricht ab, wenn ein APK davon abweicht (Prüfung über `aapt2 dump badging`).
 
 ✅ **For Release Builds:**
 - Keystore file for signing
@@ -21,12 +25,27 @@ Das Repository enthält einen CI-Workflow (`.github/workflows/build-apk.yml`),
 der bei jedem Push auf `main` (sowie manuell über *Actions → Build APK →
 Run workflow*) die APKs automatisch baut:
 
-**Was der Workflow macht:**
-1. Installiert Node.js, JDK 17 und das Android SDK
+**Was der Workflow macht** (`.github/workflows/build-apk.yml`):
+1. Node.js 22 + JDK 21 (Temurin) + Android SDK, explizit `platforms;android-36` und
+   `build-tools;36.0.0` (API 36 braucht AGP ≥ 8.9.1 – hier: AGP 8.13.0)
 2. `npm ci` → `npm run lint` → `npm run type-check` → `npm run build`
-3. `npx cap sync android` (die Android-Plattform ist versioniert, `android/`)
-4. Baut **Debug-APK** und **Release-APK**
-5. Lädt beide APKs als **Artifact** hoch
+3. `npx cap sync android` + `npx cap doctor` (die Android-Plattform ist versioniert)
+4. `./gradlew assembleDebug` und `assembleRelease`
+5. **Prüfung**: `aapt2 dump badging` muss `sdkVersion:'30'`, `targetSdkVersion:'36'`
+   und die BLE-Permissions melden – sonst bricht der Build
+6. Artefakt `DinGelSchwinG-APK` mit `DinGelSchwinG-v<version>-{debug,release}.apk` +
+   `SHA256SUMS` (Artefakt bleibt 30 Tage; Retention via `retention-days`)
+
+**APK aus einem Lauf holen** (auch von einem Branch, z. B. vor dem Merge):
+```bash
+git push origin HEAD
+gh workflow run build-apk.yml --repo dang88bang-pixel/DinGelSchwinG --ref "$(git branch --show-current)"
+gh run list --workflow build-apk.yml --limit 3
+gh run watch <lauf-id>
+gh run download <lauf-id> -n DinGelSchwinG-APK -D apk/
+sha256sum -c apk/SHA256SUMS        # bzw. im Artefakt: cd apk && sha256sum -c SHA256SUMS
+adb install -r apk/DinGelSchwinG-v*-debug.apk
+```
 
 **GitHub Release mit APK (bei Tags):**
 ```bash
@@ -186,6 +205,18 @@ aapt dump badging android/app/build/outputs/apk/release/app-release.apk
 - Audit trail logging
 - Risk-level indicators (CRITICAL warnings)
 
+✅ **PortView (native Capacitor-Brücke) – ohne Extra-Plugin**
+- `android/app/src/main/java/com/dingelschwinng/moeagent/PortViewPlugin.java`
+  registriert in `MainActivity.onCreate` (`registerPlugin(PortViewPlugin.class)` **vor**
+  `super.onCreate()`), Methoden `discover` (UDP-Broadcast :18791 + HTTP-Probe, optional
+  /24-Sweep) und `ping`. Läuft im eigenen Executor, blockiert keinen UI-Thread.
+- Berechtigungen: `INTERNET` (+ `ACCESS_NETWORK_STATE` für die Interface-Liste).
+- Klartext-HTTP zu Werk-IPs: `res/xml/network_security_config.xml` (freigeschaltet,
+  weil PortView sonst in Release-Builds scheitert). Gehärtete Variante für TLS-Rollouts:
+  `network_security_config_hardened.xml` – im Manifest eine Zeile tauschen.
+- Die App braucht keine `localhost`-URL: `src/lib/endpoint.ts` hält den gefundenen
+  Endpunkt und alle `fetch`-Aufrufe laufen über `apiUrl()`/`gatewayUrl()`.
+
 ✅ **Network & USB-C Focus**
 - `network-write` → Requires confirmation
 - `network-external` → Requires confirmation
@@ -280,4 +311,6 @@ For issues or feature requests:
 
 ---
 
-**Version:** 1.0.0 | **Last Updated:** 2026-08-08 | **Status:** ✅ Ready for Build
+**Version:** 1.0.0 (Android 11–16 / API 30–36, JDK 21, SDK 36) | **Last Updated:** 2026-09-09 | **Status:** ✅ Ready for Build
+
+Details zu den neuen App-Funktionen: [`docs/portview-import.md`](docs/portview-import.md).

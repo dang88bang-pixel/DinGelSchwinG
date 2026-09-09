@@ -1,0 +1,13 @@
+{
+  "name": "Nachtschicht – Filter (Demo)",
+  "dingelschwing_pack": 0,
+  "type": "filter",
+  "dingelschwing_category": "filters",
+  "lut": {
+    "size": 16,
+    "format": "cube",
+    "gamma": 0.95,
+    "lift": [0.02, 0.03, 0.05],
+    "gain": [1.04, 1.0, 0.96]
+  }
+}

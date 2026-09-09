@@ -8,7 +8,15 @@ import ReplayEditor from './ReplayEditor';
 import RosettaPanel from './RosettaPanel';
 import NetworkSettings from './NetworkSettings';
 import AgentConsole from './AgentConsole';
+import AgentGalleryPanel from './AgentGalleryPanel';
+import KnowledgeBasePanel from './KnowledgeBasePanel';
+import LiveDashboardPanel from './LiveDashboardPanel';
+import McpServerPanel from './McpServerPanel';
+import PortViewPanel from './PortViewPanel';
+import AssetGrabberPanel from './AssetGrabberPanel';
+import LiveStatusStrip from './LiveStatusStrip';
 import { useSensors } from '../hooks/useSensors';
+import { useTranslation } from 'react-i18next';
 import { loadBLEWasm, BLEWasmExports } from '../lib/bleWasm';
 
 export interface SceneDevice {
@@ -22,6 +30,7 @@ export interface SceneDevice {
 }
 
 export default function NetworkDashboard() {
+  const { t } = useTranslation();
   const sensors = useSensors();
   const [mode, setMode] = useState<'ble' | 'wifi' | 'usb'>('ble');
   const [wasmModule, setWasmModule] = useState<BLEWasmExports | null>(null);
@@ -37,6 +46,7 @@ export default function NetworkDashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'grabber' | null>(null);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -75,6 +85,7 @@ export default function NetworkDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#050a18] to-[#0b1220] text-slate-100 font-sans selection:bg-cyan-400/30 overflow-hidden">
+      <LiveStatusStrip />
       {/* Header */}
       <header className="sticky top-0 z-50 bg-[#050a18]/80 backdrop-blur-2xl border-b border-white/10 px-5 md:px-8 py-4 flex items-center justify-between shadow-2xl shadow-blue-950/30">
         <div className="flex items-center gap-4">
@@ -97,6 +108,23 @@ export default function NetworkDashboard() {
           >
             🤖 Agent
           </button>
+          {([
+            ['gallery', '🖼️', t('app.gallery'), t('panels.gallery.subtitle')],
+            ['dashboard', '📊', t('app.dashboard'), t('panels.dashboard.subtitle')],
+            ['knowledge', '📚', t('app.knowledge'), t('panels.knowledge.subtitle')],
+            ['mcp', '🔌', t('app.mcp'), t('panels.mcp.subtitle')],
+            ['portview', '🧭', t('app.portview', 'PortView'), t('panels.portview.subtitle', 'Server-Port automatisch finden (nativ)')],
+            ['grabber', '📥', t('app.grabber', 'Grabber'), t('panels.grabber.subtitle', 'URLs importieren: Beats, Samples, Styles, Effekte, Filter')],
+          ] as const).map(([id, icon, label, title]) => (
+            <button
+              key={id}
+              onClick={() => setPanel(panel === id ? null : id)}
+              title={title}
+              className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-extrabold transition ring-1 ${panel === id ? 'bg-white text-slate-900 ring-white/60' : 'bg-white/5 text-slate-300 hover:bg-white/10 ring-white/10'}`}
+            >
+              {icon} {label}
+            </button>
+          ))}
           {(['ble','wifi','usb'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold shadow-xl shadow-inner transition ring-1 ring-white/10 ${mode===m ? 'bg-gradient-to-br from-cyan-600 to-blue-700 text-white ring-cyan-300/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
               {m==='ble' && <Bluetooth className="w-3.5 h-3.5" />}{m==='wifi' && <Wifi className="w-3.5 h-3.5" />}{m==='usb' && <Radio className="w-3.5 h-3.5" />}{m.toUpperCase()}
@@ -269,7 +297,34 @@ export default function NetworkDashboard() {
         DinGelSchwinG • NEXUS-BUILDER • WASM BLE Modul • 3D-Sensor-Fusion • Client-Kopplung via QR / BLE / NFC / WiFi
       </footer>
 
+      {/* Mobile Zugriff auf die neuen Panels (Desktop: Buttons im Header) */}
+      <div className="md:hidden fixed bottom-16 left-3 z-50 flex flex-col gap-2">
+        {([
+          ['gallery', '🖼️', 'Agenten-Gallerie'],
+          ['dashboard', '📊', 'Live-Dashboard'],
+          ['knowledge', '📚', 'Wissensbasis'],
+          ['mcp', '🔌', 'MCP & Plugins'],
+          ['portview', '🧭', 'PortView (automatischer Port)'],
+          ['grabber', '📥', 'Grabber (URL-Import)'],
+        ] as const).map(([id, icon, title]) => (
+          <button
+            key={id}
+            onClick={() => setPanel(panel === id ? null : id)}
+            title={title}
+            className="w-11 h-11 rounded-full bg-slate-800/90 text-base shadow-xl ring-1 ring-white/15 active:scale-95 transition"
+          >
+            {icon}
+          </button>
+        ))}
+      </div>
+
       {agentOpen && <AgentConsole role="admin" onClose={() => setAgentOpen(false)} />}
+      {panel === 'gallery' && <AgentGalleryPanel onClose={() => setPanel(null)} />}
+      {panel === 'dashboard' && <LiveDashboardPanel onClose={() => setPanel(null)} />}
+      {panel === 'knowledge' && <KnowledgeBasePanel onClose={() => setPanel(null)} />}
+      {panel === 'mcp' && <McpServerPanel onClose={() => setPanel(null)} />}
+      {panel === 'portview' && <PortViewPanel onClose={() => setPanel(null)} />}
+      {panel === 'grabber' && <AssetGrabberPanel onClose={() => setPanel(null)} />}
     </div>
   );
 }

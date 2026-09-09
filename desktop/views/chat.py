@@ -6,7 +6,11 @@ from tkinter import filedialog
 
 import customtkinter as ctk
 
-from ..utils.agent import Agent
+
+try:                       # Paket-Aufruf:  python3 -m desktop.main (vom Repo-Root)
+    from ..utils.agent import Agent
+except ImportError:            # dokumentierter Aufruf:  cd desktop && python main.py
+    from utils.agent import Agent
 
 BUBBLE_COLORS = {
     "user": ("#1e3a8a", "#dbeafe"),    # (bg, fg)
@@ -44,18 +48,57 @@ class ChatView(ctk.CTkFrame):
         self.chat_display.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
         self.chat_display.grid_columnconfigure(0, weight=1)
 
+    # Schnellzugriff auf die portierten LobeChat-Fähigkeiten (spiegelt die
+    # Kopfzeilen-Buttons der Web-App; jeder Button schickt einen Chat-Befehl).
+    QUICK_COMMANDS: tuple[tuple[str, str], ...] = (
+        ("🖼️ Agenten", "gallerie"),
+        ("🔌 MCP", "mcp status"),
+        ("📡 Gateway", "gateway status"),
+        ("📊 Dashboard", "dashboard"),
+        ("📚 Wissen", "suche im wissen: challenge ttl"),
+        ("🔐 Token", "token CT45P-0001 uid 04:A2:B3:C1:D2:E3 authentisieren"),
+    )
+
     def _build_action_buttons(self) -> None:
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+        bar.grid_columnconfigure(0, weight=1)
+
+        # Zeile 0: Schnellzugriff (Galerie · MCP · Gateway · Dashboard · Wissen · Token)
+        quick = ctk.CTkFrame(bar, fg_color="#0f172a", corner_radius=10)
+        quick.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        for col, (label, command) in enumerate(self.QUICK_COMMANDS):
+            btn = ctk.CTkButton(
+                quick, text=label, height=28, width=110, corner_radius=8,
+                fg_color="#111c33", hover_color="#1e293b", border_width=1, border_color="#1f2b45",
+                font=ctk.CTkFont(size=12), text_color="#cbd5f5",
+                command=lambda cmd=command: self._send_text(cmd),
+            )
+            btn.grid(row=0, column=col, padx=(8, 0) if col == 0 else 4, pady=6)
+        for col in range(len(self.QUICK_COMMANDS)):
+            quick.grid_columnconfigure(col, weight=1)
+
+        # Zeile 1: die 6 belegbaren Aktionsbuttons (wie bisher)
+        actions = ctk.CTkFrame(bar, fg_color="transparent")
+        actions.grid(row=1, column=0, sticky="ew")
         self.action_buttons: list[ctk.CTkButton] = []
         for i in range(6):
-            btn = ctk.CTkButton(bar, text=self.agent.get_button(i)["label"], width=64, height=44,
+            btn = ctk.CTkButton(actions, text=self.agent.get_button(i)["label"], width=64, height=44,
                                 corner_radius=12, font=ctk.CTkFont(size=18),
                                 command=lambda idx=i: self._on_action(idx))
             btn.grid(row=0, column=i, padx=5, pady=2)
             self.action_buttons.append(btn)
         for col in range(6):
-            bar.grid_columnconfigure(col, weight=1)
+            actions.grid_columnconfigure(col, weight=1)
+
+    def _send_text(self, text: str) -> None:
+        """Button-Kurzbefehl in den Chat schicken (wie manuell getippt)."""
+        try:
+            self.input_entry.delete(0, "end")
+            self.input_entry.insert(0, text)
+        except Exception:
+            pass
+        self._send()
 
     def _build_input(self) -> None:
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -113,7 +156,6 @@ class ChatView(ctk.CTkFrame):
         self._scroll_to_bottom()
 
     def _make_text_widget(self, master, text: str) -> tk.Text:
-        fg = BUBBLE_COLORS.get("system", {})  # placeholder
         # Farbe je Sender wird vom Bubble-Frame geerbt – wir wählen kontrastreich:
         bg = master.cget("fg_color")
         fg_color = "#e2e8f0"

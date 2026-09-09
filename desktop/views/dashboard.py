@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import customtkinter as ctk
 
-from ..utils.status_manager import StatusManager
 
+try:                       # Paket-Aufruf:  python3 -m desktop.main (vom Repo-Root)
+    from ..utils.status_manager import StatusManager
+except ImportError:            # dokumentierter Aufruf:  cd desktop && python main.py
+    from utils.status_manager import StatusManager
 
 class DashboardView(ctk.CTkFrame):
     """Startansicht mit Kennzahlen-Karten (live aus dem StatusManager)."""

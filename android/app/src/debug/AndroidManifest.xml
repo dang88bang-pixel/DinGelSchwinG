@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gilt nur fuer Debug-Builds (assembleDebug): HTTP zu lokalen Adressen erlauben,
+     z. B. fuer "npx cap run android" mit LiveReload und den Mobile-Server Gateway
+     im lokalen Netz ohne TLS. Release APKs bleiben bei HTTPS only (siehe README). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

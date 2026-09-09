@@ -1,0 +1,13 @@
+{
+  "name": "Halle B – Blech-Reverb (Demo)",
+  "type": "jsfx",
+  "dingelschwing_category": "effects",
+  "parameters": {
+    "room_size": 0.72,
+    "damping": 0.41,
+    "width": 0.88,
+    "dry_wet": 0.34,
+    "pre_delay_ms": 18
+  },
+  "notes": "Modelliert den Hall eines Containerhofs; Parametersätze sind bewusst linear."
+}

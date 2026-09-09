@@ -8,11 +8,16 @@ name: dingelschwing-monitoring
 services:
   prometheus:
     image: prom/prometheus:v2.53.0
+    # host.docker.internal für die Jobs mcp-bridge (:8790) und mobile-gateway (:8791),
+    # die auf dem Host laufen, nicht im Container.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=30d
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro   # rule_files verweist darauf
       - prom_data:/prometheus
     ports:
       - "9090:9090"
@@ -35,6 +40,9 @@ services:
       - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro   # JSON-Logs der App-Container
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Audit-JSONL des mobilen BLE-Gateways (Pfad via DGS_GATEWAY_DATA überschreibbar,
+      # z. B. wenn das Gateway auf einem separaten Rechner läuft und dorthin synced wird)
+      - ${DGS_GATEWAY_DATA:-../../mobile-server/data}:/host/gateway-data:ro
     depends_on:
       - loki
     restart: unless-stopped

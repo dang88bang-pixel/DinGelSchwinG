@@ -2,7 +2,6 @@
   "appId": "com.dingelschwinng.moeagent",
   "appName": "MoE Agent Chat",
   "webDir": "dist",
-  "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
   },
@@ -16,5 +15,9 @@
       "backgroundColor": "#1e40af",
       "overlaysWebView": true
     }
+  },
+  "android": {
+    "path": "android",
+    "webContentsDebuggingEnabled": false
   }
 }

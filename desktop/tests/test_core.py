@@ -243,6 +243,120 @@ class TestAgentModes(unittest.TestCase):
         self.assertIn("Test-Agent", agent.system_instruction)
 
 
+class TestPortViewAndGrabber(unittest.TestCase):
+    """PortView (automatische Port-Findung) und Grabber-Helfer der Desktop-Konsole."""
+
+    def setUp(self) -> None:
+        from utils import clients
+
+        self.clients = clients
+        self._saved_base = list(clients._bridge_base)
+        self._saved_note = clients._discovery_note
+        self._saved_enabled = clients.PORTVIEW_ENABLED
+
+    def tearDown(self) -> None:
+        self.clients._bridge_base[:] = self._saved_base
+        self.clients._discovery_note = self._saved_note
+        self.clients.PORTVIEW_ENABLED = self._saved_enabled
+
+    def test_endpoint_from_announce_variants(self) -> None:
+        c = self.clients
+        gw, bridge = c.endpoint_from_announce({"ports": {"http": 8791, "bridge": 8790}, "_from": "10.8.0.5"})
+        self.assertEqual((gw, bridge), ("http://10.8.0.5:8791", "http://10.8.0.5:8790"))
+        # ohne ports, aber mit http_base ⇒ Host daraus ableiten, Default-Port nutzen
+        gw, bridge = c.endpoint_from_announce({"http_base": "http://192.168.4.9:28791"})
+        self.assertEqual(gw, "http://192.168.4.9:8791")
+        self.assertEqual(bridge, "")
+        self.assertEqual(c.endpoint_from_announce({}), ("", ""))
+
+    def test_discover_gateway_prefers_udp(self) -> None:
+        c = self.clients
+        c.PORTVIEW_ENABLED = True
+        announce = {"ports": {"http": 8791, "bridge": 8790}, "_from": "10.0.0.42", "product": "DinGelSchwinG"}
+        c._udp_announce = lambda timeout=0.4: [announce]  # type: ignore[assignment]
+        c._probe_http = lambda base, path="/status", timeout=0.35: {"ok": True, "product": "DinGelSchwinG"}  # type: ignore[assignment]
+        found = c.discover_gateway()
+        self.assertTrue(found["ok"], found)
+        self.assertEqual(found["gateway_base"], "http://10.0.0.42:8791")
+        self.assertEqual(found["bridge_base"], "http://10.0.0.42:8790")
+        self.assertEqual(found["via"], "10.0.0.42")
+
+    def test_discover_gateway_http_fallback_and_off_switch(self) -> None:
+        c = self.clients
+        c.PORTVIEW_ENABLED = True
+        c._udp_announce = lambda timeout=0.4: []  # type: ignore[assignment]
+        c._probe_http = lambda base, path="/status", timeout=0.35: (  # type: ignore[assignment]
+            {"ok": True, "product": "DinGelSchwinG"} if base.endswith(":8791") else None
+        )
+        found = c.discover_gateway()
+        self.assertTrue(found["ok"], found)
+        self.assertEqual(found["note"], "probe")
+        c.PORTVIEW_ENABLED = False
+        self.assertEqual(c.discover_gateway()["error"], "portview_deaktiviert")
+
+    def test_gateway_request_retries_on_discovered_base(self) -> None:
+        c = self.clients
+        c.PORTVIEW_ENABLED = True
+        calls: list[str] = []
+        c._bridge_base.clear()
+        c._bridge_base.append("http://127.0.0.1:1")  # bewusste tote Adresse
+
+        def fake_request(url, payload=None, timeout=6.0):  # noqa: ANN001, ANN003
+            calls.append(url)
+            if url.startswith("http://127.0.0.1:1"):
+                return {"ok": False, "error": "nicht_erreichbar", "url": url}
+            return {"ok": True, "product": "DinGelSchwinG", "url": url}
+
+        c._request = fake_request  # type: ignore[assignment]
+        c.discover_gateway = lambda timeout=0.6: {"ok": True, "gateway_base": "http://10.0.0.9:8791", "bridge_base": ""}  # type: ignore[assignment]
+        status = c.gateway_status()
+        self.assertTrue(status["ok"], status)
+        self.assertEqual(len(calls), 2, calls)
+        self.assertTrue(calls[1].startswith("http://10.0.0.9:8791/status"), calls)
+        # gemerkte Basis wird für Folgeaufrufe verwendet (keine Dauersuche)
+        status2 = c.gateway_status()
+        self.assertTrue(status2["ok"])
+        self.assertEqual(len(calls), 3, calls)
+
+    def test_explicit_base_skips_discovery(self) -> None:
+        c = self.clients
+        seen: list[str] = []
+
+        def fake_request(url, payload=None, timeout=6.0):  # noqa: ANN001, ANN003
+            seen.append(url)
+            return {"ok": True}
+
+        c._request = fake_request  # type: ignore[assignment]
+        c.discover_gateway = lambda timeout=0.6: (_ for _ in ()).throw(AssertionError("darf nicht suchen"))  # type: ignore[assignment]
+        c.gateway_tokens(base="http://127.0.0.1:8791")
+        c.gateway_command("ble_scan", base="http://127.0.0.1:8791")
+        self.assertEqual(seen[0], "http://127.0.0.1:8791/tokens")
+        self.assertEqual(seen[1], "http://127.0.0.1:8791/command")
+
+    def test_grabber_helpers_and_formatting(self) -> None:
+        c = self.clients
+        payload: dict = {}
+
+        def fake_request(url, data=None, timeout=6.0):  # noqa: ANN001, ANN003
+            payload["url"] = url
+            payload["data"] = data
+            return {"ok": True, "imported": [{"id": "abc12345def", "category": "beats", "bytes": 176, "name": "loop_4bar.wav"}]}
+
+        c._request = fake_request  # type: ignore[assignment]
+        result = c.import_url("http://files.internal/p/loop_4bar.wav", tags=["werk", "hall"], base="http://127.0.0.1:8791")
+        self.assertTrue(result["ok"])
+        self.assertEqual(payload["url"], "http://127.0.0.1:8791/import")
+        self.assertEqual(payload["data"]["tags"], ["werk", "hall"])
+        c.list_imports(category="styles", limit=5, base="http://127.0.0.1:8791")
+        self.assertIn("/imports?limit=5&category=styles", payload["url"])
+        text = c.describe_imports(result)
+        self.assertIn("importiert: 1", text)
+        self.assertIn("loop_4bar.wav", text)
+        self.assertIn("beats", text)
+        self.assertIn("❌", c.describe_imports({"ok": False, "error": "zu_gross", "hint": "Gateway-Limit"}))
+        self.assertIn("/import/file/a%20b", c.import_asset_path("a b", base="http://h:1"))
+
+
 class TestConfig(unittest.TestCase):
     def test_defaults_and_save(self) -> None:
         cfg = load_config()

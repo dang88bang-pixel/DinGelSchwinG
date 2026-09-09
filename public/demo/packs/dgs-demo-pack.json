@@ -1,0 +1,43 @@
+{
+  "dingelschwing_pack": 1,
+  "name": "DinGelSchwinG Demo-Pack",
+  "version": "1",
+  "category": "styles",
+  "author": "Repo-Demo",
+  "license": "CC0-1.0",
+  "_comment": "Manifest-Format des Software-Grabbers: eine URL, mehrere Assets. Relative Item-URLs werden gegen die Manifest-URL aufgelöst.",
+  "items": [
+    {
+      "url": "werkhof-dark.css",
+      "title": "Werkhof Dunkel (UI-Style)",
+      "tags": [
+        "css",
+        "theme",
+        "demo"
+      ],
+      "mime": "text/css",
+      "category": "styles"
+    },
+    {
+      "url": "hall-reverb.jsfx",
+      "title": "Halle B – Blech-Reverb",
+      "tags": [
+        "reverb",
+        "jsfx",
+        "demo"
+      ],
+      "mime": "application/json",
+      "category": "effects"
+    },
+    {
+      "url": "cinem-lut-filter.json",
+      "title": "Nachtschicht – LUT-Filter",
+      "tags": [
+        "lut",
+        "demo"
+      ],
+      "mime": "application/json",
+      "category": "filters"
+    }
+  ]
+}

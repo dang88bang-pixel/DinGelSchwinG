@@ -6,17 +6,15 @@ from typing import Callable
 
 import customtkinter as ctk
 
-from ..utils.agent import Agent
-from ..utils.config import save_config
+try:                       # Paket-Aufruf:  python3 -m desktop.main (vom Repo-Root)
+    from ..utils.agent import MODE_LABELS, Agent
+except ImportError:            # dokumentierter Aufruf:  cd desktop && python main.py
+    from utils.agent import MODE_LABELS, Agent
 
-ENGINES = ["auto", "none", "llamacpp", "ollama", "openai"]
-ENGINE_LABELS = {
-    "auto": "Auto (erkennen)",
-    "none": "Deterministisch (kein LLM)",
-    "llamacpp": "Lokal (llama.cpp / GGUF)",
-    "ollama": "Ollama (localhost:11434)",
-    "openai": "OpenAI-kompatible API",
-}
+try:                       # Paket-Aufruf:  python3 -m desktop.main (vom Repo-Root)
+    from ..utils.config import save_config
+except ImportError:            # dokumentierter Aufruf:  cd desktop && python main.py
+    from utils.config import save_config
 
 
 class SettingsView(ctk.CTkFrame):
@@ -52,7 +50,6 @@ class SettingsView(ctk.CTkFrame):
         mode_row.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(mode_row, text="Modus:", font=ctk.CTkFont(size=13, weight="bold")).pack(side="left", padx=4)
 
-        from ..utils.agent import MODE_LABELS
         self.mode_menu = ctk.CTkOptionMenu(
             mode_row, values=list(MODE_LABELS.values()),
             command=lambda _v: self._on_mode_change())
@@ -219,3 +216,16 @@ class SettingsView(ctk.CTkFrame):
         label = ctk.CTkLabel(self, text=text, text_color="#4ade80", font=ctk.CTkFont(size=12))
         label.grid(row=2, column=0, sticky="e", padx=12)
         self.after(2500, label.destroy)
+
+
+
+ENGINES = ["auto", "none", "llamacpp", "ollama", "openai"]
+ENGINE_LABELS = {
+    "auto": "Auto (erkennen)",
+    "none": "Deterministisch (kein LLM)",
+    "llamacpp": "Lokal (llama.cpp / GGUF)",
+    "ollama": "Ollama (localhost:11434)",
+    "openai": "OpenAI-kompatible API",
+}
+
+

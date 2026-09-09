@@ -1,0 +1,34 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/mcp-settings.json",
+  "_comment": "MCP-Konfiguration für DinGelSchwinG. `mobile-dev` ist das GitHub-Projekt cristianoaredes/mcp-mobile-server (npm: @cristianoaredes/mcp-mobile-server), installiert als reguläre npm-Abhängigkeit dieses Projekts. Alle MCP-Clients (Claude Desktop, Cursor, VS Code, LobeChat-Import) nutzen denselben Eintrag.",
+  "mcpServers": {
+    "mobile-dev": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["node_modules/@cristianoaredes/mcp-mobile-server/dist/server.js"],
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "_meta": {
+        "source": "https://github.com/cristianoaredes/mcp-mobile-server",
+        "package": "@cristianoaredes/mcp-mobile-server",
+        "version": "2.3.0",
+        "transport": "stdio (JSON-RPC 2.0)",
+        "tools": 31,
+        "license": "MIT",
+        "install": "npm install @cristianoaredes/mcp-mobile-server",
+        "requires": "Android SDK / adb, Flutter SDK oder Xcode für die meisten Tools – ohne diese läuft nur health_check sinnvoll"
+      }
+    },
+    "dingelschwing-mobile-server": {
+      "type": "http",
+      "url": "http://127.0.0.1:8790/mcp/http",
+      "_meta": {
+        "source": "lokaler Bridge-Server (mcp/bridge.mjs)",
+        "description": "Bringt `mobile-dev` (stdio) + das mobile BLE-Gateway (Honeywell CT45P Xon+) als HTTP/SSE-MCP-Endpunkt in die Web-App, die Desktop-Konsole und LobeChat-Import.",
+        "start": "npm run mcp:bridge"
+      }
+    }
+  }
+}

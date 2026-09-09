@@ -1,8 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+      DinGelSchwinG – MoE Agent Chat (Capacitor-Shell um die PWA)
+      Unterstützte Android-Versionen: Android 11 (API 30) bis Android 16 (API 36).
+      minSdk/compileSdk/targetSdk stehen in android/variables.gradle.
+    -->
+
+    <!-- ── Netzwerk: Haupt-Agent, MCP-Bridge, Mobile-BLE-Gateway (TCP/HTTP) ── -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- ── NFC: Badge/Token auf dem Honeywell CT45P (WebNFC + nativer Pfad) ── -->
+    <uses-permission android:name="android.permission.NFC" />
+
+    <!-- ── Bluetooth Low Energy: Challenge/Response mit dem mobilen BLE-Server ──
+         Android 11 (API 30) und darunter nutzen das alte Modell inkl. Standort,
+         ab Android 12 (API 31) gibt es getrennte, standortfreie BLE-Permissions. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <!-- ACCESS_FINE_LOCATION wird auf Android 11 nur fuer den BLE-Scan benoetigt
+         (alte Android-Versionen erzwingen Standort fuer Bluetooth-Scans);
+         fuer NFC ist die Permission nicht noetig. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- ── Kamera: QR-Code für Pairing / Gateway-Adresse ── -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Hardware ist optional – die App läuft auch auf Geräten ohne BLE/NFC/Kamera -->
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.nfc"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+
+    <!-- allowBackup=false: Token-/Session-Speicher der PWA (IndexedDB/Cache) darf
+         nicht in die Cloud-Backup-Kette von Android gelangen. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -10,7 +65,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
@@ -20,6 +75,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- NFC-Tag im Frontend-Dispatch: Tag anlegen -> App öffnet direkt -->
+            <intent-filter>
+                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="https" android:host="dingelschwing.local" />
             </intent-filter>
 
         </activity>
@@ -34,8 +96,4 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
     </application>
-
-    <!-- Permissions -->
-
-    <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

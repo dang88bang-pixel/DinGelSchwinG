@@ -1,0 +1,39 @@
+{
+  "_comment": "VORLAGE – kopieren nach mobile-server/keys.json (Agent-Seite) bzw. zum Gateway (nur shared_secret). Nie committen: .gitignore enthält keys.json und *.key*. chmod 600.",
+  "format": "dgs-keys-v1",
+  "created_at": "2026-09-09T00:00:00+0200",
+  "shared_secret": "SETZE-64-HEX-ZEICHEN-HIER-32-BYTE-PSK-HAUPT-AGENT-UND-GATEWAY",
+  "_shared_secret_hint": "erzeugen: python3 mobile-server/honeywell_keys.py create --keys keys.json  ·  das Gateway liest sie aus mobile-server/data/keys.json (oder DGS_AGENT_SHARED_SECRET / --agent-secret) und prüft damit den Feld 'agent_proof'",
+  "tokens": [
+    {
+      "token_id": "CT45P-0001",
+      "label": "Werkstor Nord (LKW-Rampe)",
+      "root_key": "SETZE-32-HEX-ZEICHEN-HIER-16-BYTE-AES128",
+      "uid": "04:A2:B3:C1:D2:E3",
+      "whitelist_entry": {
+        "zone": "tor-nord",
+        "roles": ["operator"],
+        "max_tamper_count": 3
+      },
+      "_note": "root_key verbleibt NUR hier (bzw. im Vault). In mobile-server/data/whitelist.json steht ausschließlich der daraus abgeleitete key_fingerprint."
+    },
+    {
+      "token_id": "CT45P-0002",
+      "label": "Containerhof B",
+      "root_key": "SETZE-ANDERES-16-BYTE-AES128-KEY",
+      "uid": "04:F1:9C:22:10:7B",
+      "whitelist_entry": {
+        "zone": "hof-b",
+        "roles": ["operator", "service"],
+        "max_tamper_count": 3
+      }
+    }
+  ],
+  "gw_config": {
+    "_comment": "Nur informativ – diese Werte liest das Gateway über ENV/CLI, nicht aus dieser Datei.",
+    "challenge_ttl_s": 20,
+    "max_attempts": 3,
+    "lockout_seconds": 120,
+    "require_agent_proof": "auto"
+  }
+}

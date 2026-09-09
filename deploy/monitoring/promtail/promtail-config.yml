@@ -29,3 +29,29 @@ scrape_configs:
       - labels:
           trace_id:
           level:
+
+  # Mobiles BLE-Gateway: Audit-JSONL (action + token_id/zone/battery, ablehnungsgründe).
+  # Ermöglicht in Grafana/Explore z. B. {job="gateway-audit", action="denied"}.
+  - job_name: gateway-audit
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: gateway-audit
+          host: mobile-ble-gateway
+          __path__: /host/gateway-data/gateway_audit.jsonl
+    pipeline_stages:
+      - json:
+          expressions:
+            action: action
+            sid: detail.sid
+            token_id: detail.token_id
+            zone: detail.zone
+            battery_mv: detail.battery_mv
+            reason: detail.reason
+      - labels:
+          action:
+          zone:
+      - timestamp:
+          source: ts
+          format: unix
