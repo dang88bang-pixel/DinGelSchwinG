@@ -253,7 +253,7 @@ class DeviceControlPlugin : Plugin() {
     @PluginMethod
     fun wizardUnlock(call: PluginCall) {
         val serial = call.getString("serial")
-        val confirmed = call.getBoolean("confirmed", false)
+        val confirmed = call.getBoolean("confirmed", false) ?: false
         background(call) {
             val result = FlashSetupWizard(context, serial).unlock(confirmed)
             JSObject()

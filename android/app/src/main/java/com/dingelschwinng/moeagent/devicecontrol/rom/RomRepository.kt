@@ -40,7 +40,7 @@ class RomRepository(private val context: Context) {
     }
 
     /** Anzahl aller Modelle ueber alle Marken. */
-    fun totalModelCount(): Int = brands().sum { models(it).size }
+    fun totalModelCount(): Int = brands().sumOf { models(it).size }
 
     fun hasFastbootSupport(brand: String): Boolean =
         supportedDevicesJson.optJSONObject("fastboot_support")?.optBoolean(brand, false) ?: false
