@@ -9,7 +9,9 @@
     "knowledge": "Knowledge",
     "mcp": "MCP",
     "portview": "Port view",
-    "grabber": "Grabber"
+    "grabber": "Grabber",
+    "devices": "Devices",
+    "flash": "Flash"
   },
   "common": {
     "save": "Save",
@@ -149,6 +151,35 @@
       "nothingStored": "nothing filed",
       "noTextShort": "no text",
       "pageDemoHint": "Demo page: /demo/seite/index.html"
+    },
+    "deviceportview": {
+      "title": "Device port view · Live",
+      "subtitle": "USB + ADB automatic · vendor, VID/PID, status",
+      "webNote": "Browser preview: no real devices are scanned (no USB access). The catalog, vendor database and integrations below come from the real app databases. Open the installed app for live devices.",
+      "live": "Live devices (automatic)",
+      "empty": "No device detected. Enable USB debugging and connect via USB-C/OTG (or use “adb connect” for Wi-Fi).",
+      "emptyWeb": "No live devices in browser mode.",
+      "tools": "External tools",
+      "binaries": "Engine status",
+      "enginehint": "ARM64 binaries are extracted from the app assets on first launch (chmod 755) and run through a whitelisted wrapper with timeouts.",
+      "integrations": "Integrations · vendors · libraries · databases"
+    },
+    "flashcenter": {
+      "title": "Flash Center · Custom OS",
+      "subtitle": "Device-specific flashing · brick protection · setup · configuration",
+      "legalTitle": "Your own devices only.",
+      "legal": "Bootloader unlock & custom ROM flashing can void the warranty and erase ALL data. IMEI repair and FRP bypass are intentionally NOT included (illegal in EU/DE, or circumvents theft protection).",
+      "webNote": "Browser preview: the catalog (ROMs, device profiles, wizard) comes from the real app databases. Flash, unlock and check actions run only in the installed app with a connected device.",
+      "select": "1 · Choose device & custom OS",
+      "brick": "2 · Brick protection (anti-rollback / eFuse)",
+      "brickHint": "Reads ARB version, firmware, bootloader and security patch. Downgrading below the current ARB version can permanently brick the device – the pre-flash check blocks it.",
+      "preflash": "3 · Pre-flash check (brick protection)",
+      "preflashHint": "Checks: device reachable · bootloader unlocked · ROM present & SHA-256 valid · ROM approved for device · ARB downgrade · battery ≥ 60%. Flash is blocked on errors.",
+      "wizard": "4 · Setup wizard",
+      "confirmWipe": "I confirm: this is my own device, a backup exists, and I accept data loss & possible warranty loss.",
+      "run": "Run",
+      "backup": "Backup checklist (mandatory)",
+      "log": "Log"
     }
   },
   "gateway": {
