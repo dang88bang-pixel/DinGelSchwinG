@@ -1,0 +1,163 @@
+{
+  "_comment": "Custom-ROM-Datenbank + Geraeteprofile. Ein Profil ist erst dann flash-bar hinterlegt, wenn Codename, flash_method, Partitionen und Unlock-Pflicht gepflegt sind. arb_warning: Hersteller-Hinweis zur Anti-Rollback-Protection.",
+  "roms": [
+    {
+      "id": "lineageos",
+      "name": "LineageOS",
+      "description": "Schlankes, stabiles AOSP-Derivat mit der breitesten Geraeteunterstuetzung",
+      "website": "https://lineageos.org",
+      "supported_devices": ["google_oriole", "google_panther", "oneplus_hotdog", "oneplus_kebab", "xiaomi_cupid", "samsung_beyond1lte"]
+    },
+    {
+      "id": "pixel_experience",
+      "name": "Pixel Experience",
+      "description": "Reines Pixel-Feeling inkl. Google-Apps",
+      "website": "https://pixelexperience.org",
+      "supported_devices": ["google_panther", "oneplus_kebab", "xiaomi_cupid", "oneplus_fajita"]
+    },
+    {
+      "id": "crdroid",
+      "name": "crDroid",
+      "description": "Feature-reich, performance-orientiert, LineageOS-Basis",
+      "website": "https://crdroid.net",
+      "supported_devices": ["oneplus_hotdog", "oneplus_kebab", "xiaomi_cupid", "google_oriole"]
+    },
+    {
+      "id": "evolutionx",
+      "name": "Evolution X",
+      "description": "Pixel-Design mit vielen Zusatzfunktionen",
+      "website": "https://evolution-x.org",
+      "supported_devices": ["xiaomi_cupid", "oneplus_kebab", "google_panther"]
+    },
+    {
+      "id": "grapheneos",
+      "name": "GrapheneOS",
+      "description": "Maximaler Privatsphaere-/Sicherheitsfokus – NUR Pixel-Geraete",
+      "website": "https://grapheneos.org",
+      "supported_devices": ["google_oriole", "google_panther", "google_raven"]
+    },
+    {
+      "id": "calyxos",
+      "name": "CalyxOS",
+      "description": "Privacy-orientiert, mit microG-Option – ueberwiegend Pixel",
+      "website": "https://calyxos.org",
+      "supported_devices": ["google_oriole", "google_panther"]
+    },
+    {
+      "id": "pixelos",
+      "name": "PixelOS",
+      "description": "Leichtes Pixel-Derivat",
+      "website": "https://pixelos.net",
+      "supported_devices": ["oneplus_kebab", "xiaomi_cupid"]
+    },
+    {
+      "id": "lineageos_gsi",
+      "name": "LineageOS GSI",
+      "description": "Generic System Image (Treble) – fuer Geraete ohne dedizierten Build",
+      "website": "https://lineageos.org",
+      "supported_devices": ["gsi_any_treble"]
+    }
+  ],
+  "devices": {
+    "xiaomi_cupid": {
+      "model": "Xiaomi 12",
+      "codename": "cupid",
+      "brand": "Xiaomi",
+      "supported_roms": ["lineageos", "pixel_experience", "evolutionx", "crdroid", "pixelos"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "vendor_boot", "system", "vendor", "product"],
+      "unlock_required": true,
+      "arb_warning": "Xiaomi nutzt Anti-Rollback auf neueren Firmwares – ARB-Version des ROMs MUSS >= der des Geraets sein."
+    },
+    "xiaomi_houji": {
+      "model": "Xiaomi 14",
+      "codename": "houji",
+      "brand": "Xiaomi",
+      "supported_roms": ["lineageos", "crdroid"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "vendor_boot", "system", "vendor", "product"],
+      "unlock_required": true,
+      "arb_warning": "HyperOS 2: Unlock ueber Xiaomi-Portal noetig; ARB aktiv."
+    },
+    "google_oriole": {
+      "model": "Pixel 6",
+      "codename": "oriole",
+      "brand": "Google",
+      "supported_roms": ["lineageos", "grapheneos", "calyxos", "crdroid"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "dtbo", "vendor_boot", "system", "vendor"],
+      "unlock_required": true,
+      "arb_warning": "Pixel-ARB: Downgrade unter die letzte Factory-Version kann boot-unfaehig machen."
+    },
+    "google_raven": {
+      "model": "Pixel 6 Pro",
+      "codename": "raven",
+      "brand": "Google",
+      "supported_roms": ["grapheneos", "calyxos", "lineageos"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "dtbo", "vendor_boot", "system", "vendor"],
+      "unlock_required": true,
+      "arb_warning": ""
+    },
+    "google_panther": {
+      "model": "Pixel 7",
+      "codename": "panther",
+      "brand": "Google",
+      "supported_roms": ["lineageos", "grapheneos", "calyxos", "pixel_experience", "evolutionx"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "dtbo", "vendor_boot", "system", "vendor"],
+      "unlock_required": true,
+      "arb_warning": ""
+    },
+    "oneplus_hotdog": {
+      "model": "OnePlus 7 Pro",
+      "codename": "hotdog",
+      "brand": "OnePlus",
+      "supported_roms": ["lineageos", "crdroid"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "system", "vendor", "dtbo"],
+      "unlock_required": true,
+      "arb_warning": ""
+    },
+    "oneplus_kebab": {
+      "model": "OnePlus 8T",
+      "codename": "kebab",
+      "brand": "OnePlus",
+      "supported_roms": ["lineageos", "pixel_experience", "evolutionx", "crdroid", "pixelos"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "dtbo", "system", "vendor"],
+      "unlock_required": true,
+      "arb_warning": ""
+    },
+    "oneplus_fajita": {
+      "model": "OnePlus 6T",
+      "codename": "fajita",
+      "brand": "OnePlus",
+      "supported_roms": ["pixel_experience", "lineageos"],
+      "flash_method": "fastboot",
+      "partitions": ["boot", "system", "vendor"],
+      "unlock_required": true,
+      "arb_warning": ""
+    },
+    "samsung_beyond1lte": {
+      "model": "Galaxy S10",
+      "codename": "beyond1lte",
+      "brand": "Samsung",
+      "supported_roms": ["lineageos"],
+      "flash_method": "recovery",
+      "partitions": ["boot", "system", "vendor"],
+      "unlock_required": true,
+      "arb_warning": "Samsung Knox: Unlock loest Knox permanent aus (Garantieverlust, Samsung Pay unbrauchbar)."
+    },
+    "gsi_any_treble": {
+      "model": "Generisches Treble-Geraet (GSI)",
+      "codename": "",
+      "brand": "",
+      "supported_roms": ["lineageos_gsi"],
+      "flash_method": "gsi",
+      "partitions": ["system"],
+      "unlock_required": true,
+      "arb_warning": "GSI nur auf Treble-faehigen Geraeten (getprop ro.treble.enabled == true)."
+    }
+  }
+}

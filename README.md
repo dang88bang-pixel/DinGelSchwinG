@@ -73,6 +73,7 @@ Umgesetzt in dieser App:
 | Offline-PWA | [`public/sw.js`](public/sw.js) – App-Shell-Caching, `/mcp/*` und `/gateway/*` bewusst **nie** gecacht | [docs/i18n.md](docs/i18n.md) (Sprachrollout) |
 | Zugriffskontrolle via BLE-Token (Honeywell CT45P Xon+) | `mobile-server/` (AES-128-Challenge/Response, Whitelist, Audit) | [`docs/mobile-ble-gateway.md`](docs/mobile-ble-gateway.md) |
 | **PortView** – Host + Port automatisch (nativ via UDP/Probe, keine Tipperei) | `android/…/PortViewPlugin.java`, `src/lib/{portview,endpoint}.ts`, `PortViewPanel` | [`docs/portview-import.md`](docs/portview-import.md) |
+| **Device-Control** – eingebettetes ADB/Fastboot (ARM64), automatische USB-Port-View mit Hersteller-DB, ADBify/Bugjaeger-Anbindung, Custom-ROM-Flashing mit Brick-Schutz (ARB, SHA-256, Backup-Pflicht) und Chat-Kommandos | `android/…/devicecontrol/` (Kotlin), `DeviceControlPlugin` | [`docs/device-control.md`](docs/device-control.md) |
 | **Software-Grabber** – URL → Beats/Samples/UI-Styles/Effekte/Filter, offline | `mobile-server/importer.py`, `src/lib/{grabber,assetStore,packs}.ts`, `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md) |
 | **Seiten-Ingest per Drag & Drop** – Inhalt prüfen, Seite + Software + Wissensbasis ablegen | `src/lib/pageIngest.ts`, `desktop/utils/page_ingest.py`, `AgentConsole` (Drop), `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md#2b-seiten-ingest-url-ins-chatfenster-ziehen--prüfen--intern-ablegen) |
 
@@ -84,10 +85,40 @@ liegt nur am Haupt-Agenten, `chmod 600`, und ist per `.gitignore` ausgeschlossen
 
 ---
 
+## 🔧 Device-Control-Subsystem (ADB/Fastboot-Steuerzentrale)
+
+Das CT45P wird zur Kommandozentrale für Android-Geräte (primär Xiaomi 15 /
+HyperOS 2, sekundär jedes Gerät mit USB-Debugging):
+
+- **Eingebettete ARM64-Binaries** für `adb` & `fastboot` – echtes adb ab Werk
+  an Bord (LADB, Apache-2.0), `fastboot` kommt im CI-Build aus dem
+  Termux-Paket; Extraktion nach `filesDir`, `chmod 755`, Verb-Whitelist,
+  harte Timeouts, ELF-Platzhalter-Erkennung (`scripts/fetch-android-tools.sh`)
+- **Automatische Port-View**: USB-Host-API + `adb devices` live vereint,
+  VID/PID → Herstellername über SQLite-Datenbank (~40 Vendor-IDs),
+  Geräte-Historie & Flash-Protokoll
+- **Externe Tools**: ADBify & Bugjaeger (Erkennung, Play-Store-Button, Intents –
+  keine Extraktion fremder Binaries)
+- **Chat-Kommandos (DE/EN)**: `geräte`, `install …`, `shell …`, `push/pull`,
+  `logcat`, `screenshot`, `adb-server restart` … – kein Freiform-Fallback
+- **Custom-ROM-Flashing mit Brick-Schutz**: ROM-/Geräteprofil-Datenbank
+  (LineageOS, GrapheneOS, CalyxOS, Pixel Experience, crDroid, Evolution X, …),
+  Anti-Rollback-Prüfung (ARB/eFuse), Pre-Flash-Checkliste (Bootloader, SHA-256,
+  Codename-Kompatibilität, Akku ≥ 60 %), Backup-Pflicht, 5-Schritte-Assistent
+- **Native Konsole** (`DeviceControlActivity`) + Capacitor-API
+  (`DeviceControl.*`) für die Web-Schicht
+
+Nicht enthalten (bewusst): IMEI-Reparatur und FRP-Bypass – beides ist
+rechtlich nicht vertretbar (IMEI-Änderung illegal, FRP = Diebstahlschutz).
+Details: [`docs/device-control.md`](docs/device-control.md)
+
+---
+
 ## 📚 Ergänzende Dokumentation
 
 | Dokument | Inhalt |
 |---|---|
+| [`docs/device-control.md`](docs/device-control.md) | 🔧 Device-Control: ADB/Fastboot-Binaries, Port-View, Hersteller-DB, Befehl-Referenz, ROM-Datenbank, Brick-Schutz (ARB), Flash-Assistent, Fehlerbehebung |
 | [`docs/hardware-setup.md`](docs/hardware-setup.md) | Produktives Hardware-Setup: USB-C-Dongles (VID/PID-Whitelist, udev), PTY-Bridge ohne `cat`-Stub (seriell/socat/SSH), SSH-Key-Handling, BLE-Scan an Linux-Hosts |
 | [`docs/production-backend.md`](docs/production-backend.md) | Produktionshärtung: PostgreSQL via SQLAlchemy, Passwort-Hashes (argon2), WebAuthn-Credential-DB, LDAP & OAuth2/OIDC |
 | [`docs/openapi.yaml`](docs/openapi.yaml) | OpenAPI 3.0-Spezifikation der REST-API (inkl. `x-rbac`-Mindestrollen je Endpunkt) |

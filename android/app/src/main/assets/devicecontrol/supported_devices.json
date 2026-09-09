@@ -1,0 +1,106 @@
+{
+  "_comment": "Geraeteliste der Unterstuetzungs-Datenbank (ChimeraTool-artige Modell-Referenz). Die Liste ist reine Datenbasis: erweitern = hier Modelle ergaenzen und die App neu bauen. massgeblich fuer das Flashing ist das Codename-Profil in rom_database.json.",
+  "supported_brands": [
+    "Samsung", "Xiaomi", "OnePlus", "Google", "OPPO", "Vivo",
+    "Realme", "Motorola", "Sony", "LG", "Huawei", "Nokia", "ASUS", "Nothing"
+  ],
+  "supported_models": {
+    "Samsung": [
+      "Galaxy S23", "Galaxy S23+", "Galaxy S23 Ultra", "Galaxy S24", "Galaxy S24+", "Galaxy S24 Ultra",
+      "Galaxy S22", "Galaxy S21 FE", "Galaxy A54", "Galaxy A55", "Galaxy A34", "Galaxy A25",
+      "Galaxy Z Fold5", "Galaxy Z Fold6", "Galaxy Z Flip5", "Galaxy Z Flip6",
+      "Galaxy Tab S9", "Galaxy Tab S9 FE"
+    ],
+    "Xiaomi": [
+      "Xiaomi 15", "Xiaomi 15 Pro", "Xiaomi 14", "Xiaomi 14 Ultra", "Xiaomi 13", "Xiaomi 13T", "Xiaomi 13T Pro",
+      "POCO X6", "POCO X6 Pro", "POCO F6", "POCO F5", "POCO M6 Pro",
+      "Redmi Note 13", "Redmi Note 13 Pro", "Redmi Note 13 Pro+", "Redmi Note 12",
+      "Redmi 13C", "Redmi A3"
+    ],
+    "Google": [
+      "Pixel 9", "Pixel 9 Pro", "Pixel 9 Pro XL", "Pixel 8", "Pixel 8 Pro", "Pixel 8a",
+      "Pixel 7", "Pixel 7 Pro", "Pixel 7a", "Pixel 6", "Pixel 6a", "Pixel Fold"
+    ],
+    "OnePlus": [
+      "OnePlus 13", "OnePlus 12", "OnePlus 12R", "OnePlus 11", "OnePlus 10 Pro",
+      "OnePlus Nord 4", "OnePlus Nord 3", "OnePlus Nord CE 4"
+    ],
+    "OPPO": [
+      "Find X7", "Find X7 Ultra", "Find X6", "Reno 11", "Reno 11 F", "Reno 10", "A98"
+    ],
+    "Vivo": [
+      "X100", "X100 Pro", "X90", "V30", "V29", "Y36"
+    ],
+    "Realme": [
+      "GT 6", "GT 5", "GT Neo 5", "12 Pro+", "11 Pro", "C67", "C55"
+    ],
+    "Motorola": [
+      "Edge 50 Pro", "Edge 50 Fusion", "Edge 40", "Edge 30", "Moto G84", "Moto G54", "Moto G24"
+    ],
+    "Sony": [
+      "Xperia 1 VI", "Xperia 1 V", "Xperia 5 V", "Xperia 10 V"
+    ],
+    "LG": [
+      "V60 ThinQ", "Wing", "Velvet"
+    ],
+    "Huawei": [
+      "P60", "P60 Pro", "Mate 60", "Mate 60 Pro", "Nova 12"
+    ],
+    "Nokia": [
+      "G22", "G42", "X30", "XR21", "C32"
+    ],
+    "ASUS": [
+      "ZenFone 10", "ZenFone 11 Ultra", "ROG Phone 8", "ROG Phone 7"
+    ],
+    "Nothing": [
+      "Phone (2)", "Phone (2a)", "Phone (1)"
+    ]
+  },
+  "fastboot_support": {
+    "Samsung": true,
+    "Xiaomi": true,
+    "OnePlus": true,
+    "Google": true,
+    "OPPO": true,
+    "Vivo": true,
+    "Realme": true,
+    "Motorola": true,
+    "Sony": true,
+    "LG": true,
+    "Huawei": false,
+    "Nokia": true,
+    "ASUS": true,
+    "Nothing": true
+  },
+  "flash_commands": {
+    "Samsung": {
+      "boot": "boot.img",
+      "recovery": "recovery.img",
+      "system": "system.img",
+      "vendor": "vendor.img",
+      "userdata": "userdata.img"
+    },
+    "Google": {
+      "boot": "boot.img",
+      "bootloader": "bootloader.img",
+      "radio": "radio.img",
+      "system": "system.img",
+      "vendor": "vendor.img",
+      "userdata": "userdata.img"
+    },
+    "Xiaomi": {
+      "boot": "boot.img",
+      "recovery": "recovery.img",
+      "system": "system.img",
+      "vendor": "vendor.img",
+      "userdata": "userdata.img"
+    },
+    "OnePlus": {
+      "boot": "boot.img",
+      "recovery": "recovery.img",
+      "system": "system.img",
+      "vendor": "vendor.img",
+      "userdata": "userdata.img"
+    }
+  }
+}

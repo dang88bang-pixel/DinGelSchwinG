@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB-Host-Filter des Device-Control-Subsystems.
+
+     Die Liste deckt die Vendor-IDs aller gaengigen Android-Hersteller ab
+     (gleiche Quelle wie assets/devicecontrol/usb_vendors.json). Beim
+     Einstecken eines Geraets mit einer dieser VIDs bietet Android an,
+     direkt die Steuerkonsole zu oeffnen. 0525 = Linux Foundation
+     (Gadget/ADB-Composite), 18D1 = Google (ADB/Fastboot). -->
+<resources>
+    <usb-device vendor-id="6353" /> <!-- 0x18D1 Google -->
+    <usb-device vendor-id="1256" /> <!-- 0x04E8 Samsung -->
+    <usb-device vendor-id="2996" /> <!-- 0x0BB4 HTC -->
+    <usb-device vendor-id="4100" /> <!-- 0x1004 LG -->
+    <usb-device vendor-id="4817" /> <!-- 0x12D1 Huawei -->
+    <usb-device vendor-id="10007" /> <!-- 0x2717 Xiaomi -->
+    <usb-device vendor-id="10821" /> <!-- 0x2A45 OnePlus -->
+    <usb-device vendor-id="8888" /> <!-- 0x22B8 Motorola -->
+    <usb-device vendor-id="1282" /> <!-- 0x0502 Acer -->
+    <usb-device vendor-id="6610" /> <!-- 0x19D2 ZTE -->
+    <usb-device vendor-id="2389" /> <!-- 0x0955 Nvidia -->
+    <usb-device vendor-id="3324" /> <!-- 0x0CFC Sony Ericsson -->
+    <usb-device vendor-id="3876" /> <!-- 0x0F24 Sony -->
+    <usb-device vendor-id="2967" /> <!-- 0x0B97 Ouya -->
+    <usb-device vendor-id="1046" /> <!-- 0x0416 Winbond ( div. ADB-Geraete) -->
+    <usb-device vendor-id="1324" /> <!-- 0x052C Pantech -->
+    <usb-device vendor-id="1670" /> <!-- 0x0686 HTC (alt) -->
+    <usb-device vendor-id="10192" /> <!-- 0x27D0 Meizu -->
+    <usb-device vendor-id="11950" /> <!-- 0x2EAE Oppo -->
+    <usb-device vendor-id="11745" /> <!-- 0x2DE1 Vivo -->
+    <usb-device vendor-id="9033" /> <!-- 0x2349 Realme/BBK -->
+    <usb-device vendor-id="11912" /> <!-- 0x2E88 Nothing -->
+    <usb-device vendor-id="1478" /> <!-- 0x05C6 Qualcomm (EDL/Fastboot) -->
+    <usb-device vendor-id="5824" /> <!-- 0x16C0 Google Accessory -->
+    <usb-device vendor-id="1320" /> <!-- 0x0528 Handheld/Scanner -->
+    <usb-device vendor-id="3118" /> <!-- 0x0C2E Honeywell (CT45P-Zubehoer) -->
+</resources>

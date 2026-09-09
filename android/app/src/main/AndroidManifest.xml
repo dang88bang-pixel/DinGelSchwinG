@@ -39,6 +39,13 @@
     <!-- ── Kamera: QR-Code für Pairing / Gateway-Adresse ── -->
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- ── USB-Host: Device-Control-Subsystem (ADB/Fastboot-Steuerzentrale) ──
+         Der CT45P kann per USB-OTG andere Android-Geraete steuern. Die Hardware
+         ist optional – ohne USB-Host bleibt die App voll funktionsfaehig. -->
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
+
     <!-- Hardware ist optional – die App läuft auch auf Geräten ohne BLE/NFC/Kamera -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
@@ -84,7 +91,37 @@
                 <data android:scheme="https" android:host="dingelschwing.local" />
             </intent-filter>
 
+            <!-- Device-Control: USB-Geraet angesteckt -> Steuerkonsole anbieten
+                 (Filter: res/xml/usb_device_filter.xml, Android-Vendor-IDs) -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/usb_device_filter" />
+
         </activity>
+
+        <!-- Native Steuerkonsole (Port-View + Chat) des Device-Control-Subsystems -->
+        <activity
+            android:name=".devicecontrol.DeviceControlActivity"
+            android:exported="false"
+            android:label="@string/dc_title" />
+
+        <!-- Optionale Device-Admin-Integration (nur fuer CT45P-Flottenbetrieb;
+             muss in den Systemeinstellungen explizit aktiviert werden) -->
+        <receiver
+            android:name=".devicecontrol.AdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/admin_receiver" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"
