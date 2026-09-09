@@ -4,4 +4,14 @@
     <string name="title_activity_main">MoE Agent Chat</string>
     <string name="package_name">com.dingelschwinng.moeagent</string>
     <string name="custom_url_scheme">com.dingelschwinng.moeagent</string>
+
+    <!-- Device-Control-Subsystem (ADB/Fastboot, Port-View, Flash-Assistent) -->
+    <string name="dc_title">Geräte-Steuerung</string>
+    <string name="dc_scan">Geräte scannen</string>
+    <string name="dc_open_chat">Chat-Konsole öffnen</string>
+    <string name="dc_hint_command">Befehl eingeben (z. B. „geräte“ oder „hilfe“)</string>
+    <string name="dc_send">Senden</string>
+    <string name="dc_tools">Externe Tools</string>
+    <string name="dc_admin_enabled">Device-Admin aktiviert</string>
+    <string name="dc_admin_disabled">Device-Admin deaktiviert</string>
 </resources>

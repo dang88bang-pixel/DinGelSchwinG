@@ -17,6 +17,20 @@ Der Build bricht ab, wenn ein APK davon abweicht (Prüfung über `aapt2 dump bad
 - Keystore file for signing
 - Google Play Developer Account (for distribution)
 
+🔧 **Device-Control-Subsystem (ADB/Fastboot):** Ein echtes ARM64-`adb`
+(LADB, Apache-2.0) liegt bereits in `android/app/src/main/assets/devicecontrol/`.
+`fastboot` wird im CI-Build automatisch aus dem Termux-Paket `android-tools`
+ergänzt (fail-soft); lokal geht das mit:
+
+```bash
+bash scripts/fetch-android-tools.sh
+# oder eigenes statisches ARM64-Build:
+FASTBOOT_URL=… bash scripts/fetch-android-tools.sh
+```
+
+Ohne Binaries bleibt die App baubar – ADB/Fastboot-Funktionen melden dann eine
+klare Handlungsanweisung (Details: `docs/device-control.md`).
+
 ---
 
 ## 🤖 GitHub Actions – automatischer APK-Build & Release

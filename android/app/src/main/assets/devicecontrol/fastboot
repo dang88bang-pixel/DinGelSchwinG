@@ -1,0 +1,13 @@
+PLATZHALTER – kein echtes Binary!
+==================================
+Dies ist der Platzhalter fuer das ARM64-fastboot-Binary (Android, aarch64).
+
+Echtes Binary beschaffen (Apache-2.0, Termux-Paket "android-tools"):
+
+    bash scripts/fetch-android-tools.sh
+
+Das Skript laedt die aarch64-Binaries von adb und fastboot, prueft sie und
+legt sie hier ab. Danach: App neu bauen (./gradlew assembleRelease).
+
+Solange dieser Platzhalter liegt, meldet die App bei jedem Fastboot-Befehl
+eine klare Handlungsanweisung statt eines kryptischen Fehlers.

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Device-Control-Subsystem: Statusfarben der Port-View -->
+    <color name="dc_state_connected">#2E7D32</color>
+    <color name="dc_state_unauthorized">#F9A825</color>
+    <color name="dc_state_offline">#C62828</color>
+    <color name="dc_bg_message_me">#1A3C5E</color>
+    <color name="dc_bg_message_assistant">#263238</color>
+    <color name="dc_bg_message_system">#37474F</color>
+    <color name="dc_warning_red">#D32F2F</color>
+</resources>

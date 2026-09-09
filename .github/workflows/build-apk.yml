@@ -98,6 +98,22 @@ jobs:
         run: |
           echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
+      # Device-Control-Subsystem: echte ARM64-Binaries von adb/fastboot holen
+      # (offizielles Termux-Paket android-tools, Apache-2.0, mit SHA-256-Check).
+      # Fail-soft: Scheitert der Download, bleibt es beim ELF-Platzhalter und
+      # die App meldet später eine klare Handlungsanweisung statt abzustürzen.
+      - name: Fetch Device-Control binaries (adb/fastboot, ARM64)
+        run: |
+          bash scripts/fetch-android-tools.sh || echo "::warning::ADB/Fastboot-Binaries nicht geladen – APK enthält Platzhalter"
+          for b in adb fastboot; do
+            f="android/app/src/main/assets/devicecontrol/$b"
+            if head -c 4 "$f" | od -An -tx1 | tr -d ' \n' | grep -q '^7f454c46'; then
+              echo "✅ $b: echtes ELF-Binary ($(du -h "$f" | cut -f1))"
+            else
+              echo "⚠️ $b: Platzhalter"
+            fi
+          done
+
       - name: Build Debug APK
         run: cd android && ./gradlew assembleDebug --no-daemon --stacktrace
 
@@ -156,6 +172,14 @@ jobs:
             [ "$MIN" = "${ANDROID_MIN_SDK}" ]   || { echo "❌ minSdk ist nicht ${ANDROID_MIN_SDK} (Android 11)"; FAIL=1; }
             [ "$TGT" = "${ANDROID_TARGET_SDK}" ] || { echo "❌ targetSdk ist nicht ${ANDROID_TARGET_SDK} (Android 16)"; FAIL=1; }
             echo "$BADGE" | grep -q "BLUETOOTH_SCAN" || { echo "❌ BLE-Permissions fehlen"; FAIL=1; }
+            # Device-Control: Assets müssen gebündelt sein (Binaries oder Platzhalter,
+            # ROM-/Hersteller-/Befehls-Datenbanken)
+            ASSETS="$(unzip -l "$apk" | grep -c 'assets/devicecontrol/')"
+            if [ "$ASSETS" -ge 6 ]; then
+              echo "✅ Device-Control-Assets gebündelt ($ASSETS Einträge)"
+            else
+              echo "❌ Device-Control-Assets fehlen ($ASSETS < 6)"; FAIL=1
+            fi
             echo "$BADGE" | grep -q "^package: name='com.dingelschwinng.moeagent'" || echo "ℹ️ Paketname wie folgt: $(echo "$BADGE" | grep -m1 '^package:')"
             echo "Größe: $(du -h "$apk" | cut -f1)"
           done
@@ -178,4 +202,7 @@ jobs:
             Das Debug-APK ist sideload-fähig; das Release-APK ist mit dem
             Keystore-Secret signiert (falls konfiguriert).
             Prüfung: minSdk/targetSdk werden im Build gegen `aapt2 dump badging` verifiziert.
+            Enthält das Device-Control-Subsystem (ADB/Fastboot-Steuerzentrale,
+            automatische Port-View, ROM-Flashing mit Brick-Schutz – Details in
+            docs/device-control.md).
           generate_release_notes: true

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Eine Zeile der Port-View: Geraetename, Hersteller/VID/PID, Status. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/stateDot"
+        android:layout_width="12dp"
+        android:layout_height="12dp"
+        android:layout_marginEnd="8dp"
+        android:background="@color/dc_state_offline" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/deviceLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/deviceDetail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#90A4AE"
+            android:textSize="11sp"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/deviceState"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#B0BEC5"
+        android:textSize="11sp" />
+</LinearLayout>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device-Admin-Policy des Device-Control-Subsystems.
+
+     Diese Policy ist bewusst schmal gehalten und dient dem Flottenbetrieb
+     auf Honeywell-CT45P-Geraeten (z. B. Sperren/Wipe des Steuergeraets
+     selbst). Sie wird NUR wirksam, wenn der Admin in den Systemeinstellungen
+     explizit aktiviert wird. -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <force-lock />
+        <wipe-data />
+        <disable-camera />
+    </uses-policies>
+</device-admin>

@@ -1,0 +1,13 @@
+{
+  "_comment": "Vordefinierte Befehle fuer Schnellwahl-Buttons in der UI (Chips). 'target' sagt, ob ein Zielgeraet ausgewaehlt sein muss.",
+  "commands": [
+    { "id": "devices",   "label": "📱 Geräte",        "command": "geräte", "target": false },
+    { "id": "info",      "label": "ℹ️ Gerät-Info",    "command": "shell getprop ro.product.model", "target": true },
+    { "id": "battery",   "label": "🔋 Akku",          "command": "akku", "target": true },
+    { "id": "logs",      "label": "📜 Logs",          "command": "logcat", "target": true },
+    { "id": "screenshot","label": "📸 Screenshot",    "command": "screenshot", "target": true },
+    { "id": "reboot",    "label": "🔁 Neustart",      "command": "reboot", "target": true },
+    { "id": "fb_devices","label": "⚡ Fastboot-Geräte","command": "fastboot geräte", "target": false },
+    { "id": "help",      "label": "❓ Hilfe",         "command": "hilfe", "target": false }
+  ]
+}
