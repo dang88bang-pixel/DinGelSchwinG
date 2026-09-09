@@ -13,6 +13,7 @@ import KnowledgeBasePanel from './KnowledgeBasePanel';
 import LiveDashboardPanel from './LiveDashboardPanel';
 import McpServerPanel from './McpServerPanel';
 import PortViewPanel from './PortViewPanel';
+import IntegrationsPanel from './IntegrationsPanel';
 import AssetGrabberPanel from './AssetGrabberPanel';
 import LiveStatusStrip from './LiveStatusStrip';
 import { useSensors } from '../hooks/useSensors';
@@ -46,7 +47,7 @@ export default function NetworkDashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
-  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'grabber' | null>(null);
+  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'grabber' | 'integrations' | null>(null);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -115,6 +116,7 @@ export default function NetworkDashboard() {
             ['mcp', '🔌', t('app.mcp'), t('panels.mcp.subtitle')],
             ['portview', '🧭', t('app.portview', 'PortView'), t('panels.portview.subtitle', 'Server-Port automatisch finden (nativ)')],
             ['grabber', '📥', t('app.grabber', 'Grabber'), t('panels.grabber.subtitle', 'URLs importieren: Beats, Samples, Styles, Effekte, Filter')],
+            ['integrations', '🔗', t('app.integrations', 'Anbindungen'), t('panels.integrations.title', 'Anbindungen: Geräte, Hersteller, Bibliotheken, Speicher')],
           ] as const).map(([id, icon, label, title]) => (
             <button
               key={id}
@@ -306,6 +308,7 @@ export default function NetworkDashboard() {
           ['mcp', '🔌', 'MCP & Plugins'],
           ['portview', '🧭', 'PortView (automatischer Port)'],
           ['grabber', '📥', 'Grabber (URL-Import)'],
+          ['integrations', '🔗', 'Anbindungen (Geräte · Hersteller · Speicher)'],
         ] as const).map(([id, icon, title]) => (
           <button
             key={id}
@@ -325,6 +328,7 @@ export default function NetworkDashboard() {
       {panel === 'mcp' && <McpServerPanel onClose={() => setPanel(null)} />}
       {panel === 'portview' && <PortViewPanel onClose={() => setPanel(null)} />}
       {panel === 'grabber' && <AssetGrabberPanel onClose={() => setPanel(null)} />}
+      {panel === 'integrations' && <IntegrationsPanel onClose={() => setPanel(null)} />}
     </div>
   );
 }

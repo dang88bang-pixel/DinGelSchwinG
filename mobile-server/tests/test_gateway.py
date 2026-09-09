@@ -595,6 +595,129 @@ def test_snapshot_reports_portview_and_import_catalog():
     state.portview = discovery.DiscoveryResponder(discovery.build_announce(http_port=1), port=1)
     assert "dingelschwing_gateway_portview_answers 0" in state.metrics_text()
 
+# ---------------------------------------------------------------------------
+# USB-Hersteller + Vorabprüfung (Anbindungen)
+# ---------------------------------------------------------------------------
+def test_usb_vendor_parsers_and_lookup():
+    import vendors
+
+    devs = vendors.parse_adb_devices(
+        "List of devices attached\n"
+        "CT45-01  device product:ct45 model:CT45 device:ct45 transport_id:3\n"
+        "192.168.1.9:5555  unauthorized\n"
+        "* daemon not running; starting now\n")
+    assert len(devs) == 2, devs
+    assert devs[0]["model"] == "CT45" and devs[0]["transport"] == "usb", devs[0]
+    assert devs[1]["state"] == "unauthorized" and devs[1]["transport"] == "network", devs[1]
+
+    bus = vendors.parse_lsusb("Bus 001 Device 004: ID 0c2e:0c2f Honeywell Intl. Corp.\nQuatsch\n")
+    assert bus == [{"bus": "001", "device": "004", "vid": "0x0c2e", "pid": "0x0c2f",
+                    "name": "Honeywell Intl. Corp."}], bus
+
+    store = vendors.default_store()
+    assert store.describe("0x0c2e")["name"].lower().startswith("honeywell"), store.describe("0x0c2e")
+    assert store.describe("18d1:4e12")["pid"] == "0x4e12", store.describe("18d1:4e12")
+    assert store.describe("0x18d1", "4e12")["pid"] == "0x4e12"
+    assert store.describe("0xffff")["known"] is False
+    assert any(r["vid"] == "0x0c2e" for r in store.search("honeywell")), store.search("honeywell")
+    assert vendors.norm_id(0x18D1) == "0x18d1", vendors.norm_id(0x18D1)   # 6353
+    # bewusst tolerant: "0x18D1:" oder "18d1:zzzz" ergeben trotzdem eine VID, Unsinn nicht
+    assert vendors.norm_id("0x18D1:") == "0x18d1" and vendors.norm_id("") is None
+    assert vendors.norm_id("keine id") is None
+
+
+def test_usb_store_prefers_host_sources():
+    import vendors
+
+    root = _tmp_dir("usb-hostsources")
+    ids = root / "usb.ids"
+    ids.write_text("# Projektliste\n0c2e  Honeywell (aus usb.ids)\n\t0c2f  CT40\n2717  Xiaomi Inc.\n", encoding="utf-8")
+    rules = root / "51-android.rules"
+    rules.write_text('# Zotac\nSUBSYSTEM=="usb", ATTR{idVendor}=="19d2", MODE="0666"\n'
+                     '# Nur-VID-Eintrag\nSUBSYSTEM=="usb", ATTR{idVendor}=="0c2e", MODE="0666"\n', encoding="utf-8")
+    ini = root / "adb_usb.ini"
+    ini.write_text("# extra\n0x2ae5\n", encoding="utf-8")
+
+    store = vendors.load([str(ids), str(rules), str(ini)])
+    assert store.lookup("0x0c2e")["name"] == "Honeywell (aus usb.ids)", store.lookup("0x0c2e")
+    assert store.lookup("0x0c2e")["via"] == str(ids), store.lookup("0x0c2e")
+    assert store.lookup("0x0c2e")["bundled_name"].lower().startswith("honeywell scanning")
+    assert store.lookup("0x2717")["name"] == "Xiaomi Inc."          # neu aus usb.ids
+    assert store.lookup("0x19d2")["name"] == "Zotac"                 # Name aus der udev-Regel
+    # adb_usb.ini nennt nur die VID → der bekannte Name bleibt, die Quelle wird vermerkt
+    assert store.lookup("0x2ae5")["name"] == "Fairphone", store.lookup("0x2ae5")
+    assert store.lookup("0x2ae5").get("also_in") == str(ini), store.lookup("0x2ae5")
+    assert str(rules) in " ".join(store.sources)
+
+
+def test_usb_preflight_reads_only_and_blocks_dangerous():
+    import vendors
+
+    root = _tmp_dir("usb-preflight")
+    images = root / "images"
+    images.mkdir()
+    image = images / "rom-ct45.zip"
+    image.write_bytes(b"rom-inhalte")
+    digest = vendors.sha256_file(image)
+    (images / "rom-ct45.zip.sha256").write_text(f"{digest}  rom-ct45.zip\n", encoding="utf-8")
+    backups = root / "backups"
+    backups.mkdir()
+    (backups / "ct45-01.tar").write_text("sicherung", encoding="utf-8")
+
+    props = {"ro.product.model": "CT45", "ro.build.version.security_patch": time.strftime("%Y-%m-%d"),
+             "ro.boot.verifiedbootstate": "green", "ro.boot.flash.locked": "1", "__battery_level": "76"}
+    report = vendors.preflight(vendors.default_store(), devices=[{"serial": "CT45-01", "state": "device"}],
+                              serial="ct45-01", image="rom-ct45.zip", expected_model="CT45",
+                              backup_dir=str(backups), images_dir=str(images),
+                              runner=lambda _serial: {"props": dict(props)})
+    by_id = {c["id"]: c for c in report["checks"]}
+    assert report["verdict"] == "ok", report["checks"]
+    assert by_id["image"]["status"] == "ok" and digest.startswith(by_id["image"]["detail"].split("sha256 ")[1][:8].rstrip("…")), by_id["image"]
+    assert by_id["akku"]["status"] == "ok" and by_id["backup"]["status"] == "ok"
+    assert "getprop" in by_id["patch"]["command"]
+
+    # Manipuliertes Image → blockiert, falsches Modell → blockiert, tiefer Akku → blockiert
+    (images / "rom-ct45.zip.sha256").write_text("0" * 64 + "  rom-ct45.zip\n", encoding="utf-8")
+    bad_sha = vendors.preflight(vendors.default_store(), devices=[{"serial": "CT45-01", "state": "device"}],
+                                image="rom-ct45.zip", images_dir=str(images),
+                                runner=lambda _serial: {"props": dict(props)})
+    assert bad_sha["verdict"] == "blockiert", bad_sha["checks"]
+    def find(row_report: dict, cid: str) -> dict:
+        return next(c for c in row_report["checks"] if c["id"] == cid)
+
+    wrong = vendors.preflight(vendors.default_store(), devices=[{"serial": "CT45-01", "state": "device"}],
+                              expected_model="CT60", runner=lambda _serial: {"props": dict(props)})
+    assert wrong["verdict"] == "blockiert" and find(wrong, "modell")["status"] == "bad", wrong["checks"]
+    low = vendors.preflight(vendors.default_store(), devices=[{"serial": "CT45-01", "state": "device"}],
+                            runner=lambda _serial: {"props": {**props, "__battery_level": "9"}})
+    assert low["verdict"] == "blockiert" and find(low, "akku")["status"] == "bad", low["checks"]
+    # Pfadflucht aus dem freigegebenen Image-Ordner wird abgewiesen
+    escape = vendors.preflight(vendors.default_store(), devices=[{"serial": "CT45-01", "state": "device"}],
+                               image="../etc/passwd", images_dir=str(images),
+                               runner=lambda _serial: {"props": dict(props)})
+    assert escape["verdict"] == "blockiert" and find(escape, "image")["status"] == "bad"
+    assert "pfad_nicht_erlaubt" in find(escape, "image")["detail"], find(escape, "image")
+    # kein einziger schreibender/schädlicher Befehl in den ausgegebenen Kommandos
+    commands = " ; ".join(str(c.get("command", "")) for c in report["checks"])
+    for banned in ("fastboot flash", "oem unlock", "erase ", "reboot-bootloader", "imei", "factory_reset"):
+        assert banned not in commands, banned
+
+
+def test_usb_status_and_metrics_blocks():
+    import vendors
+
+    state = _make_state("usb-status")
+    snap = state.snapshot()
+    assert snap["usb"]["ok"] is True and snap["usb"]["vendors"] >= 40, snap.get("usb")
+    assert snap["usb"]["note"], snap["usb"]
+    names = {row["name"] for row in snap["stores"]["stores"]}
+    assert {"whitelist", "audit"} <= names, names
+    metrics = state.metrics_text()
+    assert "dingelschwing_gateway_usb_vendors " in metrics, metrics
+    assert "dingelschwing_gateway_adb_available " in metrics, metrics
+    assert vendors.selftest() == 0
+
+
 def main() -> int:
     tests = [(name, obj) for name, obj in sorted(globals().items()) if name.startswith("test_") and callable(obj)]
     failures = 0

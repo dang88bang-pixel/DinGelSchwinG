@@ -1,0 +1,293 @@
+{
+  "_meta": {
+    "schema": "dgs.usb_vendors.v1",
+    "generated": "2026-09-09",
+    "count": 46,
+    "sources": [
+      "Android Developers – Using Hardware Devices, Tabelle 'USB Vendor IDs' (developer.android.com/tools/device)",
+      "the-sz.com USB-ID-Datenbank: USB\\VID_0C2E = Honeywell Scanning & Mobility",
+      "Community-udev-Regelwerke snowdream/51-android, NicolasBernaerts/ubuntu-scripts (Xiaomi, OnePlus, Oppo, Fairphone, ZUK, Rockchip, Zebra)"
+    ],
+    "note": "Kuratierte Kern-Tabelle, kein Abdruck der usb.ids. Vollständige Zuordnung auf dem Host: usb.ids des Linux USB ID Repository (z. B. /usr/share/hwdata/usb.ids) wird automatisch eingelesen und überschreibt diese Einträge – siehe docs/usb-hersteller.md."
+  },
+  "vendors": [
+    {
+      "vid": "0x0409",
+      "name": "NEC Corp.",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0421",
+      "name": "Nokia Mobile Phones",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0471",
+      "name": "Philips",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0482",
+      "name": "Kyocera",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0489",
+      "name": "Foxconn",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x04c5",
+      "name": "Fujitsu / Fujitsu Toshiba",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x04da",
+      "name": "PMC-Sierra",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x04dd",
+      "name": "Sharp",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x04e8",
+      "name": "Samsung",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0502",
+      "name": "Acer",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x054c",
+      "name": "Sony",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x05c6",
+      "name": "Qualcomm",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x05e0",
+      "name": "Zebra Technologies / Datalogic (SCM-Nachfolger)",
+      "kind": "eda",
+      "note": "Quellen uneins: usb.ids ordnet 0x05e0 SCM Microsystems zu, Community-Regelwerke listen Zebra. Eine lokale usb.ids gewinnt."
+    },
+    {
+      "vid": "0x091e",
+      "name": "Garmin-Asus",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0930",
+      "name": "Toshiba",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0955",
+      "name": "Nvidia",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0b05",
+      "name": "ASUS",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0bb4",
+      "name": "HTC",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0c2e",
+      "name": "Honeywell Scanning & Mobility (vormals Metrologic Instruments)",
+      "kind": "eda",
+      "note": "CT-/Dolphin-/Scanpal-Serie: ADB-PID je nach Modell – mit `adb devices -l` oder `lsusb` ablesen."
+    },
+    {
+      "vid": "0x0e8d",
+      "name": "MediaTek (MTK)",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x0fce",
+      "name": "Sony Ericsson / Sony Mobile",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x1004",
+      "name": "LG Electronics",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x109b",
+      "name": "Hisense",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x10a9",
+      "name": "Pantech",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x12d1",
+      "name": "Huawei",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x17ef",
+      "name": "Lenovo",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x18d1",
+      "name": "Google",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x19d2",
+      "name": "ZTE",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x1bbb",
+      "name": "TCL / T&A Mobile Phones (Alcatel)",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x1d4d",
+      "name": "Pegatron",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x1f53",
+      "name": "SK Telesys",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x201e",
+      "name": "Haier",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x2080",
+      "name": "Nook",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x2116",
+      "name": "KT Tech",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x2207",
+      "name": "Rockchip",
+      "kind": "soc",
+      "note": "Board-Level: Boxen, PDA-Platinen, Many-POS-Terminals."
+    },
+    {
+      "vid": "0x2257",
+      "name": "OTGV",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x22b8",
+      "name": "Motorola",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x22d9",
+      "name": "Oppo",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x2340",
+      "name": "Teleepoch",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x24e3",
+      "name": "K-Touch",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x2717",
+      "name": "Xiaomi Inc.",
+      "kind": "android_oem",
+      "adb": true,
+      "note": "Mi/Redmi: ADB-PIDs 0xff08 / 0xff48 / 0xff88."
+    },
+    {
+      "vid": "0x2a70",
+      "name": "OnePlus",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x2ae5",
+      "name": "Fairphone",
+      "kind": "android_oem",
+      "adb": true,
+      "note": "Fairphone 3/4/5."
+    },
+    {
+      "vid": "0x2b4c",
+      "name": "ZUK",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x413c",
+      "name": "Dell",
+      "kind": "android_oem",
+      "adb": true
+    },
+    {
+      "vid": "0x8087",
+      "name": "Intel",
+      "kind": "android_oem",
+      "adb": true
+    }
+  ]
+}
