@@ -158,8 +158,11 @@ export class RosettaConverter {
       let pending = '';
       let completed = false;
       const emitLine = (line: string) => {
-        const value = line.replace(/^data:\s*/, '').trim();
-        if (!value || value.startsWith(':')) return;
+        const trimmed = line.trim();
+        // SSE metadata belongs to the surrounding event, not to the model body.
+        if (!trimmed || trimmed.startsWith(':') || /^(event|id|retry):/i.test(trimmed)) return;
+        const value = trimmed.replace(/^data:\s*/i, '').trim();
+        if (!value) return;
         if (value === '[DONE]') {
           completed = true;
           return;
