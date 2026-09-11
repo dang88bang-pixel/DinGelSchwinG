@@ -3,6 +3,31 @@
 Repo: `dang88bang-pixel/DinGelSchwinG` · Branch: `arena/01a0914b-dingelschwing`
 Basis: `caf308f` (main) · Modus: 5-Phasen-Zyklus (Audit → Ersetzung → Integration → Funktionstest → Fehlerresistenz)
 
+## Bereitstellung (2026-09-11, nach Phasenabschluss)
+
+- **PR #11** (`arena/01a0914b-dingelschwing` → `main`): CI-Run **34635369790 — success** ✅
+  (https://github.com/dang88bang-pixel/DinGelSchwinG/pull/11)
+- **Alle 19 Job-Schritte grün**, u. a. Lint, Type-Check, **Build BLE WASM** (neu),
+  Build web assets, Sync Capacitor, Fetch adb/fastboot, **Build Debug APK**,
+  **Build Release APK**, Upload APK artifacts, Verify SDK range (min 30 / target 36).
+- **Artefakt `DinGelSchwinG-APK` (21 MB)** — Download im Browser:
+  PR #11 → Checks → „Build & Release APK“ → Artifacts (90 Tage verfügbar).
+- **Signierung:** Debug- + Release-APK sind mit dem **Debug-Schlüssel signiert**
+  (Gradle-Standard; es sind keine Keystore-Secrets im Repo hinterlegt) — direkt
+  installierbar/testbar (`adb install app-debug.apk`), **nicht** Play-Store-fähig.
+  Echter Release-Schlüssel: Secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` setzen (Repo → Settings → Secrets →
+  Actions; Keystore erzeugen: `keytool -genkeypair -keystore dgs.jks -alias dgs
+  -keyalg RSA -keysize 2048 -validity 10000`), danach Workflow erneut laufen lassen.
+  Offizielles Release: PR mergen → Tag `v3.2.0` auf main → Workflow hängt das APK
+  automatisch ans GitHub-Release.
+- **Testmatrix am Bereitstellungs-Tag erneut grün: 140/140**
+  (npm 20 + gateway 43 + desktop 48 + genesis 10 + selftest 19) + tsc/eslint.
+- Sandbox-Hinweis: APK-Binärdatei und CI-Logs konnten nicht *in die Sandbox*
+  geladen werden (Netz-Allowlist: GitHub/api/npm/pypi ok, Blob-/Google-Hosts
+  blockiert, kein lokales Android-SDK) — Build-Nachweis über Run-Conclusions
+  und Step-Liste der Check-API.
+
 ## Phasenabschluss
 
 - [x] Phase 1: 310 Dateien auditiert, 11 Nicht-REAL-Befunde (2 MOCK, 1 STUB-by-design, 2 TODO, 3 PLACEHOLDER, 3 DEAD)
