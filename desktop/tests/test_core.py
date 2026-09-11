@@ -480,5 +480,63 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg["agent_mode"], "chat")
 
 
+class TestRetryAndBreaker(unittest.TestCase):
+    """Phase 3/5: Retry mit Backoff + begrenzte Circuit-Breaker-Registry."""
+
+    def test_retry_succeeds_after_transient(self) -> None:
+        from utils.retry import with_retry
+
+        calls: list[int] = []
+
+        def flaky() -> str:
+            calls.append(1)
+            if len(calls) < 3:
+                raise OSError("kaputt")
+            return "ok"
+
+        self.assertEqual(with_retry(flaky, retries=3, base_delay=0.01), "ok")
+        self.assertEqual(len(calls), 3)
+
+    def test_retry_reraises_after_exhaustion(self) -> None:
+        from utils.retry import with_retry
+
+        with self.assertRaises(OSError):
+            with_retry(self._boom_os, retries=2, base_delay=0.01)
+
+    def test_retry_ignores_app_errors(self) -> None:
+        from utils.retry import with_retry
+
+        with self.assertRaises(ValueError):
+            with_retry(self._boom_value, retries=3, base_delay=0.01)
+
+    def test_breaker_opens_recovers_and_caps_registry(self) -> None:
+        import time as _time
+
+        from utils import retry as retry_mod
+
+        retry_mod.reset_breakers()
+        b = retry_mod.get_breaker("test-open", fail_threshold=2, reset_timeout=0.05)
+        self.assertTrue(b.allow())
+        b.record_failure()
+        self.assertTrue(b.allow())
+        b.record_failure()
+        self.assertFalse(b.allow())
+        self.assertGreater(b.retry_in_s(), 0)
+        _time.sleep(0.06)
+        self.assertTrue(b.allow())
+        for i in range(retry_mod.MAX_BREAKERS + 10):
+            retry_mod.get_breaker(f"flood-{i}")
+        self.assertLessEqual(len(retry_mod._breakers), retry_mod.MAX_BREAKERS)
+        retry_mod.reset_breakers()
+
+    @staticmethod
+    def _boom_os() -> None:
+        raise OSError("dauerhaft")
+
+    @staticmethod
+    def _boom_value() -> None:
+        raise ValueError("anwendung")
+
+
 if __name__ == "__main__":
     unittest.main()

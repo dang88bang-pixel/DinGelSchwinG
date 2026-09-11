@@ -9,7 +9,10 @@ Basis: `caf308f` (main) · Modus: 5-Phasen-Zyklus (Audit → Ersetzung → Integ
 - [x] Phase 2: 7/7 genehmigte Punkte umgesetzt (2.4 als ⛔-Eintrag, siehe unten), 0 API-Breaks, Backups unter `backups/phase2/`
 - [x] Phase 3: Retry+Breaker (TS/Python) + Persistenz (Audit, Sessions) gebunden (Commit `29d1593`); IPC sind echte Sockets (Smoke in Phase 4)
 - [x] Phase 4: alle Suiten grün (103 Checks) + Live-Smoke über echte Sockets (siehe § Phase 4)
-- [ ] Phase 5: Fehlerfälle geplant (siehe § Phase 5)
+- [x] Phase 5: Watchdog, Log-Rotation, Bug-Reports, Leak-Caps umgesetzt + getestet (siehe § Phase 5)
+
+**Endstand: 140/140 Checks grün** (npm 20 + gateway 43 + desktop 48 + genesis 10 + selftest 19)
+plus tsc/eslint/vite-build grün. 0 API-Breaks (nur additive oder signaturstabile Änderungen).
 
 ## Phase 1 — Audit (keine Code-Änderungen an Produktion; nur Audit-Artefakte)
 
@@ -103,12 +106,24 @@ korrupte Frames/Tamper/Lockout (bestehende Gateway-Tests) ✅.
 N/A (dokumentiert): Audio-Loopback (keine Pipeline im Repo), USB-Disconnect/OOM
 (keine Hardware), Playwright/Appium (nicht im Repo → statischer Smoke + Bundle-Marker).
 
-## Phase 5 — Fehlerresistenz (geplant)
+## Phase 5 — Fehlerresistenz (umgesetzt + getestet 2026-09-11)
 
-- Gateway: `RotatingFileHandler` + Watchdog-Thread (hängende Subdienste → Neustart-Hinweis).
-- Web: globaler `window.onerror`-Handler + Bug-Report-Export (JSON-Download).
-- Graceful Degradation ist bereits Muster im Repo (Modell-/WASM-/Backend-Fallbacks) — wird
-  in Phase 2 für Geräte/Clients fortgeführt statt entfernt.
+- **Watchdog:** `mobile-server/resilience.py` — Heartbeat der Async-Schleife (1 s-Takt),
+  Stillstand > 5 s → Exit 42 für Supervisor-Neustart (`--no-watchdog` fürs Labor,
+  `DGS_WATCHDOG_S` konfigurierbar). Tests: feuert bei Stillstand, schweigt bei Takt ✅
+- **Log-Rotation:** `data/gateway.log` (1 MiB × 4, `RotatingFileHandler`) + Konsole;
+  Asyncio-Exceptions → Audit-Log statt stderr-only. Live verifiziert ✅
+- **Bug-Reports:** Gateway `data/bug_report_<ts>.json` (crash_guard), Desktop
+  `data/crash_<ts>.json`, Web `src/lib/bugReport.ts` (globaler Handler + Banner mit
+  user-freundlichem Text + JSON-Download + `window.dgsDownloadBugReport`). Alle Pfade
+  schreiben ohne Secrets; Tests für Bau/Download-Logik ✅ (neue Gateway-Tests 32→43,
+  Desktop 44→48, npm 17→20)
+- **Graceful Degradation:** Repo-Muster beibehalten und in Phase 2 fortgeführt
+  (Modell→Skill-Engine, WASM→JS-Simulation, Geräte→Offline-Demo, Graph→Demo-Fallback).
+- **Leak-Vorsorge:** Breaker-Registries begrenzt (FIFO, 128) in allen 3 Retry-Modulen;
+  Sessions/Audit/Events waren bereits gedeckelt (`maxlen`/Cap). Valgrind/LeakCanary N/A
+  (Python/TypeScript-Laufzeiten).
+- Live-Nachweis: echter NFC→Grant-Durchlauf schrieb `sessions.json` (granted, ohne Keys) ✅
 
 ## Verbleibende ⛔-Blocker
 

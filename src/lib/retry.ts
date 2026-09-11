@@ -122,12 +122,18 @@ export class CircuitBreaker {
 }
 
 const breakers = new Map<string, CircuitBreaker>();
+/** Phase 5: Registry bleibt begrenzt (FIFO-Verdrängung, kein Leak). */
+const MAX_BREAKERS = 128;
 
 /** Breaker je Gegenstelle (z. B. Origin der Bridge/des Gateways). */
 export function getCircuitBreaker(key: string, opts: BreakerOptions = {}): CircuitBreaker {
   let breaker = breakers.get(key);
   if (!breaker) {
     breaker = new CircuitBreaker(opts);
+    if (breakers.size >= MAX_BREAKERS) {
+      const oldest = breakers.keys().next().value as string | undefined;
+      if (oldest !== undefined) breakers.delete(oldest);
+    }
     breakers.set(key, breaker);
   }
   return breaker;

@@ -84,6 +84,8 @@ class CircuitBreaker:
 
 _breakers: dict[str, CircuitBreaker] = {}
 _breakers_lock = threading.Lock()
+# Phase 5: Registry bleibt begrenzt (FIFO-Verdrängung, kein Leak).
+MAX_BREAKERS = 128
 
 
 def get_breaker(key: str, **kwargs: Any) -> CircuitBreaker:
@@ -91,6 +93,8 @@ def get_breaker(key: str, **kwargs: Any) -> CircuitBreaker:
         breaker = _breakers.get(key)
         if breaker is None:
             breaker = CircuitBreaker(**kwargs)
+            if len(_breakers) >= MAX_BREAKERS:
+                _breakers.pop(next(iter(_breakers)))
             _breakers[key] = breaker
         return breaker
 
