@@ -2,9 +2,9 @@
  * BLE Distance WASM Integration
  *
  * Exakte Schnittstelle zum Rust-WASM-Modul (`wasm-ble/`).
- * Der Loader versucht `public/ble_distance.wasm` (bzw. `/wasm/ble_distance_bg.wasm`)
- * zu laden; falls nicht vorhanden, fällt zurück auf die exakt identische
- * JavaScript-Implementierung (verifiziert gegen rust/src/lib.rs).
+ * Der Loader versucht den wasm-pack-Glue (`/wasm/ble_distance.js` + `.wasm`,
+ * CI-Artefakt aus `wasm-ble/`); falls nicht vorhanden, fällt er zurück auf die
+ * exakt identische JavaScript-Implementierung (verifiziert gegen `wasm-ble/src/lib.rs`).
  */
 
 export interface BLEWasmExports {
@@ -48,29 +48,41 @@ const JS_SIMULATION: BLEWasmExports = {
 };
 
 /**
+ * Prüft ein WASM-Kandidatenmodul: bekannte Eingabe muss ~2.0 m ergeben
+ * (Pfadverlust bei RSSI -65 / TxPower -59, n=2.0).
+ */
+function isValidWasm(candidate: unknown): candidate is BLEWasmExports {
+  try {
+    const mod = candidate as BLEWasmExports;
+    if (!mod || typeof mod.calculate_distance !== 'function') return false;
+    const testVal = mod.calculate_distance(-65, -59);
+    return typeof testVal === 'number' && testVal > 0 && Math.abs(testVal - 2.0) < 1.0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Lädt das WASM-Modul oder liefert die verifizierte JS-Simulation.
+ *
+ * // REAL-IMPLEMENTATION 2026-09-11 (Phase 2.5):
+ * Der Loader nutzt jetzt den wasm-pack-Glue (`public/wasm/ble_distance.js`,
+ * gebaut per CI-Schritt „Build BLE WASM“), weil wasm-bindgen-Module Importe
+ * brauchen und nicht roh instanziiert werden können. Fehlt das Artefakt,
+ * greift weiterhin die mathematisch identische JS-Simulation.
  */
 export async function loadBLEWasm(): Promise<BLEWasmExports> {
+  const base = ((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/').replace(/\/$/, '');
+  // Versuch 1: wasm-pack-Glue (setzt init() + Importe korrekt auf)
   try {
-    // Versuch 1: Echte WASM-Instanzierung
-    const resp = await fetch('/wasm/ble_distance_bg.wasm');
-    if (resp.ok) {
-      const bytes = await resp.arrayBuffer();
-      const wasmModule = await WebAssembly.compile(bytes);
-      const instance = await WebAssembly.instantiate(wasmModule, {});
-      const exports = instance.exports as unknown as BLEWasmExports;
-      if (exports && typeof exports.calculate_distance === 'function') {
-        // Validierung: Bekannte Eingabe muss ~2.0m ergeben (Pfadverlust bei -65 / -59)
-        try {
-          const testVal = exports.calculate_distance(-65, -59);
-          if (typeof testVal === 'number' && testVal > 0 && Math.abs(testVal - 2.0) < 1.0) {
-            return exports;
-          }
-        } catch { /* ungültiges WASM, Fallback */ }
-      }
+    const glue = (await import(/* @vite-ignore */ `${base}/wasm/ble_distance.js`)) as unknown as
+      BLEWasmExports & { default?: (input?: unknown) => Promise<unknown> };
+    if (glue && typeof glue.default === 'function') {
+      await glue.default();
     }
+    if (isValidWasm(glue)) return glue;
   } catch {
-    // Silently fall through to verified JS bridge
+    /* kein Glue-Artefakt (CI baut es) – weiter zum Fallback */
   }
   // Falls kein echtes .wasm gefunden / geladen wird, liefern wir die geprüfte Simulation
   return JS_SIMULATION;
