@@ -7,8 +7,8 @@ Basis: `caf308f` (main) · Modus: 5-Phasen-Zyklus (Audit → Ersetzung → Integ
 
 - [x] Phase 1: 310 Dateien auditiert, 11 Nicht-REAL-Befunde (2 MOCK, 1 STUB-by-design, 2 TODO, 3 PLACEHOLDER, 3 DEAD)
 - [x] Phase 2: 7/7 genehmigte Punkte umgesetzt (2.4 als ⛔-Eintrag, siehe unten), 0 API-Breaks, Backups unter `backups/phase2/`
-- [ ] Phase 3: 0 Schnittstellen gebunden — geplant (siehe § Phase 3)
-- [ ] Phase 4: Tests teilweise verifiziert (Python ✅, tsc/eslint/build ✅) — Rest geplant
+- [x] Phase 3: Retry+Breaker (TS/Python) + Persistenz (Audit, Sessions) gebunden (Commit `29d1593`); IPC sind echte Sockets (Smoke in Phase 4)
+- [x] Phase 4: alle Suiten grün (103 Checks) + Live-Smoke über echte Sockets (siehe § Phase 4)
 - [ ] Phase 5: Fehlerfälle geplant (siehe § Phase 5)
 
 ## Phase 1 — Audit (keine Code-Änderungen an Produktion; nur Audit-Artefakte)
@@ -78,13 +78,30 @@ Secrets im Code: **keine**.
 - Persistenz: Agent-Audit-Log → localStorage (gecappt); Gateway-Sessions → JSON-Snapshot mit TTL.
 - IPC: bereits echte Sockets (8765/8790/8791/18791) — nur Smoke-Nachweis in Phase 4.
 
-## Phase 4 — Funktionstest (geplant)
+## Phase 4 — Funktionstest (ausgeführt 2026-09-11, alles grün)
 
-- `npm test` einrichten (Vitest) + Frontend-Tests für Engine/Grabber/RAG/PortView-Logik.
-- Bridge- + Gateway-Smoke über echte HTTP/TCP-Sockets; Selftest erneut grün.
-- Fehlerfälle: Gateway offline, Bridge offline, Permission-Denied (simuliert), korrupte Frames.
-- App-Screens: `vite build` + statischer Serve + Routen-/Panel-Smoke (kein Playwright im Repo —
-  als Node-Skript mit `fetch`, dokumentiert).
+| Suite | Ergebnis |
+|---|---|
+| `npm test` (Vitest 0.34 + happy-dom, neu: `vitest.config.ts`, `test`-Script) | 17/17 ✅ (retry 8, engine 9) |
+| `mobile-server/tests/test_gateway.py` | 32/32 ✅ |
+| `desktop/tests/test_core.py` | 44/44 ✅ |
+| `mobile_ble_server.py selftest` (echte Sockets + Krypto) | 19/19 BESTANDEN ✅ |
+| `genesis/.../tests/test_api.py` (neu, plain-script) | 10/10 ✅ |
+| `tsc --noEmit` / `eslint` / `vite build` | grün ✅ |
+| **Summe** | **103/103 + 3 statische Prüfungen** ✅ |
+
+Live-Smoke über echte Sockets (Prozesse danach gestoppt): TCP `:8765` HELLO→Antwort ✅,
+HTTP `:8791` /status + /tokens ✅, UDP `:18791` PortView-Antwort ✅, Bridge `:8790`
+/mcp/health + /mcp/tools (31) + `health_check`-Call (40 ms) + /gateway-Proxy + /metrics ✅.
+App-Smoke: `vite build` + Preview, `/` → 200, Bundle enthält neuen Code
+(`Offline-Demo`, `circuit_open`, `dgs.auditLog`), `sw.js` + Manifest → 200 ✅.
+
+Fehlerfälle simuliert: Bridge-down (curl refused → strukturiert `bridge_nicht_erreichbar`,
+nach Dauerfehlern `circuit_open`) ✅, Gateway-down (Retry+Backoff, dann Fallback) ✅,
+korrupter Session-Snapshot (leer starten, kein Crash) ✅, korruptes Audit-JSON (Start ok) ✅,
+korrupte Frames/Tamper/Lockout (bestehende Gateway-Tests) ✅.
+N/A (dokumentiert): Audio-Loopback (keine Pipeline im Repo), USB-Disconnect/OOM
+(keine Hardware), Playwright/Appium (nicht im Repo → statischer Smoke + Bundle-Marker).
 
 ## Phase 5 — Fehlerresistenz (geplant)
 
@@ -107,6 +124,9 @@ Secrets im Code: **keine**.
 ## Verbleibende TECH-DEBT
 
 1. `npm run build`-Chunk > 500 kB (transformers.web 883 kB, index 1,9 MB) — Code-Splitting prüfen.
-2. Genesis-Backend hat keine Tests (nur Smoke via Import) — minimale pytest-Suite vorschlagen.
+2. ~~Genesis-Backend ohne Tests~~ — erledigt (Phase 4: `tests/test_api.py`, 10/10).
 3. `config/enterprise-nodes.csv` enthält nur Planungsdaten — Produktivbestand klären.
 4. `wasm-ble::get_learned_n()` zustandslos (Default 2.0) — ok für WASM, aber dokumentiert lassen.
+5. Upstream: `@cristianoaredes/mcp-mobile-server` meldet 5 Registry-Tools als „not implemented“
+   (`flutter_performance_profile`, `flutter_deploy_pipeline`, `android_full_debug`,
+   `ios_simulator_manager`, `flutter_inspector_session`) — betrifft Fremdpaket, hier nur vermerkt.
