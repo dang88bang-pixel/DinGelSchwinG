@@ -6,7 +6,7 @@ Basis: `caf308f` (main) · Modus: 5-Phasen-Zyklus (Audit → Ersetzung → Integ
 ## Phasenabschluss
 
 - [x] Phase 1: 310 Dateien auditiert, 11 Nicht-REAL-Befunde (2 MOCK, 1 STUB-by-design, 2 TODO, 3 PLACEHOLDER, 3 DEAD)
-- [ ] Phase 2: 0 Dateien ersetzt — wartet auf Zustimmung pro Datei (siehe § Phase 2)
+- [x] Phase 2: 7/7 genehmigte Punkte umgesetzt (2.4 als ⛔-Eintrag, siehe unten), 0 API-Breaks, Backups unter `backups/phase2/`
 - [ ] Phase 3: 0 Schnittstellen gebunden — geplant (siehe § Phase 3)
 - [ ] Phase 4: Tests teilweise verifiziert (Python ✅, tsc/eslint/build ✅) — Rest geplant
 - [ ] Phase 5: Fehlerfälle geplant (siehe § Phase 5)
@@ -58,17 +58,17 @@ Secrets im Code: **keine**.
 - **Audio-Loopback (Phase 4.4):** keine Audio-Pipeline im Repo → N/A.
 - **JNI/Audio-Callback:** nicht vorhanden; USB/BT-Pfade haben Timeouts + Error-Handling.
 
-## Phase 2 — Ersetzung (wartet auf Zustimmung pro Datei)
+## Phase 2 — Ersetzung (alle Zustimmungen erteilt, umgesetzt 2026-09-11)
 
-| # | Datei | Plan (API-kompatibel, Backup unter `backups/phase2/`) |
+| # | Datei | Ergebnis (API-kompatibel, Backup unter `backups/phase2/`) |
 |---|---|---|
-| 2.1 | `src/lib/agent/agentEngine.ts` | Live-Daten zuerst: Geräte aus PortView/Gateway-Snapshot + nativem DeviceControl, Clients aus Audit-Kontext, Scan als echte Task mit Status; Mocks nur noch als gekennzeichneter Offline-Fallback |
-| 2.2 | `src/mocks/devices.mock.ts` | Als typisierter Offline-Fallback-Provider umbauen (deprecated-Marker, gleiche Export-Namen) |
-| 2.3 | `src/mocks/{pairing,sensors,bleWasm}.mock.ts` | DEAD → als Fixtures einer neuen Vitest-Suite verdrahten (statt löschen) |
-| 2.4 | `android/.../assets/devicecontrol/fastboot` | `scripts/fetch-android-tools.sh` ausführen und Platzhalter ersetzen (falls Download gelingt, sonst ⛔-Eintrag) |
-| 2.5 | `public/wasm/` | `wasm-pack build` ausführen falls Rust-Toolchain verfügbar (sonst ⛔-Eintrag + CI-Vorschlag) |
-| 2.6 | `genesis/.../ui/NodeGraphViewModel.kt` (+ `genesis/.../app/main.py`) | Optional: `/graph`-Endpoint im Backend + Fetch im ViewModel, Demo-Knoten als Fallback |
-| 2.7 | `genesis/.../ble/ui/PolarConfigScreen.kt` | Switch an `PolarConfigViewModel`-State binden |
+| 2.1 | `src/lib/agent/agentEngine.ts` | ✅ Live-Daten zuerst (Gateway-Tokens/-Sessions, BLE-Scan, PortView, nativ); Mocks nur noch gekennzeichneter Offline-Fallback; zusätzlich `intentAdbDevices` ent-mockt; tsc/eslint grün (Commit `9713181`) |
+| 2.2 | `src/mocks/devices.mock.ts` | ✅ Fallback-Provider mit `@deprecated` + `IS_FALLBACK_DATA`, gleiche Exporte (Commit `9713181`) |
+| 2.3 | `src/mocks/{pairing,sensors,bleWasm}.mock.ts` | ✅ Auf Wunsch ersatzlos gelöscht (Backups in `backups/phase2/`) statt Fixture-Verdrahtung (Commit `9713181`) |
+| 2.4 | `android/.../assets/devicecontrol/fastboot` | ⛔ Fetch versucht: Termux-Repo per TLS blockiert, kein vertrauenswürdiges ARM64-Prebuilt → Platzhalter bleibt; App + CI federn ab |
+| 2.5 | `public/wasm/` + `src/lib/bleWasm.ts` + CI | ✅ Build in Sandbox ⛔ (kein Rust/crates.io), aber: Glue-Loader in `bleWasm.ts` (validiert, Fallback bleibt) + Fail-soft-CI-Schritt „Build BLE WASM“; tsc/eslint/build grün, YAML validiert (Commit `93a2c0d`) |
+| 2.6 | `genesis/.../ui/NodeGraphViewModel.kt` + `app/main.py` (+ additiv `neo4j_service.py`) | ✅ `GET /graph` (live Neo4j, Demo-Fallback mit Quellen-Label); ViewModel fetched per OkHttp (Timeouts), `graphSource`-Status; Backend-Test 200 + 5 Knoten/4 Kanten (Commit `feb98c1`) |
+| 2.7 | `genesis/.../ble/ui/PolarConfigScreen.kt` (+ `PolarConfigViewModel.kt`) | ✅ Switch an `StateFlow` gebunden (Commit `feb98c1`) |
 
 ## Phase 3 — Integration & Binding (geplant)
 
@@ -99,8 +99,10 @@ Secrets im Code: **keine**.
    mit echter Hardware nötig (Workaround: mock/bluetoothctl/gdbus-Backends + Simulator).
 2. Android-SDK/Gradle nur in CI — kein lokaler APK-/Geräte-Test (Workaround: CI-Workflow
    `build-apk.yml`, statische Kotlin-Prüfung per Review).
-3. (Bedingt) WASM-Build + fastboot-Binary brauchen Toolchain/Netz — Versuch in Phase 2,
-   sonst dokumentiert + CI-Vorschlag.
+3. WASM-Build + fastboot-Binary brauchen Toolchain/Netz: Sandbox-Netz blockiert
+   Termux/rustup/crates.io per TLS → lokal ⛔, in CI je ein Fail-soft-Schritt
+   vorhanden (`fetch-android-tools.sh`, „Build BLE WASM“); App fällt in beiden
+   Fällen sauber zurück (Handlungsanweisung / JS-Simulation).
 
 ## Verbleibende TECH-DEBT
 
