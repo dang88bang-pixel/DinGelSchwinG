@@ -1,16 +1,6 @@
 /**
- * Geräte-Fallback für den Offline-/Demo-Modus.
- *
- * // REAL-IMPLEMENTATION 2026-09-11 (Phase 2.2):
- * Diese Daten sind KEINE Live-Geräte mehr, sondern der gekennzeichnete
- * Offline-Fallback der Agent-Engine (`AgentEngine.demoDevices()`), wenn weder
- * Gateway noch natives DeviceControl erreichbar sind. Gleiche Export-Namen
- * (API-kompatibel), aber als Fallback markiert.
- *
+ * Mock-Netzwerke für Tests / Simulation ohne echte Hardware
  * Farbcodierung exakt: Master=Gold, Client=Grün, Target=Rot, Andere=Grau
- *
- * @deprecated Nur als Offline-Fallback nutzen – Live-Daten kommen aus
- * `AgentEngine.refreshDevices()` (Gateway-Tokens/-Sessions, BLE-Scan, nativ).
  */
 export interface MockDevice {
   id: string;
@@ -21,12 +11,6 @@ export interface MockDevice {
   x: number; y: number; z: number;
   bound: boolean;
 }
-
-/** Kennzeichnung: `true` = Demo-/Fallback-Daten, keine Live-Geräte. */
-export const IS_FALLBACK_DATA = true;
-
-export const FALLBACK_NOTE =
-  'Offline-Demo – Gateway offline (Start: `npm run mcp:gateway`)';
 
 export const MOCK_DEVICES: MockDevice[] = [
   { id: 'm-001', name: 'MASTER-Gold', type: 'master', rssi: -42, txPower: -59, x: 0, y: 0, z: 0, bound: false },
