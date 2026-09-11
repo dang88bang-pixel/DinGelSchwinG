@@ -106,6 +106,8 @@ export const BUTTON_DEFAULTS: ActionButton[] = [
 
 const STORAGE_MODE_KEY = 'dgs.agentMode';
 const STORAGE_CUSTOM_KEY = 'dgs.customInstruction';
+const STORAGE_AUDIT_KEY = 'dgs.auditLog';
+const AUDIT_CAP = 200;
 
 const APPROVAL_RE = /^\s*(freigeben|freigegeben|bestätigen|bestaetigen|freigabe|approve|approved)\b/i;
 
@@ -136,6 +138,16 @@ export class AgentEngine {
       const mode = localStorage.getItem(STORAGE_MODE_KEY) as AgentMode | null;
       if (mode && mode in MODE_LABELS) this.mode = mode;
       this.customInstruction = localStorage.getItem(STORAGE_CUSTOM_KEY) ?? '';
+      // Phase 3: Audit-Log überdauert Reloads (gecappt, validiert).
+      const rawAudit = localStorage.getItem(STORAGE_AUDIT_KEY);
+      if (rawAudit) {
+        const parsed = JSON.parse(rawAudit) as AuditEntry[];
+        if (Array.isArray(parsed)) {
+          this.auditLog = parsed
+            .filter((e) => e && typeof e.action === 'string')
+            .slice(-AUDIT_CAP);
+        }
+      }
     } catch {
       /* localStorage nicht verfügbar (z.B. WebView) – Defaults bleiben */
     }
@@ -1486,7 +1498,13 @@ export class AgentEngine {
   // ------------------------------------------------------------------
   audit(action: string, detail: string): void {
     this.auditLog.push({ time: now(), user: this.role, action, detail });
-    if (this.auditLog.length > 200) this.auditLog = this.auditLog.slice(-200);
+    if (this.auditLog.length > AUDIT_CAP) this.auditLog = this.auditLog.slice(-AUDIT_CAP);
+    // Phase 3: persistent statt In-Memory-Only (Fehler still ignorieren).
+    try {
+      localStorage.setItem(STORAGE_AUDIT_KEY, JSON.stringify(this.auditLog));
+    } catch {
+      /* Quota/Privacy-Modus – In-Memory weiter */
+    }
   }
 
   auditText(limit = 15): string {

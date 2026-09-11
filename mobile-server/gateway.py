@@ -150,6 +150,78 @@ class GatewayState:
         self.cfg.sessions_file = _P(str(self.cfg.sessions_file))
         self.whitelist = ensure_whitelist(self.cfg.whitelist_file)
         self._known = {t["token_id"] for t in self.whitelist.get("tokens", []) if not t.get("revoked")}
+        self.load_snapshot()  # Phase 3: Sitzungsverlauf überdauert Neustarts
+
+    # -- Session-Snapshot (Phase 3: persistent statt In-Memory-Only) --------
+    # Bewusst OHNE Schlüsselmaterial (session_material) und OHNE offene
+    # Challenges: Beides ist nur-RAM (TTL) und darf nie auf Disk landen.
+    def save_snapshot(self) -> None:
+        """Schreibt beendete Sessions + Locks + Zähler atomar nach sessions.json."""
+        try:
+            from pathlib import Path as _P
+
+            snap = {
+                "saved_at": time.time(),
+                "sessions": [s.to_dict() for s in self.sessions
+                             if s.state in ("granted", "denied", "locked")][-200:],
+                "locks": {k: v for k, v in self.locks.items() if v > time.time()},
+                "failures": self.failures,
+                "metrics": self.metrics,
+            }
+            save_json(_P(str(self.cfg.sessions_file)), snap)
+        except Exception as exc:  # noqa: BLE001 - Persistenz darf nie crashen
+            print(f"[gateway] ⚠️  snapshot schreiben fehlgeschlagen: {exc}")
+
+    def load_snapshot(self) -> None:
+        """Stellt Verlauf aus sessions.json wieder her (Best-Effort, validiert)."""
+        try:
+            from pathlib import Path as _P
+
+            path = _P(str(self.cfg.sessions_file))
+            if not path.exists():
+                return
+            snap = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(snap, dict):
+                return
+            restored = 0
+            for item in snap.get("sessions", [])[-200:]:
+                if not isinstance(item, dict) or not item.get("sid"):
+                    continue
+                try:
+                    self.sessions.append(Session(
+                        sid=str(item["sid"]),
+                        token_id=str(item.get("token_id", "")),
+                        uid=str(item.get("uid", "")),
+                        zone=str(item.get("zone", "")),
+                        state=str(item.get("state", "denied")),
+                        reason=str(item.get("reason", "")) + " (restart)",
+                        created=float(item.get("created", time.time())),
+                        finished=item.get("finished"),
+                        attempts=int(item.get("attempts", 0)),
+                        agent=str(item.get("agent", "unknown")),
+                        battery_mv=item.get("battery_mv"),
+                        tamper=item.get("tamper"),
+                        rssi=item.get("rssi"),
+                    ))
+                    restored += 1
+                except (TypeError, ValueError):
+                    continue
+            now = time.time()
+            for token_id, unlock_ts in (snap.get("locks") or {}).items():
+                try:
+                    if float(unlock_ts) > now:
+                        self.locks[str(token_id)] = float(unlock_ts)
+                except (TypeError, ValueError):
+                    continue
+            if isinstance(snap.get("metrics"), dict):
+                for key, val in snap["metrics"].items():
+                    if key in self.metrics and isinstance(val, (int, float)):
+                        self.metrics[key] = int(val)
+            if restored:
+                print(f"[gateway] snapshot geladen: {restored} sessions, "
+                      f"{len(self.locks)} locks ({path})")
+        except Exception as exc:  # noqa: BLE001 - korrupter Snapshot ist ok
+            print(f"[gateway] ⚠️  snapshot laden fehlgeschlagen ({exc}) – leer starten")
 
     def tokens(self) -> list[dict]:
         out = []
@@ -535,6 +607,7 @@ class GatewayState:
             session.reason = reason
             session.finished = time.time()
         self.session_material.pop(sid, None)
+        self.save_snapshot()  # Phase 3: Verlauf sofort persistent (ohne Keys)
         if self.ble and state == "denied":
             self.ble.set_status(STATUS_FAIL)
         elif self.ble and state in ("granted", "locked"):

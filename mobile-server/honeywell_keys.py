@@ -39,9 +39,12 @@ import secrets
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+from retry_util import get_breaker, with_retry
 
 SELF = "dgs-keys-v1"
 
@@ -179,21 +182,35 @@ def whitelist_entries(blob: dict) -> list[dict]:
 
 
 def post_json(url: str, payload: dict, timeout: float = 8.0) -> dict:
+    """POST mit Retry (Backoff) + Circuit-Breaker (Phase 3). Antwortformat unverändert."""
+    host = urllib.parse.urlsplit(url).netloc or "unbekannt"
+    breaker = get_breaker(f"keys:{host}")
+    if not breaker.allow():
+        return {"ok": False, "error": "circuit_open", "url": url,
+                "detail": f"{host} pausiert nach Dauerfehlern (erneut in {breaker.retry_in_s():.0f} s)"}
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
         headers={"content-type": "application/json"},
         method="POST",
     )
-    try:
+
+    def _do() -> dict:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (lokale Gegenstelle)
             return json.loads(resp.read().decode("utf-8") or "{}")
+
+    try:
+        out = with_retry(_do)
+        breaker.record_success()
+        return out
     except urllib.error.HTTPError as exc:
+        breaker.record_success()  # Gegenstelle lebt (Antwort mit Status)
         try:
             return {"ok": False, "http_status": exc.code, "detail": json.loads(exc.read().decode("utf-8") or "{}")}
         except Exception:  # noqa: BLE001
             return {"ok": False, "http_status": exc.code, "detail": str(exc)}
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        breaker.record_failure()
         return {"ok": False, "error": "gateway_nicht_erreichbar", "url": url, "detail": str(exc)}
 
 
