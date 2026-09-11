@@ -1,80 +1,101 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Radio, Settings, Play, Pause } from 'lucide-react';
+// REAL-IMPLEMENTATION 2026-09-11
+// The gateway currently exposes BLE observation, not a writable mesh-radio
+// protocol. This panel therefore displays and refreshes observed radio peers
+// without fabricating frequencies, RSSI drift, or node state.
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Radio, RefreshCw, AlertCircle, Pause, Play } from 'lucide-react';
+import { gatewayCommand } from '../lib/mcpClient';
 
 export interface MeshNode {
   id: string;
-  freqMHz: number;
-  rssi: number;
+  freqMHz: number | null;
+  rssi: number | null;
   active: boolean;
   lastUpdate: string;
 }
 
+type GatewayDevice = Record<string, unknown>;
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function numberValue(value: unknown): number | null {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function nodeFromObservation(value: GatewayDevice): MeshNode | null {
+  const id = stringValue(value.id ?? value.address ?? value.device_id);
+  if (!id) return null;
+  return {
+    id,
+    // bluetoothctl does not expose a channel/frequency; do not infer one from
+    // the advertising address or render a made-up Wi-Fi channel.
+    freqMHz: numberValue(value.frequency_mhz ?? value.freqMHz),
+    rssi: numberValue(value.rssi),
+    active: true,
+    lastUpdate: typeof value.seen_at === 'number' ? new Date(value.seen_at * 1000).toISOString() : new Date().toISOString(),
+  };
+}
+
 export default function MeshControl() {
   const [running, setRunning] = useState(false);
-  const [nodes, setNodes] = useState<MeshNode[]>([
-    { id: 'mesh-01', freqMHz: 2412, rssi: -45, active: true, lastUpdate: new Date().toISOString() },
-    { id: 'mesh-02', freqMHz: 2437, rssi: -62, active: true, lastUpdate: new Date().toISOString() },
-    { id: 'mesh-03', freqMHz: 2462, rssi: -78, active: false, lastUpdate: new Date().toISOString() },
-  ]);
-  const [selectedFreq, setSelectedFreq] = useState<number>(2412);
+  const [nodes, setNodes] = useState<MeshNode[]>([]);
+  const [status, setStatus] = useState('Noch kein physischer Gateway-Scan ausgeführt.');
+  const [busy, setBusy] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Background service simulation: updates every 2s when running
+  const refresh = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await gatewayCommand('ble_scan', { timeout: 6 });
+      if (result.ok !== true) throw new Error(String(result.reason ?? result.error ?? 'Gateway hat den Scan abgelehnt.'));
+      if (result.backend === 'mock') {
+        setNodes([]);
+        setStatus('Gateway-Mock erkannt. Keine simulierten Geräte werden als Mesh-Knoten angezeigt.');
+        return;
+      }
+      const observed = Array.isArray(result.devices)
+        ? result.devices.filter((item): item is GatewayDevice => Boolean(item) && typeof item === 'object').filter((item) => item.simulated !== true).map(nodeFromObservation).filter((item): item is MeshNode => item !== null)
+        : [];
+      setNodes(observed);
+      setStatus(observed.length ? `${observed.length} BLE-Peers beobachtet; Frequenz nur falls Gateway sie misst.` : 'Scan beendet: keine physischen BLE-Peers gefunden.');
+    } catch (error) {
+      setStatus(`Gateway-Scan fehlgeschlagen: ${errorMessage(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy]);
+
   useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => {
-      setNodes(prev => prev.map(n => {
-        if (!n.active) return { ...n, lastUpdate: new Date().toISOString() };
-        const drift = (Math.random() - 0.5) * 2;
-        return {
-          ...n,
-          freqMHz: Math.round((n.freqMHz + drift) * 10) / 10,
-          rssi: Math.round((n.rssi + (Math.random() - 0.5) * 3) * 10) / 10,
-          lastUpdate: new Date().toISOString(),
-        };
-      }));
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [running]);
-
-  const toggleNode = useCallback((id: string) => {
-    setNodes(prev => prev.map(n => n.id === id ? { ...n, active: !n.active, lastUpdate: new Date().toISOString() } : n));
-  }, []);
+    if (!running) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+      return undefined;
+    }
+    void refresh();
+    timerRef.current = setInterval(() => void refresh(), 15_000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+    };
+  }, [refresh, running]);
 
   return (
     <div className="glass-card p-5 relative overflow-hidden ring-gradient">
       <div className="absolute -top-10 -left-10 w-40 h-40 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-black text-white flex items-center gap-2"><Radio className="w-4 h-4 text-violet-300" /> Mesh Client Control</h3>
-        <button onClick={() => setRunning(!running)} className={`flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1.5 rounded-lg shadow transition ${running ? 'bg-rose-600 text-white hover:bg-rose-500' : 'bg-violet-600 text-white hover:bg-violet-500'}`}>
-          {running ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}{running ? 'Pause' : 'Start'}
-        </button>
+      <div className="flex items-center justify-between mb-3">
+        <div><h3 className="text-sm font-black text-white flex items-center gap-2"><Radio className="w-4 h-4 text-violet-300" /> Mesh-/BLE-Beobachtung</h3><p className="text-[10px] text-slate-500 mt-1">Das Gateway hat keinen dokumentierten Mesh-Steuervertrag; nur BLE-Scanwerte werden angezeigt.</p></div>
+        <div className="flex gap-2"><button type="button" onClick={() => setRunning((value) => !value)} className={`flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1.5 rounded-lg ${running ? 'bg-rose-600 text-white' : 'bg-violet-600 text-white'}`}>{running ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}{running ? 'Auto aus' : 'Auto an'}</button><button type="button" onClick={() => void refresh()} disabled={busy} className="flex items-center gap-1.5 text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-200 disabled:opacity-50"><RefreshCw className={`w-3 h-3 ${busy ? 'animate-spin' : ''}`} /> Scan</button></div>
       </div>
-
-      <div className="grid md:grid-cols-3 gap-3 mb-4">
-        {nodes.map(n => (
-          <button key={n.id} onClick={() => { toggleNode(n.id); setSelectedFreq(n.freqMHz); }} className={`text-left rounded-2xl p-3 border transition-all ${selectedFreq === n.freqMHz ? 'bg-violet-950/50 border-violet-400/60 ring-1 ring-violet-300/30 scale-[1.03]' : 'bg-[#060f2a]/50 border-white/5 hover:border-white/15'} ${n.active ? 'opacity-100' : 'opacity-50'}`}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-extrabold text-violet-300">{n.id}</span>
-              <span className={`w-2 h-2 rounded-full shadow-sm ${n.active ? 'bg-violet-400 shadow-violet-900/50' : 'bg-slate-600'}`} />
-            </div>
-            <div className="text-lg font-black text-white leading-none">{n.freqMHz} <span className="text-xs font-mono text-slate-400 font-normal">MHz</span></div>
-            <div className="text-[10px] font-mono text-slate-400 mt-1">RSSI <b className={n.rssi > -60 ? 'text-emerald-300' : n.rssi > -75 ? 'text-amber-300' : 'text-rose-300'}>{n.rssi} dBm</b></div>
-            <div className="text-[10px] font-mono text-slate-600 mt-0.5">{new Date(n.lastUpdate).toLocaleTimeString('de-DE')}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="rounded-xl p-3 bg-[#060f2a]/60 border border-white/5 font-mono text-xs text-slate-300">
-        <div className="flex items-center gap-2 mb-2"><Settings className="w-3 h-3 text-violet-300" /> Frequenzüberwachung</div>
-        <div className="flex gap-4 text-[10px] text-slate-400">
-          <span>Aktive Knoten: <b className="text-white">{nodes.filter(n=>n.active).length}</b></span>
-          <span>Gewählt: <b className="text-violet-200">{selectedFreq} MHz</b></span>
-          <span>Dienst: <b className="text-amber-200">{running ? 'Läuft' : 'Gestoppt'}</b></span>
-        </div>
-        <div className="mt-2 h-2 bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full w-3/4 rounded-full bg-gradient-to-r from-violet-500 to-amber-400 shadow-[0_0_10px_rgba(167,139,250,0.5)]" />
-        </div>
-      </div>
+      <div className="rounded-xl px-3 py-2 mb-3 bg-[#060f2a]/60 border border-white/5 text-[11px] font-mono text-slate-300">{status}</div>
+      {nodes.length === 0 ? <div className="rounded-xl p-3 bg-[#060f2a]/50 border border-white/5 text-xs text-slate-500"><AlertCircle className="w-3.5 h-3.5 inline mr-1 text-amber-300" />Keine verifizierbare Beobachtung vorhanden.</div> : <div className="grid md:grid-cols-3 gap-3">{nodes.map((node) => <div key={node.id} className="rounded-2xl p-3 border bg-[#060f2a]/50 border-white/5"><div className="flex justify-between"><span className="text-[10px] font-extrabold text-violet-300 truncate">{node.id}</span><span className="w-2 h-2 rounded-full bg-emerald-400" /></div><div className="text-xs font-mono text-slate-300 mt-2">RSSI <b className="text-cyan-200">{node.rssi === null ? 'nicht verfügbar' : `${node.rssi} dBm`}</b></div><div className="text-xs font-mono text-slate-300 mt-1">Frequenz <b className="text-amber-200">{node.freqMHz === null ? 'nicht gemessen' : `${node.freqMHz} MHz`}</b></div><div className="text-[10px] font-mono text-slate-500 mt-1">{new Date(node.lastUpdate).toLocaleTimeString('de-DE')}</div></div>)}</div>}
     </div>
   );
 }

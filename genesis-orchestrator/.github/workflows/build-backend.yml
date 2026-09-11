@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "fastapi-backend/**"
-      - "proto/**"
-      - ".github/workflows/build-backend.yml"
+      - "genesis-orchestrator/fastapi-backend/**"
+      - "genesis-orchestrator/proto/**"
+      - "genesis-orchestrator/.github/workflows/build-backend.yml"
   pull_request:
     paths:
-      - "fastapi-backend/**"
-      - "proto/**"
-      - ".github/workflows/build-backend.yml"
+      - "genesis-orchestrator/fastapi-backend/**"
+      - "genesis-orchestrator/proto/**"
+      - "genesis-orchestrator/.github/workflows/build-backend.yml"
   workflow_dispatch:
 
 permissions:
@@ -57,8 +57,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./fastapi-backend
-          file: ./fastapi-backend/Dockerfile
+          context: ./genesis-orchestrator/fastapi-backend
+          file: ./genesis-orchestrator/fastapi-backend/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

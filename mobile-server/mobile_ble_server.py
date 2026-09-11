@@ -4,7 +4,7 @@
 Betrieb:
   1. TCP-Dienst (Standard :8765) – Frames für den Haupt-Agenten (Raspberry Pi 4).
   2. HTTP/JSON-API (Standard :8791) – für Web-App, MCP-Bridge und Prometheus.
-  3. BLE-Adapter – Werbung/Scan als GATT-Peripheral (mock|bluetoothctl|gdbus).
+  3. BLE-Adapter – verifizierbarer BlueZ-Scan (`bluetoothctl`); `gdbus` schlägt ohne persistente D-Bus-GATT-Runtime fail-closed fehl.
 
 Wichtig (Korrektur gegenüber dem „NFC → TCP → Notify“-Ursprungsmodell):
   Der CT45P Xon+ ist KEIN Beacon, der auf Notify wartet, und er sendet auch
@@ -16,11 +16,12 @@ Wichtig (Korrektur gegenüber dem „NFC → TCP → Notify“-Ursprungsmodell):
 Beispiele:
   python3 mobile_ble_server.py --mock                    # Demo ohne Hardware
   python3 mobile_ble_server.py --selftest                # End-to-End-Selbsttest
-  python3 mobile_ble_server.py --ble-backend gdbus       # echtes BlueZ-Peripheral
+  python3 mobile_ble_server.py --ble-backend gdbus       # zeigt den fail-closed GATT-Runtime-Blocker
   python3 mobile_ble_server.py simulate-token --token-id CT45P-0001 \
       --key 000102030405060708090a0b0c0d0e0f             # Token-Simulator gegen Gateway
   python3 mobile_ble_server.py scan --timeout 6          # BLE-Umfeld anzeigen
 """
+# REAL-IMPLEMENTATION 2026-09-11
 from __future__ import annotations
 
 import argparse

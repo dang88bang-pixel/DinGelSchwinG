@@ -1,79 +1,112 @@
+// REAL-IMPLEMENTATION 2026-09-11
 /**
- * BLE Distance WASM Integration
+ * BLE distance calculation adapter.
  *
- * Exakte Schnittstelle zum Rust-WASM-Modul (`wasm-ble/`).
- * Der Loader versucht `public/ble_distance.wasm` (bzw. `/wasm/ble_distance_bg.wasm`)
- * zu laden; falls nicht vorhanden, fällt zurück auf die exakt identische
- * JavaScript-Implementierung (verifiziert gegen rust/src/lib.rs).
+ * When the wasm-bindgen glue artefact is deployed under `/wasm`, it is used.
+ * Otherwise a deterministic JavaScript reference implementation remains
+ * available for calculations on measured RSSI/TxPower values. `runtime` makes
+ * the distinction explicit so the UI never calls a JS fallback "WASM active".
  */
-
 export interface BLEWasmExports {
-  calculate_distance: (rssi: number, tx_power: number) => number;
-  calculate_distance_env: (rssi: number, tx_power: number, n: number) => number;
-  calc_exact_distance: (rssi: number, tx_power: number, rssi_ref: number, dist_ref: number) => number;
-  batch_distances: (rssi_array: Float64Array, tx_power: number) => Float64Array;
-  learn_from_feedback: (rssi_ref: number, dist_ref: number, rssi_new: number, dist_new: number) => number;
+  calculate_distance: (rssi: number, txPower: number) => number;
+  calculate_distance_env: (rssi: number, txPower: number, n: number) => number;
+  calc_exact_distance: (rssi: number, txPower: number, rssiRef: number, distRef: number) => number;
+  batch_distances: (rssi: Float64Array, txPower: number) => Float64Array;
+  learn_from_feedback: (rssiRef: number, distRef: number, rssiNew: number, distNew: number) => number;
   get_learned_n: () => number;
+  runtime: 'wasm' | 'javascript';
+}
+
+type WasmGlue = {
+  default?: (input?: RequestInfo | URL | Response | BufferSource | WebAssembly.Module) => Promise<unknown>;
+  calculate_distance?: (rssi: number, txPower: number) => number;
+  calculate_distance_env?: (rssi: number, txPower: number, n: number) => number;
+  calc_exact_distance?: (rssi: number, txPower: number, rssiRef: number, distRef: number) => number;
+  batch_distances?: (rssi: Float64Array, txPower: number) => Float64Array;
+  learn_from_feedback?: (rssiRef: number, distRef: number, rssiNew: number, distNew: number) => number;
+  get_learned_n?: () => number;
+};
+
+function finite(value: number, name: string): number {
+  if (!Number.isFinite(value)) throw new RangeError(`${name} must be finite`);
+  return value;
+}
+
+function environmentFactor(value: number): number {
+  finite(value, 'environment factor');
+  if (value <= 0) throw new RangeError('environment factor must be greater than zero');
+  return value;
 }
 
 function pathLoss(rssi: number, txPower: number, n: number): number {
-  const ratio = (txPower - rssi) / (10.0 * n);
-  return Math.pow(10, ratio);
+  finite(rssi, 'RSSI');
+  finite(txPower, 'TxPower');
+  return Math.pow(10, (txPower - rssi) / (10 * environmentFactor(n)));
 }
 
-const JS_SIMULATION: BLEWasmExports = {
-  calculate_distance: (rssi: number, tx_power: number) => pathLoss(rssi, tx_power, 2.0),
-  calculate_distance_env: (rssi: number, tx_power: number, n: number) => pathLoss(rssi, tx_power, n),
-  calc_exact_distance: (rssi: number, tx_power: number, rssi_ref: number, dist_ref: number) => {
-    if (Math.abs(rssi - rssi_ref) < 0.001) return dist_ref;
-    const dEst = pathLoss(rssi, tx_power, 2.0);
-    const dRefEst = pathLoss(rssi_ref, tx_power, 2.0);
-    return dEst * (dist_ref / dRefEst);
-  },
-  batch_distances: (rssi_array: Float64Array, tx_power: number) => {
-    const out = new Float64Array(rssi_array.length);
-    for (let i = 0; i < rssi_array.length; i++) {
-      out[i] = pathLoss(rssi_array[i], tx_power, 2.0);
-    }
-    return out;
-  },
-  learn_from_feedback: (rssi_ref: number, dist_ref: number, rssi_new: number, dist_new: number) => {
-    if (dist_ref <= 0 || dist_new <= 0 || Math.abs(rssi_ref - rssi_new) < 0.001) return 2.0;
-    const ratio = dist_new / dist_ref;
-    if (ratio <= 0) return 2.0;
-    const n = (rssi_ref - rssi_new) / (10.0 * Math.log10(ratio));
-    return Math.max(1.5, Math.min(6.0, n));
-  },
-  get_learned_n: () => 2.0,
-};
+/** A reference adapter used only for calculation fallback, never radio discovery. */
+export function createJavaScriptDistanceAdapter(): BLEWasmExports {
+  let learnedN = 2;
+  return {
+    runtime: 'javascript',
+    calculate_distance: (rssi, txPower) => pathLoss(rssi, txPower, 2),
+    calculate_distance_env: pathLoss,
+    calc_exact_distance: (rssi, txPower, rssiRef, distRef) => {
+      finite(rssiRef, 'reference RSSI');
+      if (!Number.isFinite(distRef) || distRef <= 0) throw new RangeError('reference distance must be greater than zero');
+      if (Math.abs(rssi - rssiRef) < 0.001) return distRef;
+      return pathLoss(rssi, txPower, 2) * (distRef / pathLoss(rssiRef, txPower, 2));
+    },
+    batch_distances: (rssis, txPower) => Float64Array.from(rssis, (rssi) => pathLoss(rssi, txPower, 2)),
+    learn_from_feedback: (rssiRef, distRef, rssiNew, distNew) => {
+      finite(rssiRef, 'reference RSSI');
+      finite(rssiNew, 'new RSSI');
+      if (distRef <= 0 || distNew <= 0 || Math.abs(rssiRef - rssiNew) < 0.001) return learnedN;
+      const denominator = 10 * Math.log10(distNew / distRef);
+      if (!Number.isFinite(denominator) || Math.abs(denominator) < Number.EPSILON) return learnedN;
+      learnedN = Math.max(1.5, Math.min(6, (rssiRef - rssiNew) / denominator));
+      return learnedN;
+    },
+    get_learned_n: () => learnedN,
+  };
+}
 
-/**
- * Lädt das WASM-Modul oder liefert die verifizierte JS-Simulation.
- */
+function isCompleteGlue(glue: WasmGlue): glue is Required<Omit<WasmGlue, 'default'>> & WasmGlue {
+  return typeof glue.calculate_distance === 'function'
+    && typeof glue.calculate_distance_env === 'function'
+    && typeof glue.calc_exact_distance === 'function'
+    && typeof glue.batch_distances === 'function'
+    && typeof glue.learn_from_feedback === 'function'
+    && typeof glue.get_learned_n === 'function';
+}
+
+async function loadWasmBindgenAdapter(): Promise<BLEWasmExports> {
+  // The glue is generated by `wasm-pack build --target web --out-dir ../public/wasm`.
+  // It is intentionally loaded at runtime so a missing optional artefact does not
+  // prevent the browser/WebView application from opening.
+  const glueUrl = '/wasm/ble_distance.js';
+  const glue = await import(/* @vite-ignore */ glueUrl) as WasmGlue;
+  if (typeof glue.default === 'function') await glue.default('/wasm/ble_distance_bg.wasm');
+  if (!isCompleteGlue(glue)) throw new Error('wasm-bindgen glue does not expose the BLE distance contract');
+  // Exercise the module once to catch incompatible/partial artefacts early.
+  const probe = glue.calculate_distance(-65, -59);
+  if (!Number.isFinite(probe) || probe <= 0) throw new Error('BLE distance WASM self-check failed');
+  return {
+    calculate_distance: glue.calculate_distance,
+    calculate_distance_env: glue.calculate_distance_env,
+    calc_exact_distance: glue.calc_exact_distance,
+    batch_distances: glue.batch_distances,
+    learn_from_feedback: glue.learn_from_feedback,
+    get_learned_n: glue.get_learned_n,
+    runtime: 'wasm',
+  };
+}
+
+/** Load a verified wasm-bindgen artefact, or the explicit JS calculation adapter. */
 export async function loadBLEWasm(): Promise<BLEWasmExports> {
   try {
-    // Versuch 1: Echte WASM-Instanzierung
-    const resp = await fetch('/wasm/ble_distance_bg.wasm');
-    if (resp.ok) {
-      const bytes = await resp.arrayBuffer();
-      const wasmModule = await WebAssembly.compile(bytes);
-      const instance = await WebAssembly.instantiate(wasmModule, {});
-      const exports = instance.exports as unknown as BLEWasmExports;
-      if (exports && typeof exports.calculate_distance === 'function') {
-        // Validierung: Bekannte Eingabe muss ~2.0m ergeben (Pfadverlust bei -65 / -59)
-        try {
-          const testVal = exports.calculate_distance(-65, -59);
-          if (typeof testVal === 'number' && testVal > 0 && Math.abs(testVal - 2.0) < 1.0) {
-            return exports;
-          }
-        } catch { /* ungültiges WASM, Fallback */ }
-      }
-    }
+    return await loadWasmBindgenAdapter();
   } catch {
-    // Silently fall through to verified JS bridge
+    return createJavaScriptDistanceAdapter();
   }
-  // Falls kein echtes .wasm gefunden / geladen wird, liefern wir die geprüfte Simulation
-  return JS_SIMULATION;
 }
-
-export { JS_SIMULATION as bleWasmVerifiedSimulation };

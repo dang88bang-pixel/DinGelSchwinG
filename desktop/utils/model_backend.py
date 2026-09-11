@@ -17,6 +17,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from abc import ABC, abstractmethod
 from typing import Any
 
 MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "models")
@@ -26,14 +27,16 @@ class BackendError(Exception):
     """Wird geworfen, wenn ein Backend nicht verfügbar ist oder fehlschlägt."""
 
 
-class ModelBackend:
-    """Basis-Klasse für alle Modell-Backends."""
+# REAL-IMPLEMENTATION 2026-09-11
+class ModelBackend(ABC):
+    """Explicit contract for a backend that can generate model text."""
 
     name = "none"
     is_llm = False
 
+    @abstractmethod
     def generate(self, system_prompt: str, user_message: str) -> str:
-        raise NotImplementedError
+        """Return a generated response or raise :class:`BackendError`."""
 
     def describe(self) -> str:
         return "deterministisch (kein LLM)"
@@ -45,6 +48,12 @@ class ModelBackend:
 class DeterministicBackend(ModelBackend):
     name = "none"
     is_llm = False
+
+    def generate(self, system_prompt: str, user_message: str) -> str:
+        # The Agent deliberately routes deterministic mode through its skill
+        # engine. Calling the model-only API is a configuration error, not a
+        # reason to invent an LLM response.
+        raise BackendError("Deterministische Skill-Engine erzeugt keinen LLM-Text; nutze die Intent-Verarbeitung.")
 
     def describe(self) -> str:
         return "deterministische Skill-Engine (offline, immer verfügbar)"

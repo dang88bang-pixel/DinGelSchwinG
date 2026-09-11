@@ -136,14 +136,16 @@ docker run --net=host --cap-add=NET_ADMIN -v /var/run/dbus:/var/run/dbus ...
 
 ## 5b. Mobiles BLE-Gateway (RPi Zero 2 W + XIAO nRF52840)
 
-Für den CT45P-Xon+-Pfad (Challenge/Response statt rohem UID-Relay) braucht der mobile
-Rechner einen Adapter, der **BLE-Peripheral** kann. Vollständige Beschreibung des
-Gateway-Programms: [docs/mobile-ble-gateway.md](mobile-ble-gateway.md).
+Für den CT45P-Xon+-Pfad (Challenge/Response statt rohem UID-Relay) liefert der mobile
+Rechner heute einen **verifizierbaren BLE-Scan**. Ein BLE-Peripheral benötigt zusätzlich
+einen persistenten BlueZ-D-Bus-Dienst und einen validierten CT45P-GATT-Vertrag; der
+aktuelle `gdbus`-Modus schlägt deshalb bewusst fail-closed fehl. Vollständige Beschreibung:
+[docs/mobile-ble-gateway.md](mobile-ble-gateway.md).
 
 | Rolle | Gerät | Aufgabe |
 |---|---|---|
 | Auslöser + Krypto-Verwaltung | RPi 4 | PN532 (UART) liest UID, hält `keys.json` (Root-Keys, PSK), verbindet TCP `:8765` |
-| Mobiler Leser | RPi Zero 2 W + XIAO nRF52840 | BlueZ-GATT-Peripheral, Challenge schreiben, Antwort lesen, HTTP `:8791` für UI/Bridge |
+| Mobiler Leser | RPi Zero 2 W + XIAO nRF52840 | BlueZ-BLE-Scan und HTTP `:8791` für UI/Bridge; GATT-Peripheral erst mit persistentem D-Bus-Dienst |
 | Token | Honeywell CT45P Xon+ | antwortet nur bei korrekter Entschlüsselung |
 
 ```bash
@@ -157,14 +159,14 @@ python3 -m pip install --break-system-packages cryptography   # optional, sonst 
 git clone <repo> ~/DinGelSchwinG && cd ~/DinGelSchwinG
 cp mobile-server/keys.example.json mobile-server/data/keys.json   # NUR shared_secret eintragen
 chmod 600 mobile-server/data/keys.json
-python3 mobile-server/mobile_ble_server.py --ble-backend auto     # auto → gdbus, sonst mock
-python3 mobile-server/mobile_ble_server.py selftest               # 10 Prüfungen, frei wählbare Ports
+python3 mobile-server/mobile_ble_server.py --ble-backend auto     # auto → bluetoothctl-Scan, sonst klar markierter mock
+python3 mobile-server/mobile_ble_server.py selftest               # 20 Prüfungen, frei wählbare Ports
 ```
 
 XIAO nRF52840 als HCI-Dongle (falls kein Onboard-BT): `nrfutil`/`west flash` mit
 `usb_rx_tx`-HCI-Bild bespielen – danach erscheint er als normaler Adapter (`hci0`) und
-`bluetoothctl`/`gdbus` funktionieren unverändert. `bleak` kann **kein** Peripheral betreiben,
-die Peripheral-Seite ist deshalb BlueZ-basiert (`ble_adapter.py`).
+`bluetoothctl` liefert reale Scanwerte. `bleak` kann **kein** Peripheral betreiben; für die
+Peripheral-Seite ist eine separate persistente BlueZ-D-Bus-Implementierung erforderlich (`ble_adapter.py` schlägt bis dahin fail-closed fehl).
 
 Prüfen, ob der Rechner Peripheral darf:
 
@@ -187,6 +189,6 @@ Lesevorgänge anstoßen kann. Der Leser selbst ist bewusst **kein** Trust-Anker.
 - [ ] SSH: Login mit Service-Key ohne Passwort, `known_hosts` gepinnt
 - [ ] BLE: `bluetoothctl scan le` liefert Beacons auf dem Host
 - [ ] Interlock-Test: nicht-gewhitelistetes Gerät → `DONGLE_MISSING`
-- [ ] BLE-Scan am Zero 2 W liefert das Ziel-Token (`… selftest` → 10/10, `ble-scan backend≠none`)
+- [ ] BLE-Scan am Zero 2 W liefert das Ziel-Token (`… selftest` → 20/20, `ble-scan backend≠none`)
 - [ ] `data/keys.json` (0600) vorhanden, `/status.agent_auth.enforced` verhält wie geplant
 - [ ] Whitelist-Zwang: unbekanntes Token → `denied not_whitelisted` (kein stiller Auto-Enroll)

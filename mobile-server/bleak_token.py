@@ -13,8 +13,7 @@ Unterbefehle:
 python3 mobile-server/bleak_token.py relay --url http://127.0.0.1:8791 \\
     --token-id CT45P-0001 --key 000102030405060708090a0b0c0d0e0f
 
-# B) Als BLE-Peripheral advertise n (Gegenstück für nRF Connect/LightBlue):
-#    Dienst + Charakteristiken aus gw_config (Annahmen!), Antwort auf Write
+# B) Prüft den Peripheral-Blocker (kein Advertising wird vorgetäuscht):
 python3 mobile-server/bleak_token.py peripheral --mac C0:FF:EE:00:01:23
 
 # C) Reichweite/Gegenseite prüfen: Scan + Status-Read am gefundenen Gateway
@@ -24,10 +23,11 @@ python3 mobile-server/bleak_token.py gatt-scan --timeout 6
 python3 mobile-server/bleak_token.py crypto-check
 ```
 
-`bleak` (pip) stellt **kein** GATT-Peripheral zur Verfügung – `peripheral` nutzt deshalb BlueZ
-via `gdbus` (wie `ble_adapter.py`), `gatt-scan` `bluetoothctl`. Beides ist optional; `relay`
-und `crypto-check` laufen mit reiner Standardbibliothek.
+`bleak` (pip) stellt **kein** GATT-Peripheral zur Verfügung. `gatt-scan` nutzt optional
+`bluetoothctl`; der `peripheral`-Befehl schlägt bis zu einer persistenten D-Bus-GATT-Runtime
+bewusst fail-closed fehl. `relay` und `crypto-check` laufen mit reiner Standardbibliothek.
 """
+# REAL-IMPLEMENTATION 2026-09-11
 from __future__ import annotations
 
 import argparse
@@ -168,13 +168,13 @@ def cmd_replay_check(args) -> int:
 
 
 # ---------------------------------------------------------------------------
-# GATT-Peripheral (BlueZ) – dasselbe Muster wie ble_adapter.py, gespiegelt
+# GATT-Peripheral contract display / fail-closed guard
 # ---------------------------------------------------------------------------
 def service_xml() -> str:
     """Vorlage für `org.bluez.GattService1` (nur Gerüst – RegisterApplication braucht den kompletten Baum).
 
-    Vollständige, lauffähige Peripheral-Implementierung inkl. Write-Acquire und
-    Properties.Set: siehe ble_adapter.py (derselbe Mechanismus, dort fürs Gateway).
+    This is an introspection sample only. A real peripheral requires a persistent
+    D-Bus ObjectManager and is intentionally not represented by this CLI.
     """
     return f"""<node object_path="/org/bluez/dgs_token/service0">
   <interface name="org.bluez.GattService1">
@@ -186,19 +186,15 @@ def service_xml() -> str:
 
 
 def cmd_peripheral(args) -> int:
-    print(f"[token] GATT-Dienst {HONEYWELL_SERVICE_UUID}")
-    print(f"        write  {CHAR_CHALLENGE_UUID}  ( challenge || iv )")
-    print(f"        notify {CHAR_RESPONSE_UUID}  ( verschluesselte Antwort )")
-    print(f"        read   {CHAR_STATUS_UUID}  ( 0=idle 1=waiting 2=success 3=fail 4=tamper )")
+    """Fail closed: a one-shot CLI cannot host a persistent BlueZ object tree."""
     if args.print_xml:
         print(service_xml())
         return 0
-    print("⚠️  Peripheral-Betrieb erfordert BlueZ mit --experimental und Root-Rechte;")
-    print("   die Anmeldung erfolgt ueber org.bluez.GattManager1.RegisterApplication.")
-    print("   Dieser Modus Advertised den Dienst und wartet auf Writes – fuer den")
-    print("   vollstaendigen Laboraufbau bitte `relay` nutzen (identische Krypto).")
-    print("   Hinweis: `bleak` kann kein Peripheral sein; Vorlage fuer gdbus: mobile-server/ble_adapter.py (GATT_ADDED)")
-    return 0
+    print("❌ Kein GATT-Peripheral gestartet und kein Advertising behauptet.", file=sys.stderr)
+    print("   Voraussetzungen für eine spätere Implementierung: persistenter D-Bus-Service", file=sys.stderr)
+    print("   (dbus-next/PyGObject), bluetoothd --experimental und ein validierter", file=sys.stderr)
+    print("   CT45P-Service-/Charakteristikvertrag. Für den Labor-Kryptotest nutze `relay`.", file=sys.stderr)
+    return 2
 
 
 def cmd_gatt_scan(args) -> int:
@@ -220,7 +216,7 @@ def cmd_gatt_scan(args) -> int:
     for ln in found[:20]:
         print("   ", ln.strip())
     if not found:
-        print("   (kein Treffer – Gateway-Token-Advertising läuft nur mit --ble-backend gdbus/--mock)")
+        print("   (kein Treffer – dieser Adapter startet ohne persistenten D-Bus-Service kein GATT-Advertising)")
         return 0
     device = found[-1].split("Device ")[-1].split()[0] if "Device " in found[-1] else None
     if not device:

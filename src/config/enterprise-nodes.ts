@@ -164,17 +164,47 @@ export function getAllNodeConfigs(): EnterpriseNode[] {
   return Object.values(ENTERPRISE_NODES);
 }
 
+// REAL-IMPLEMENTATION 2026-09-11
 /**
- * Validate node endpoint connectivity (placeholder for actual implementation)
+ * Probe a configured node without supplying credentials or treating CORS/HTTP
+ * errors as availability. WebSocket nodes are considered reachable only after
+ * their handshake opens; HTTP nodes require a successful HEAD/GET response.
  */
 export async function validateNodeEndpoint(category: NodeCategory): Promise<boolean> {
-  const node = ENTERPRISE_NODES[category];
+  const endpoint = ENTERPRISE_NODES[category].endpointUrl;
+  let url: URL;
   try {
-    // Implementation depends on node type and protocol
-    console.log(`Validating endpoint for ${node.nodeId}: ${node.endpointUrl}`);
-    return true;
-  } catch (error) {
-    console.error(`Endpoint validation failed for ${node.nodeId}:`, error);
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'ws:' || url.protocol === 'wss:') {
+    if (typeof WebSocket === 'undefined') return false;
+    return new Promise<boolean>((resolve) => {
+      const socket = new WebSocket(endpoint);
+      const timeout = window.setTimeout(() => {
+        socket.close();
+        resolve(false);
+      }, 5_000);
+      socket.onopen = () => {
+        window.clearTimeout(timeout);
+        socket.close(1000, 'connectivity probe complete');
+        resolve(true);
+      };
+      socket.onerror = () => {
+        window.clearTimeout(timeout);
+        resolve(false);
+      };
+    });
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+  try {
+    let response = await fetch(endpoint, { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(5_000) });
+    if (response.status === 405 || response.status === 501) {
+      response = await fetch(endpoint, { method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(5_000) });
+    }
+    return response.ok;
+  } catch {
     return false;
   }
 }

@@ -187,7 +187,7 @@ flowchart LR
 | **Netzwerk-Panel (neu)** | `components/NetworkPanel.tsx` | Live-Anzeige erkannte Geräte + RSSI + Dongle-Status |
 | **Scanner-Backend (neu)** | `scanner_service.py` | mDNS/SSDP/ARP + BLE-Scan, WS-Broadcast, Stale-Removal, RBAC |
 | **MCP-Bridge (neu)** | `mcp/bridge.mjs` | stdio-MCP ⇄ HTTP/SSE, Tool-Cache, `/metrics`, Gateway-Proxy |
-| **Mobiles BLE-Gateway (neu)** | `mobile-server/*.py` | GATT-Peripheral, AES-128-Challenge/Response, Whitelist, Agent-Nachweis, Audit, Prometheus |
+| **Mobiles BLE-Gateway (neu)** | `mobile-server/*.py` | BlueZ-BLE-Scan, AES-128-Challenge/Response, Whitelist, Agent-Nachweis, Audit, Prometheus; GATT-Peripheral bis persistentem D-Bus-Dienst fail-closed |
 | **Schlüssel-/Prüfhelfer (neu)** | `mobile-server/{honeywell_keys,nfc_reader,bleak_token}.py` | keys.json (Root-Keys/PSK), NFC-Auslöser, Token-Simulator mit Replay-Gegenprobe |
 | **Agenten-Galerie + RAG (neu)** | `src/config/agentGallery.ts`, `src/lib/{galleryStore,rag,liveMetrics,mcpClient}.ts` | Personas, Skills, Wissensindex, Live-Metriken, MCP-Client |
 | **PortView + Grabber (neu)** | `android/…/PortViewPlugin.java`, `mobile-server/{discovery,importer}.py`, `src/lib/{portview,endpoint,grabber,assetStore,packs}.ts` | Automatische Endpunkt-Findung (App + Desktop) und URL-Import von Assets inkl. Offline-Cache |

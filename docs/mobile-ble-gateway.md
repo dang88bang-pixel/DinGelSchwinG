@@ -20,11 +20,11 @@ Schwachstelle. Dieses Gateway ersetzt das Relay-Modell durch ein
 | Konstanten, Pfade, Interlocks | `mobile-server/gw_config.py` | TCP-Typen, GATT-UUIDs (Annahmen!), TTL, Lockout, Whitelist-Pfad |
 | Krypto + Framing | `mobile-server/honeywell.py` | Frame-Codec (MAGIC+Version+Typ+Länge+CRC32), AES-128 in reinem Python (nutzt `cryptography`, falls installiert), CBC, Key-Derivation, Challenge/Response |
 | Sitzungs-Maschine | `mobile-server/gateway.py` | Whitelist, Challenges, Sperrlogik, Tamper-Auswertung, Audit-JSONL, Events, Prometheus |
-| BLE-Schicht | `mobile-server/ble_adapter.py` | `mock` · `bluetoothctl` (Scan) · `gdbus` (BlueZ GATT-Peripheral) |
+| BLE-Schicht | `mobile-server/ble_adapter.py` | `mock` (klar markiert) · `bluetoothctl` (verifizierbarer Scan) · `gdbus` (fail-closed, kein behauptetes Peripheral) |
 | Dienste + CLI | `mobile-server/mobile_ble_server.py` | TCP `:8765`, HTTP/JSON + SSE + `/metrics` auf `:8791`, `run`/`selftest`/`scan`/`simulate-token` |
-| Tests | `mobile-server/tests/test_gateway.py` | 25 Prüfungen (FIPS-Vektoren, Replay, Lockout, Tamper, Codec-Härtung) |
+| Tests | `mobile-server/tests/test_gateway.py` | 32 Prüfungen (FIPS-Vektoren, Replay, Lockout, Tamper, Codec-Härtung) |
 
-### Korrekter Datenfluss (implementiert)
+### Ziel-Datenfluss (der GATT-Transportteil benötigt noch eine persistent exportierte BlueZ-D-Bus-Anwendung)
 
 ```mermaid
 sequenceDiagram
@@ -78,16 +78,17 @@ Eigenschaften, die das Design **wirklich** absichern:
 # Demo ohne Hardware (simuliertes Token antwortet selbst)
 python3 mobile-server/mobile_ble_server.py --mock
 
-# Selbsttest: 10 Prüfungen über echte Sockets + echte Krypto (freie Ports automatisch)
+# Selbsttest: 20 Prüfungen über echte Sockets + echte Krypto (freie Ports automatisch)
 python3 mobile-server/mobile_ble_server.py selftest
 
-# Unit-Tests (20)
+# Unit-Tests (32)
 python3 mobile-server/tests/test_gateway.py
 
 # Realer Scan über USB-/Onboard-Adapter
 python3 mobile-server/mobile_ble_server.py --ble-backend bluetoothctl
 
-# Echter BlueZ-GATT-Peripheral (Root, BlueZ --experimental; Adapter muss Peripheral können)
+# GATT-Peripheral: derzeit absichtlich fail-closed. Der Befehl zeigt den
+# Runtime-/CT45P-Vertrags-Blocker an und behauptet kein Advertising.
 sudo python3 mobile-server/mobile_ble_server.py --ble-backend gdbus
 
 # Token-Gegenseite simulieren (Prüfstand): kennt den Root-Key, antwortet auf die Challenge
@@ -188,8 +189,9 @@ python3 mobile-server/bleak_token.py gatt-scan --timeout 6
 
 `bleak_token.py` ist **Simulator/Prüfstand**, kein einsetzbares Token: Es stellt die Gegenseite dar,
 damit Whitelist, TTL, Lockout, Agent-Nachweis und Audit ohne Hardware prüfbar bleiben. `bleak`
-kann kein GATT-Peripheral betreiben – für echtes Advertising nutzt die Gegenseite BlueZ
-(`--ble-backend gdbus`, Vorlage `ble_adapter.py`). `replay-check` erwartet `✅ erste antwort akzeptiert`,
+kann kein GATT-Peripheral betreiben. `ble_adapter.py` nutzt derzeit für reale Hardware
+nur den BlueZ-Scan (`bluetoothctl`); `--ble-backend gdbus` ist absichtlich fail-closed,
+bis eine persistente D-Bus-Anwendung und der verifizierte CT45P-GATT-Vertrag vorliegen. `replay-check` erwartet `✅ erste antwort akzeptiert`,
 `✅ replay abgelehnt (unknown_or_expired_sid)` und `✅ falscher schluessel abgelehnt`.
 
 ---
@@ -206,7 +208,8 @@ kann kein GATT-Peripheral betreiben – für echtes Advertising nutzt die Gegens
 ┌────────────────────────▼────────────────────────────────────┐
 │ RPi Zero 2 W  –  mobiles BLE-Gateway                        │
 │  USB/BT-Adapter oder XIAO nRF52840 (USB-CDC, HCI)           │
-│  BlueZ 5.6x --experimental → GattManager1 (Peripheral)      │
+│  BlueZ-Scan via bluetoothctl; GATT-Peripheral: externer     │
+│  persistenter D-Bus-Service + validierter CT45P-Vertrag nötig │
 │  HTTP :8791 für UI/Bridge, Audit nach mobile-server/data/   │
 └────────────────────────┬────────────────────────────────────┘
                          │ BLE 2.4 GHz, GATT (proprietär)
@@ -221,12 +224,12 @@ Checkliste für den Zero 2 W:
 sudo apt install bluez libglib2.0 python3-gi gir1.2-glib-2.0
 sudo hciconfig hci0 up
 bluetoothctl show | grep -i "Modalias\|Manufacturer"   # Adapter alive?
-python3 -c "import gi; print('gdbus bereit')"          # PyGObject für GattManager1
+python3 -c "import gi; print('PyGObject verfügbar')"  # Voraussetzung für einen künftig persistenten GATT-Dienst
 ```
 
 XIAO nRF52840 alternativ als reiner HCI-Dongle bespielen (`nrfutil`/`west flash` mit
 `usb_rx_tx`-HCI-Bild), dann verhält er sich wie ein normaler Bluetooth-Adapter. `bluetoothctl`
-und `gdbus` funktionieren unverändert.
+liefert reale Scanwerte; der GATT-Peripheral bleibt bis zur separaten D-Bus-Implementierung blockiert.
 
 ## 4️⃣b PortView & Software-Grabber am Gateway
 

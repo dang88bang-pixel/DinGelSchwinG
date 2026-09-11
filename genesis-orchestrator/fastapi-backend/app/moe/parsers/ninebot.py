@@ -1,53 +1,56 @@
-"""Example Ninebot/Xiaomi (UART) parser.
-
-Decodes a simplified version of the Xiaomi/Ninebot serial protocol (binary
-frame with a length/checksum trailer). Demonstrates the same `ControllerParser`
-contract as the VESC example and is a candidate for dynamic hot-loading.
-"""
+"""Ninebot/Xiaomi UART telemetry parser with envelope and checksum validation."""
 from __future__ import annotations
 
 import struct
 
 from ..base import ControllerParser, ParsedFrame
 
-# Simplified Xiaomi BMS/UART frame: 0x55 0xAA len type payload... checksum
+# REAL-IMPLEMENTATION 2026-09-11
 HEADER = b"\x55\xaa"
+_TELEMETRY_TYPE = 0x20
+_TELEMETRY_FORMAT = ">Hhh"  # voltage mV, current mA, speed in 0.1 km/h
+_TELEMETRY_SIZE = struct.calcsize(_TELEMETRY_FORMAT)
+
+
+def decode_frame(raw: bytes) -> tuple[int, bytes] | None:
+    """Validate a complete simplified Xiaomi frame and return type/payload."""
+    # Header + length + type + checksum is the minimum legal packet.
+    if len(raw) < 5 or not raw.startswith(HEADER):
+        return None
+    length = raw[2]  # type + payload + one checksum byte
+    if length < 2 or len(raw) != length + 3:
+        return None
+    if (sum(raw[2:-1]) & 0xFF) != raw[-1]:
+        return None
+    return raw[3], raw[4:-1]
 
 
 class NinebotParser(ControllerParser):
     protocol = "ninebot_uart"
-    version = "1.0.0"
+    version = "1.1.0"
 
     async def parse_frame(self, raw: bytes) -> ParsedFrame | None:
-        if not raw.startswith(HEADER):
+        decoded = decode_frame(raw)
+        if decoded is None:
             return None
-        if len(raw) < 5:
+        frame_type, payload = decoded
+        if frame_type != _TELEMETRY_TYPE:
             return None
-
-        length = raw[2]  # bytes after this field: type(1) + payload + checksum(1)
-        if length + 3 != len(raw):
-            return None  # length mismatch -> skip
-
-        frame_type = raw[3]
-        payload = raw[4 : 4 + length - 2]
-        checksum = raw[-1]
-        if (sum(raw[2:-1]) & 0xFF) != checksum:
-            return None  # bad checksum
-
-        if frame_type == 0x20:  # telemetry
-            return self._parse_telemetry(payload)
-        return None
+        return self._parse_telemetry(payload)
 
     @staticmethod
     def _parse_telemetry(payload: bytes) -> ParsedFrame | None:
-        if len(payload) < 4:
+        if len(payload) < _TELEMETRY_SIZE:
             return None
-        voltage, current, speed = struct.unpack(">Hhh", payload[:6])
+        voltage_mv, current_ma, speed_tenth_kmh = struct.unpack(_TELEMETRY_FORMAT, payload[:_TELEMETRY_SIZE])
         return ParsedFrame(
             protocol="ninebot_uart",
             fields={
-                "voltage_mv": str(voltage),
-                "current_ma": str(current),
-                "speed_kmh": f"{speed / 10:.1f}",
+                "voltage_mv": str(voltage_mv),
+                "current_ma": str(current_ma),
+                "speed_kmh": f"{speed_tenth_kmh / 10:.1f}",
             },
         )
+
+
+PARSER_CLASS = NinebotParser

@@ -9,8 +9,9 @@
 cryptography>=42.0 ; python_version >= "3.9"
 
 # ── BLE-Zugriff (nur wenn Hardware angeschlossen ist) ────────────────────────
-# Scanner/Central-Seite. Achtung: bleak kann KEIN GATT-Peripheral betreiben —
-# dafür verwendet das Gateway BlueZ via `gdbus` (System-Pakete, siehe unten).
+# Scanner/Central-Seite. Achtung: bleak kann KEIN GATT-Peripheral betreiben.
+# Das Gateway verwendet aktuell nur den verifizierbaren BlueZ-Scan; ein zukünftiger
+# Peripheral braucht eine persistente D-Bus-Runtime, nicht den `gdbus`-CLI-Aufruf.
 bleak>=0.22 ; python_version >= "3.9"
 
 # ── NFC-Auslöser am Haupt-Agenten (RPi 4) ────────────────────────────────────

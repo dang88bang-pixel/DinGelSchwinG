@@ -7,6 +7,7 @@
  * transformers.js) für freie Antworten genutzt – ohne Modell läuft die
  * deterministische Skill-Engine (immer funktionsfähig).
  */
+// REAL-IMPLEMENTATION 2026-09-11
 import { apiUrl, describeEndpoint, getEndpoint } from '../endpoint';
 import { autoConfigure, formatCandidate } from '../portview';
 import { grabFromUrl } from '../grabber';
@@ -17,7 +18,6 @@ import {
   ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, CHAT_SYSTEM_INSTRUCTION,
   MODE_LABELS,
 } from '../../config/systemInstructions';
-import { MOCK_DEVICES } from '../../mocks/devices.mock';
 import { TransformersBackend } from './transformersBackend';
 import { gallery } from '../../lib/galleryStore';
 import { liveMetrics, formatMs, formatTokens, formatCost, MetricsSnapshot } from '../../lib/liveMetrics';
@@ -84,6 +84,8 @@ export class AgentEngine {
   attachments: string[] = [];
   backend: TransformersBackend = new TransformersBackend();
   pendingPlan: { kind: string; plan: string } | null = null;
+  /** Last non-mock gateway scan; never seeded with demo devices. */
+  private observedDevices: Record<string, unknown>[] = [];
   private nextMsgId = 1;
 
   constructor(role = 'admin') {
@@ -257,7 +259,7 @@ export class AgentEngine {
     const context =
       `Aktueller Kontext:\n- Rolle: ${this.role}\n` +
       (agent ? `- Aktiver Agent: ${agent.name} – ${agent.tagline}\n` : '') +
-      `- Geräte: ${MOCK_DEVICES.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ')}\n` +
+      `- Zuletzt physisch beobachtete Geräte: ${this.observedDevices.length ? this.observedDevices.slice(0, 6).map((device) => `${String(device.name ?? device.id ?? 'unbekannt')} (${String(device.id ?? '—')})`).join(', ') : 'keine; Gateway-Scan erforderlich'}\n` +
       `- Aktive Workflows: ${this.activeWorkflows().length}\n` +
       `- Laufzeit: ${this.metricsLine()}\n` +
       (knowledge ? `\n## Wissensbasis-Auszug (nur daraus antworten, mit Quelle zitieren)\n${knowledge}\n` : '') +
@@ -421,15 +423,9 @@ export class AgentEngine {
   }
 
   intentAdbDevices(): string {
-    this.audit('adb_devices', 'Geräteliste abgefragt');
-    return (
-      '📱 ADB-Geräte (USB/WiFi):\n' +
-      '- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n' +
-      '- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n' +
-      '- `offline` R22X987DEF – Gerät reaktivieren\n' +
-      '- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n' +
-      'Hinweis: `adb devices -l` liefert Details (Modell, Transport).'
-    );
+    this.audit('adb_devices_unavailable', 'Browser-Agent hat keinen ADB-Listenvertrag');
+    return 'ℹ️ Der Browser-Agent kann keine ADB-Geräteliste direkt auslesen. Es wurden keine Geräte erfunden. ' +
+      'Öffne die native Geräteansicht oder nutze einen autorisierten MCP-Tool-Aufruf für `adb devices -l`.';
   }
 
   generateAdbScript(kind: string): string {
@@ -479,36 +475,24 @@ export class AgentEngine {
 
   intentScan(t: string): string {
     const m = t.match(/([\d.]+\/\d{1,2})/);
-    const subnet = m ? m[1] : '192.168.1.0/24';
-    this.startTask('network_scan', 5);
-    this.audit('scan_network', `subnet=${subnet}`);
-    // Simulation: Task läuft ~8 s im Hintergrund
-    const started = now();
-    window.setTimeout(() => this.finishTask('network_scan'), 8000);
-    return `✅ Netzwerk-Scan für ${subnet} gestartet (Skript network_scan.py).\n▶️ Status im Status-Panel: network_scan läuft (seit ${started}).`;
+    const subnet = m ? m[1] : 'kein Subnetz';
+    this.audit('scan_network_unavailable', `subnet=${subnet}`);
+    return '⚠️ Ein IP-Netzwerk-Scanner ist im Browser-Agenten nicht als autorisierter Gateway-Command implementiert. ' +
+      'Es wurde kein Scan gestartet. Für BLE-Geräte nutze „Gateway Scan“; für IP-Scans einen freigegebenen MCP-Tool-Server.';
   }
 
   intentDevices(): string {
-    this.audit('show_devices', `${MOCK_DEVICES.length} Geräte`);
-    const lines = [`📡 Gefundene Geräte: ${MOCK_DEVICES.length}`];
-    for (const d of MOCK_DEVICES) {
-      const icon = d.bound ? '🟢' : d.type === 'target' ? '🔴' : '🟡';
-      lines.push(`- ${icon} ${d.name} (${d.id}, RSSI ${d.rssi} dBm)`);
-    }
-    return lines.join('\n');
+    this.audit('show_devices', `${this.observedDevices.length} beobachtete Geräte`);
+    if (!this.observedDevices.length) return '📡 Keine physischen Geräte im Agent-Cache. Starte „Gateway Scan“, um eine reale Beobachtung abzurufen.';
+    return [
+      `📡 Zuletzt physisch beobachtete Geräte: ${this.observedDevices.length}`,
+      ...this.observedDevices.map((device) => `- 🟢 ${String(device.name ?? device.id ?? 'unbekannt')} (${String(device.id ?? '—')}, RSSI ${device.rssi ?? 'nicht verfügbar'} dBm)`),
+    ].join('\n');
   }
 
   intentClients(): string {
-    const clients = [
-      { name: 'admin', role: 'admin', device: 'MASTER-Gold', last_action: 'login' },
-      { name: 'service-1', role: 'service', device: 'Client-A-Grün', last_action: 'scan_network' },
-    ];
-    this.audit('show_clients', `${clients.length} Clients`);
-    const lines = [`👥 Eingeloggte Clients: ${clients.length}`];
-    for (const c of clients) {
-      lines.push(`- ${c.name} (${c.role}) – ${c.device} – zuletzt: ${c.last_action}`);
-    }
-    return lines.join('\n');
+    this.audit('show_clients_unavailable', 'kein Client-Verzeichnis im Gateway-Vertrag');
+    return 'ℹ️ Das Gateway liefert keine Liste eingeloggter UI-Clients. Es wurde keine Client-Liste erfunden; Token- und Sitzungskontext ist über „Gateway Tokens“ bzw. „Gateway Sessions“ verfügbar.';
   }
 
   intentWorkflows(): string {
@@ -853,9 +837,16 @@ export class AgentEngine {
     const res = await gatewayCommand('ble_scan', { timeout: 4 });
     this.audit('gateway_ble_scan', JSON.stringify(res).slice(0, 80));
     if (!res.ok) return `❌ Scan fehlgeschlagen: ${JSON.stringify(res)}`;
-    const devices = (res.devices ?? []) as Record<string, unknown>[];
-    if (!devices.length) return `📡 Kein BLE-Gerät gefunden (Backend ${res.backend}).`;
-    return [`📡 Scan über \`${res.backend}\`: ${devices.length} Geräte`, ...devices.map((d) => `- \`${d.id}\` ${d.name ?? ''} (RSSI ${d.rssi ?? '—'})`)].join('\n');
+    if (res.backend === 'mock') {
+      this.observedDevices = [];
+      return '⚠️ Gateway meldet ein Mock-Backend. Simulierte BLE-Geräte wurden nicht in den Agent-Cache übernommen.';
+    }
+    const devices = Array.isArray(res.devices)
+      ? res.devices.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && item.simulated !== true)
+      : [];
+    this.observedDevices = devices;
+    if (!devices.length) return `📡 Kein physisches BLE-Gerät gefunden (Backend ${String(res.backend ?? 'unbekannt')}).`;
+    return [`📡 Physischer Scan über \`${String(res.backend ?? 'unbekannt')}\`: ${devices.length} Geräte`, ...devices.map((device) => `- \`${String(device.id ?? '—')}\` ${String(device.name ?? '')} (RSSI ${String(device.rssi ?? 'nicht verfügbar')})`)].join('\n');
   }
 
   async intentGatewayDemo(): Promise<string> {
@@ -874,7 +865,7 @@ export class AgentEngine {
   async intentGatewaySelftest(): Promise<string> {
     const res = await gatewayCommand('selftest');
     this.audit('gateway_selftest', JSON.stringify(res).slice(0, 100));
-    return `🧪 Gateway-Selftest: ${JSON.stringify(res, null, 2).slice(0, 900)}\n(Vollständig: 10 Prüfungen, lokal laufen lassen mit \`python3 mobile-server/mobile_ble_server.py selftest\`)`;
+    return `🧪 Gateway-Selftest: ${JSON.stringify(res, null, 2).slice(0, 900)}\n(Vollständig: 20 Prüfungen, lokal laufen lassen mit \`python3 mobile-server/mobile_ble_server.py selftest\`)`;
   }
 
   async intentGatewayGrant(sid: string, granted: boolean): Promise<string> {
@@ -1058,16 +1049,14 @@ export class AgentEngine {
     if (action === 'clear_cache') return this.intentClearCache();
     if (action.startsWith('script:')) {
       const name = action.split(':')[1];
-      this.audit('run_script', name);
-      return `▶️ Skript '${name}' gestartet (simulierte Ausführung).`;
+      this.audit('run_script_unavailable', name);
+      return `⚠️ Browser-Agent kann '${name}' nicht lokal ausführen. Es wurde kein Skript gestartet; nutze einen autorisierten MCP-Tool-Aufruf.`;
     }
     if (action.startsWith('workflow:')) {
       const name = action.split(':')[1];
       if (name === 'scan') return this.intentScan('scan');
-      this.startTask(name, 10);
-      window.setTimeout(() => this.finishTask(name), 6000);
-      this.audit('start_workflow', name);
-      return `✅ Workflow '${name}' gestartet (siehe Status-Panel).`;
+      this.audit('start_workflow_unavailable', name);
+      return `⚠️ Für Workflow '${name}' ist kein ausführbarer Backend-Vertrag konfiguriert. Es wurde kein Workflow gestartet.`;
     }
     return `❓ Unbekannte Aktion: ${action}`;
   }
@@ -1108,10 +1097,10 @@ export class AgentEngine {
   // Status-Bar
   // ------------------------------------------------------------------
   summary(): string {
-    const devices = MOCK_DEVICES.filter((d) => d.bound).length;
+    const devices = this.observedDevices.length;
     const wf = this.activeWorkflows().length;
     const state = wf > 0 ? 'BUSY' : 'IDLE';
-    return `🟢 Geräte: ${devices}  |  👥 Clients: 2  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
+    return `🟢 Geräte: ${devices} beobachtet  |  👥 Clients: nicht verfügbar  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
   }
 
   modelStatus(): string {

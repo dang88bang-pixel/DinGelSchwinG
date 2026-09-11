@@ -68,14 +68,14 @@ class TestScriptExecutor(unittest.TestCase):
 
 
 class TestStatusManager(unittest.TestCase):
-    def test_mock_fallback(self) -> None:
+    def test_offline_fallback_is_empty_and_explicit(self) -> None:
         manager = StatusManager(poll_interval=0.5)
         manager.refresh()
-        self.assertGreaterEqual(len(manager.devices), 5)
-        self.assertGreaterEqual(len(manager.clients), 1)
-        self.assertGreaterEqual(manager.connected_devices(), 1)
+        self.assertEqual(manager.devices, [])
+        self.assertEqual(manager.clients, [])
+        self.assertEqual(manager.connected_devices(), 0)
         self.assertIsInstance(manager.summary(), str)
-        self.assertIn("Geräte", manager.summary())
+        self.assertIn("offline", manager.summary())
 
     def test_manual_workflows(self) -> None:
         manager = StatusManager(poll_interval=0.5)

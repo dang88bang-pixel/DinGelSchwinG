@@ -108,6 +108,7 @@ export default function NetworkDashboard() {
   const [mode, setMode] = useState<'ble' | 'wifi' | 'usb'>('ble');
   const [wasmModule, setWasmModule] = useState<BLEWasmExports | null>(null);
   const [wasmState, setWasmState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [distanceRuntime, setDistanceRuntime] = useState<'wasm' | 'javascript' | null>(null);
   const [devices, setDevices] = useState<SceneDevice[]>([]);
   const [boundClients, setBoundClients] = useState<PairedDevice[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -124,6 +125,7 @@ export default function NetworkDashboard() {
       .then((module) => {
         if (!mountedRef.current) return;
         setWasmModule(module);
+        setDistanceRuntime(module.runtime);
         setWasmState('ready');
       })
       .catch(() => {
@@ -210,7 +212,7 @@ export default function NetworkDashboard() {
         <section className="flex flex-col gap-6">
           <div className="rounded-3xl overflow-hidden shadow-2xl shadow-blue-950/40 ring-1 ring-white/10 bg-gradient-to-b from-[#060f2a] to-[#020617]">
             <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 bg-gradient-to-r from-[#060f2a]/90 to-[#0a1835]/70 border-b border-white/10 backdrop-blur-md">
-              <div className="text-xs font-mono text-cyan-200"><Layers className="inline w-3.5 h-3.5 text-amber-300" /> 3D-Ansicht — Anzeige-Koordinaten, keine Ortungsmessung <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border ${wasmState === 'ready' ? 'bg-emerald-900/60 text-emerald-200 border-emerald-600/40' : wasmState === 'unavailable' ? 'bg-rose-900/50 text-rose-200 border-rose-600/40' : 'bg-amber-900/40 text-amber-200 border-amber-600/30'}`}>{wasmState === 'ready' ? 'WASM aktiv' : wasmState === 'unavailable' ? 'WASM nicht verfügbar' : 'WASM lädt…'}</span></div>
+              <div className="text-xs font-mono text-cyan-200"><Layers className="inline w-3.5 h-3.5 text-amber-300" /> 3D-Ansicht — Anzeige-Koordinaten, keine Ortungsmessung <span className={`ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border ${wasmState === 'ready' ? 'bg-emerald-900/60 text-emerald-200 border-emerald-600/40' : wasmState === 'unavailable' ? 'bg-rose-900/50 text-rose-200 border-rose-600/40' : 'bg-amber-900/40 text-amber-200 border-amber-600/30'}`}>{wasmState === 'ready' ? distanceRuntime === 'wasm' ? 'WASM aktiv' : 'JS-Referenz aktiv' : wasmState === 'unavailable' ? 'Distanzmodul nicht verfügbar' : 'Distanzmodul lädt…'}</span></div>
               <button type="button" disabled={scanBusy} onClick={() => void scanGateway()} className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 disabled:bg-slate-700 text-white"><RefreshCw className={`w-3.5 h-3.5 ${scanBusy ? 'animate-spin' : ''}`} /> {scanBusy ? 'Scan…' : 'Gateway scannen'}</button>
             </div>
             <div className="px-5 py-2 text-[11px] font-mono border-b border-white/5 text-slate-400">{networkStatus}</div>
@@ -233,8 +235,8 @@ export default function NetworkDashboard() {
               <div className="mt-4 flex gap-2"><button type="button" onClick={() => void sensors.requestPermission()} className="text-[11px] bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg font-extrabold">Sensor-Berechtigung</button><span className={`text-[11px] px-2.5 py-1.5 rounded-lg font-mono font-extrabold ${sensors.permissionGranted ? 'bg-emerald-950 text-emerald-300' : 'bg-rose-950 text-rose-300'}`}>{sensors.permissionGranted ? 'Gewährt' : 'Nicht gewährt'}</span></div>
             </div>
             <div className="rounded-3xl p-5 bg-gradient-to-br from-amber-950/30 to-orange-950/30 border border-amber-800/30 backdrop-blur-xl">
-              <h3 className="text-sm font-black text-amber-100 flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-amber-300" /> WASM-Abstandsbestimmung</h3>
-              <div className="text-xs font-mono text-slate-300 space-y-2"><div className="flex justify-between border-b border-amber-800/30 pb-1"><span>Modul</span><b className="text-amber-200">{wasmState === 'ready' ? 'geladen' : wasmState === 'unavailable' ? 'nicht verfügbar' : 'wird geladen…'}</b></div><div className="flex justify-between"><span>Formel</span><span className="text-amber-200">d = 10^((Tx-RSSI)/(10·n))</span></div><p className="text-slate-500">Nur gemessene RSSI- und TxPower-Werte werden berechnet.</p></div>
+              <h3 className="text-sm font-black text-amber-100 flex items-center gap-2 mb-4"><Activity className="w-4 h-4 text-amber-300" /> Abstandsbestimmung</h3>
+              <div className="text-xs font-mono text-slate-300 space-y-2"><div className="flex justify-between border-b border-amber-800/30 pb-1"><span>Runtime</span><b className="text-amber-200">{wasmState === 'ready' ? distanceRuntime === 'wasm' ? 'WASM geladen' : 'JavaScript-Referenz' : wasmState === 'unavailable' ? 'nicht verfügbar' : 'wird geladen…'}</b></div><div className="flex justify-between"><span>Formel</span><span className="text-amber-200">d = 10^((Tx-RSSI)/(10·n))</span></div><p className="text-slate-500">Nur gemessene RSSI- und TxPower-Werte werden berechnet.</p></div>
             </div>
           </div>
 

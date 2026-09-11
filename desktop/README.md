@@ -129,7 +129,7 @@ python3 ../mobile-server/honeywell_keys.py create --keys data/keys.json --token-
 
 ```bash
 python -m unittest discover -s tests -v     # 30 Tests, ohne GUI
-cd ../mobile-server && python3 tests/test_gateway.py     # 25 Prüfungen (Gateway/Krypto)
+cd ../mobile-server && python3 tests/test_gateway.py     # 32 Prüfungen (Gateway/Krypto)
 ```
 
 ## Backend-Anbindung

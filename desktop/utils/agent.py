@@ -851,7 +851,7 @@ class Agent:
                 for s in sessions
             )
         if re.search(r"selbsttest|selftest", t):
-            return "🧪 " + json.dumps(_clients.gateway_command("selftest"), ensure_ascii=False)[:600] + "\n(Vollständig: 10 Prüfungen – `python3 mobile-server/mobile_ble_server.py selftest`)"
+            return "🧪 " + json.dumps(_clients.gateway_command("selftest"), ensure_ascii=False)[:600] + "\n(Vollständig: 20 Prüfungen – `python3 mobile-server/mobile_ble_server.py selftest`)"
         if re.search(r"status|prüfung|pruefung|bereit|da sein", t):
             res = _clients.gateway_status()
             if not res.get("ok"):
