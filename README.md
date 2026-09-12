@@ -116,12 +116,48 @@ Details: [`docs/device-control.md`](docs/device-control.md)
 
 ---
 
+## 🖥️ Server-Backend (`server/`) – Enterprise-Geräteverwaltung
+
+Optionales, produktionsnahes Backend (aus PR #4/#5, nur Python-Standardbibliothek,
+kein Flask-Paket nötig) für Login, RBAC, Geräte-/Client-Verwaltung, Live-Status
+und Terminal-Zugriff – getrennt vom mobilen BLE-Gateway (`mobile-server/`):
+
+```bash
+npm run server          # python3 server/app.py → REST auf :5000
+npm run server:all      # start.sh --backend-only (REST + WS 8765–8767)
+python3 server/tests/test_discovery.py   # 5 Unit-Tests
+python3 tests/suite.py                   # 13 E2E-Checks (Backend muss laufen)
+make help                                # Build-/Deploy-Ziele (Docker optional)
+```
+
+- **REST :5000** – `/api/health`, Login (JWT,argon2-Hashes), `/api/devices`,
+  `/api/clients`, `/api/audit`, `/api/discovery/scan`, `/metrics`
+- **WebSockets** – Terminal `:8765`, Discovery `:8766`, Live-Status `:8767`
+  (Vite-Proxy `/api` → Dev-Backend, siehe `vite.config.ts`)
+- **Web-App**: Button **⌨ Terminal** (Access Console mit RBAC-Rollenprüfung),
+  neue Module OverviewPanel, StatusBoard, NetworkPanel (Live-Discovery),
+  NfcReader (Web-NFC) und OperationsCenter (Endpoint-/Rollen-Checks)
+- **Desktop-Konsole**: `api_client.py`/`status_manager.py` holen Live-Daten
+  vom Backend – ohne Beispiel-/Mock-Daten (offline = sichtbar leer)
+- **Deployment**: `Dockerfile`, `docker-compose.yml`, `deploy/nginx.conf`,
+  `Makefile`, `start.sh`
+- Store-listing/compliance-Vorlagen: [`docs/store-listing.md`](docs/store-listing.md),
+  [`docs/store-compliance.md`](docs/store-compliance.md)
+
+Details: [`docs/api-websockets.md`](docs/api-websockets.md) ·
+[`docs/openapi.yaml`](docs/openapi.yaml) · [`docs/INDEX.md`](docs/INDEX.md)
+
+---
+
 ## 📚 Ergänzende Dokumentation
 
 | Dokument | Inhalt |
 |---|---|
 | [`docs/device-control.md`](docs/device-control.md) | 🔧 Device-Control: ADB/Fastboot-Binaries, Port-View, Hersteller-DB, Befehl-Referenz, ROM-Datenbank, Brick-Schutz (ARB), Flash-Assistent, Fehlerbehebung |
 | [`docs/usb-hersteller.md`](docs/usb-hersteller.md) | USB-Hersteller (VID→Name, `usb.ids`-Merge), ADB-/USB-Geräteabruf, Vorabprüfung vor Eingriffen, Befehlsreferenz, Grenzen (kein Unlock/IMEI/FRP) |
+| [`docs/INDEX.md`](docs/INDEX.md) | 📇 Querverweis-Index aller Dokumente (Kurzbeschreibung je Datei) |
+| [`docs/store-listing.md`](docs/store-listing.md) | 🏪 Store-Listing-Vorlagen (Titel/Kurztexte, Positionierung als Geräteverwaltung) |
+| [`docs/store-compliance.md`](docs/store-compliance.md) | ✅ Store-Compliance-Checkliste (Policy-Abgrenzung, Berechtigungen, Datenschutz) |
 | [`docs/hardware-setup.md`](docs/hardware-setup.md) | Produktives Hardware-Setup: USB-C-Dongles (VID/PID-Whitelist, udev), PTY-Bridge ohne `cat`-Stub (seriell/socat/SSH), SSH-Key-Handling, BLE-Scan an Linux-Hosts |
 | [`docs/production-backend.md`](docs/production-backend.md) | Produktionshärtung: PostgreSQL via SQLAlchemy, Passwort-Hashes (argon2), WebAuthn-Credential-DB, LDAP & OAuth2/OIDC |
 | [`docs/openapi.yaml`](docs/openapi.yaml) | OpenAPI 3.0-Spezifikation der REST-API (inkl. `x-rbac`-Mindestrollen je Endpunkt) |
