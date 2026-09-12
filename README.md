@@ -36,14 +36,15 @@ npm run mcp:bridge          # :8790  → /mcp/health /mcp/tools /mcp/call /mcp/s
 npm run mcp:list            # Tools katalogisieren (initialisieren + tools/list, hier: 31)
 npm run mcp:start           # MCP-Server allein im Stdio-Modus (Claude Desktop/Cursor/VS Code)
 npm run mcp:gateway         # mobiles BLE-Gateway im Mock (TCP :8765, HTTP :8791)
-npm run mcp:gateway:selftest  # 17 Prüfungen über echte Sockets + echte Krypto
-npm run mcp:gateway:tests     # 32 Unit-Prüfungen (Whitelist, TTL, Lockout, Tamper, Agent-Nachweis, Codec, PortView, Grabber)
+npm run mcp:gateway:selftest  # 24 Prüfungen über echte Sockets + echte Krypto (inkl. USB/Hersteller/Vorabprüfung)
+npm run mcp:gateway:tests     # 36 Unit-Prüfungen (Whitelist, TTL, Lockout, Tamper, Agent-Nachweis, Codec, PortView, Grabber, Anbindungen)
+npm run mcp:vendors:selftest  # 9 Prüfungen für Hersteller-Tabelle, Parser und Vorabbericht
 npm run mcp:portview          # PortView-Suchlauf von jeder Maschine im Netz (UDP + HTTP-Probe)
 npm run mcp:gateway:status    # /status des laufenden Gateways (product-Marker, Ports, Katalog)
 npm run dev:full              # Vite + Bridge + Gateway in einem Schritt
 ```
 
-In der App (Chat-Header) öffnen: **🖼️ Galerien** · **📊 Dashboard** · **📚 Wissensdatenbank** · **🔌 MCP & Server** · **🧭 PortView** · **📥 Grabber**.
+In der App (Chat-Header) öffnen: **🖼️ Galerien** · **📊 Dashboard** · **📚 Wissensdatenbank** · **🔌 MCP & Server** · **🧭 PortView** · **📥 Grabber** · **🔗 Anbindungen** (Geräte, Hersteller, Bibliotheken, Speicher).
 Unter **🔌 MCP & Server → Konfiguration** liegt der kopierfertige `mcp.json`-Block (identisch zu
 `mcp/mcp.json`), damit Claude Desktop, Cursor, VS Code und der LobeChat-Import denselben Server nutzen.
 Der Agent versteht zusätzlich frei formulierte Kommandos, die als Skills in `src/config/skills.ts`
@@ -76,9 +77,11 @@ Umgesetzt in dieser App:
 | **Device-Control** – eingebettetes ADB/Fastboot (ARM64), automatische USB-Port-View mit Hersteller-DB, ADBify/Bugjaeger-Anbindung, Custom-ROM-Flashing mit Brick-Schutz (ARB, SHA-256, Backup-Pflicht) und Chat-Kommandos | `android/…/devicecontrol/` (Kotlin), `DeviceControlPlugin` | [`docs/device-control.md`](docs/device-control.md) |
 | **Software-Grabber** – URL → Beats/Samples/UI-Styles/Effekte/Filter, offline | `mobile-server/importer.py`, `src/lib/{grabber,assetStore,packs}.ts`, `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md) |
 | **Seiten-Ingest per Drag & Drop** – Inhalt prüfen, Seite + Software + Wissensbasis ablegen | `src/lib/pageIngest.ts`, `desktop/utils/page_ingest.py`, `AgentConsole` (Drop), `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md#2b-seiten-ingest-url-ins-chatfenster-ziehen--prüfen--intern-ablegen) |
+| **Anbindungen** – VID→Hersteller, ADB-/USB-Geräte, Speicherorte, Vorabprüfung (read-only) | `mobile-server/vendors.py`, `src/lib/vendors.ts`, `IntegrationsPanel` | [`docs/usb-hersteller.md`](docs/usb-hersteller.md) |
 
-Alle vier Panels haben ein Gegenstück in der **Desktop-Konsole** (`desktop/utils/clients.py`,
-`desktop/utils/agentGallery.py`, neue Intents in `desktop/utils/agent.py`) und Buttons im Chat-Toolbar:
+Alle Panels haben ein Gegenstück in der **Desktop-Konsole** (`desktop/utils/clients.py`,
+`desktop/utils/agentGallery.py`, neue Intents in `desktop/utils/agent.py`: `adb geräte`,
+`hersteller 0x18d1`, `vorabprüfung gerät CT45-01`) und Buttons im Chat-Toolbar:
 `🖼️ Agenten` · `🔌 MCP` · `📡 Gateway` · `📊 Dashboard` · `📚 Wissen` · `🔐 Token`.
 Schlüsselmaterial verlässt weder Browser noch Rechner: `mobile-server/keys.json` (Root-Keys, PSK)
 liegt nur am Haupt-Agenten, `chmod 600`, und ist per `.gitignore` ausgeschlossen.
@@ -118,6 +121,7 @@ Details: [`docs/device-control.md`](docs/device-control.md)
 | Dokument | Inhalt |
 |---|---|
 | [`docs/device-control.md`](docs/device-control.md) | 🔧 Device-Control: ADB/Fastboot-Binaries, Port-View, Hersteller-DB, Befehl-Referenz, ROM-Datenbank, Brick-Schutz (ARB), Flash-Assistent, Fehlerbehebung |
+| [`docs/usb-hersteller.md`](docs/usb-hersteller.md) | USB-Hersteller (VID→Name, `usb.ids`-Merge), ADB-/USB-Geräteabruf, Vorabprüfung vor Eingriffen, Befehlsreferenz, Grenzen (kein Unlock/IMEI/FRP) |
 | [`docs/hardware-setup.md`](docs/hardware-setup.md) | Produktives Hardware-Setup: USB-C-Dongles (VID/PID-Whitelist, udev), PTY-Bridge ohne `cat`-Stub (seriell/socat/SSH), SSH-Key-Handling, BLE-Scan an Linux-Hosts |
 | [`docs/production-backend.md`](docs/production-backend.md) | Produktionshärtung: PostgreSQL via SQLAlchemy, Passwort-Hashes (argon2), WebAuthn-Credential-DB, LDAP & OAuth2/OIDC |
 | [`docs/openapi.yaml`](docs/openapi.yaml) | OpenAPI 3.0-Spezifikation der REST-API (inkl. `x-rbac`-Mindestrollen je Endpunkt) |

@@ -63,6 +63,14 @@ import resilience  # noqa: E402 - Watchdog, Log-Rotation, Bug-Reports (Phase 5)
 from discovery import DiscoveryResponder, build_announce  # noqa: E402
 import discovery  # noqa: E402 - für PortView-Probes im Selbsttest
 from importer import CATEGORIES as IMPORT_CATEGORIES, ImportPolicy, ImportStore, public_index  # noqa: E402
+from vendors import (  # noqa: E402 - USB-Hersteller + Vorabprüfung (beides read-only)
+    adb_binary,
+    default_store as usb_store,
+    parse_adb_devices,
+    preflight as usb_preflight,
+    run_adb,
+    usb_devices,
+)
 
 BANNER = r"""
   DinGelSchwinG · mobiles BLE-Gateway
@@ -282,7 +290,56 @@ class GatewayHttp:
                     if outer.store is None:
                         return self._send(503, {"ok": False, "error": "grabber_deaktiviert"})
                     return self._send(200, outer._run_async(outer.store.import_url, (query.get("url") or [""])[0], {"persist": False}))
-                return self._send(404, {"ok": False, "error": "not_found", "endpoints": ["/health", "/status", "/metrics", "/tokens", "/sessions", "/events", "/challenge", "/command", "/nfc", "/imports", "/import/preview", "/import/file/<id>"]})
+                # ── USB-Hersteller (VID/PID → Name) ─────────────────────────────
+                if path == "/vendors":
+                    cfgu = outer.state.cfg
+                    refresh = (query.get("refresh") or ["0"])[0].lower() in ("1", "true", "ja")
+                    paths = [str(cfgu.usb_ids_file)] if getattr(cfgu, "usb_ids_file", None) else None
+                    store = usb_store(refresh=refresh, paths=paths)
+                    vid = (query.get("vid") or [""])[0]
+                    if vid:
+                        return self._send(200, {"ok": True, "device": store.describe(vid, (query.get("pid") or [""])[0])})
+                    needle = (query.get("q") or [""])[0]
+                    if needle:
+                        return self._send(200, {"ok": True, "query": needle, "count": len(store.search(needle)),
+                                                "results": store.search(needle)})
+                    return self._send(200, store.as_dict())
+                # ── Angesteckte Geräte: adb (Seriennummern) und lsusb (USB-IDs) ──
+                if path == "/devices/adb":
+                    cfgu = outer.state.cfg
+                    res = run_adb(["devices", "-l"], adb=(getattr(cfgu, "adb_bin", "") or None))
+                    if not res.get("ok") and res.get("error"):
+                        return self._send(200, {"ok": False, "devices": [], "error": res.get("error"),
+                                                "hint": res.get("hint") or "", "command": "adb devices -l"})
+                    store = usb_store()
+                    rows = []
+                    for dev in parse_adb_devices(res.get("stdout") or ""):
+                        manufacturer = ""
+                        if dev.get("state") == "device":
+                            probe = run_adb(["-s", str(dev.get("serial")), "shell", "getprop",
+                                             "ro.product.manufacturer"], adb=(getattr(cfgu, "adb_bin", "") or None))
+                            manufacturer = str(probe.get("stdout") or "").strip()
+                        info = store.describe(dev.get("vendor_id") or "")
+                        rows.append({**dev, "manufacturer_adb": manufacturer,
+                                     "manufacturer_usb": info.get("name"), "manufacturer_known": info.get("known")})
+                    return self._send(200, {"ok": True, "devices": rows, "count": len(rows),
+                                            "command": res.get("command") or "adb devices -l"})
+                if path == "/devices/usb":
+                    report = outer._run_async(usb_devices, usb_store())
+                    return self._send(200, report)
+                if path == "/devices/preflight":
+                    cfgu = outer.state.cfg
+                    kwargs = {
+                        "serial": (query.get("serial") or [""])[0],
+                        "image": (query.get("image") or [""])[0],
+                        "expected_model": (query.get("modell") or query.get("model") or [""])[0],
+                        "backup_dir": (query.get("backup_dir") or [""])[0] or str(getattr(cfgu, "backup_dir") or ""),
+                        "images_dir": (query.get("images_dir") or [""])[0] or str(getattr(cfgu, "images_dir") or ""),
+                        "adb_path": (getattr(cfgu, "adb_bin", "") or None),
+                    }
+                    report = outer._run_async(usb_preflight, usb_store(), **kwargs)
+                    return self._send(200, report)
+                return self._send(404, {"ok": False, "error": "not_found", "endpoints": ["/health", "/status", "/metrics", "/tokens", "/sessions", "/events", "/challenge", "/command", "/nfc", "/imports", "/import/preview", "/import/file/<id>", "/vendors", "/devices/adb", "/devices/usb", "/devices/preflight"]})
 
             def _send_file(self, asset_id: str):
                 if outer.store is None:
@@ -619,6 +676,33 @@ async def selftest(cfg: GatewayConfig) -> int:
     checks.append(("grabber-http-blockiert", state.imports.import_url("http://169.254.169.254/latest/meta-data/").get("error")
                    in ("host_gesperrt", "linklokal_blockiert", "privatnetz_blockiert"),
                    "metadaten-ip abgewiesen"))
+    # 9) USB-Hersteller + Vorabprüfung: Tabelle, Suche, HTTP-Routen, Checkliste
+    vstore = usb_store(refresh=True)
+    honey = vstore.describe("0x0c2e")
+    checks.append(("usb-hersteller-tabelle", bool(honey.get("known")) and "honeywell" in str(honey.get("name")).lower(),
+                   "vendor=%d built-in=%s" % (len(vstore.vendors), vstore.meta.get("count"))))
+    with urlopen("http://127.0.0.1:%d/vendors?vid=0x18d1&pid=4e12" % cfg.http_port, timeout=3) as res:
+        vend = json.loads(res.read().decode("utf-8"))
+    with urlopen("http://127.0.0.1:%d/vendors?q=samsung" % cfg.http_port, timeout=3) as res:
+        found = json.loads(res.read().decode("utf-8"))
+    checks.append(("usb-vendors-http", bool(vend.get("ok")) and str(vend["device"]["name"]).lower().startswith("google")
+                   and found.get("count", 0) >= 1,
+                   "name=%s pid=%s suche=%s" % (vend["device"]["name"], vend["device"].get("pid"), found.get("count"))))
+    with urlopen("http://127.0.0.1:%d/devices/adb" % cfg.http_port, timeout=10) as res:
+        adbs = json.loads(res.read().decode("utf-8"))
+    with urlopen("http://127.0.0.1:%d/devices/preflight?serial=CT45-1" % cfg.http_port, timeout=12) as res:
+        pre = json.loads(res.read().decode("utf-8"))
+    checks.append(("usb-adb-geraete", isinstance(adbs.get("devices"), list),
+                   "ok=%s n=%d %s" % (adbs.get("ok"), len(adbs.get("devices") or []), adbs.get("error") or "")))
+    stores = state.snapshot().get("stores") or {}
+    names = {r.get("name") for r in stores.get("stores", [])}
+    checks.append(("speicher-liste", "whitelist" in names and "import_katalog" in names,
+                   "stores=%s" % ",".join(sorted(n for n in names if n))))
+
+    checks.append(("usb-vorabpruefung", bool(pre.get("checks")) and pre.get("verdict") in ("ok", "attention", "blockiert")
+                   and "fastboot" not in " ".join(str(c.get("command", "")) for c in pre["checks"] if c["id"] != "arb"),
+                   "verdict=%s pruefpunkte=%d adb=%s" % (pre.get("verdict"), len(pre.get("checks") or []), bool(adb_binary()))))
+
     if responder is not None:
         responder.stop()
 
@@ -916,6 +1000,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-watchdog", dest="watchdog", action="store_false", default=True, help="Watchdog (Neustart bei hängender Schleife) abschalten (nur Labor)")
     parser.add_argument("--no-import", dest="import_enabled", action="store_false", default=None, help="Software-Grabber (URL-Import) ganz abschalten")
     parser.add_argument("--import-dir", default=None, help="Ablage für importierte Assets (Standard: data/imports)")
+    parser.add_argument("--usb-ids", default=None, help="pfad zu einer usb.ids für die vollständige Hersteller-Zuordnung")
+    parser.add_argument("--images-dir", default=None, help="Ordner, in dem die Vorabprüfung Images + .sha256 findet")
+    parser.add_argument("--backup-dir", default=None, help="Ordner mit Backups (die Checkliste prüft das Alter)")
+    parser.add_argument("--adb-bin", default=None, help="adb-Pfad für Geräteabruf/Vorabprüfung (Standard: PATH)")
     parser.add_argument("--import-max-mb", type=int, default=None, help="Größenlimit pro Abruf in MiB (Standard 64)")
     parser.add_argument(
         "--import-allow-private",
@@ -940,6 +1028,10 @@ def main(argv: list[str] | None = None) -> int:
         import_max_bytes=(args.import_max_mb * 1024 * 1024) if args.import_max_mb else None,
         import_allow_private=(args.import_allow_private == "1") if args.import_allow_private else None,
         import_allow_loopback=(args.import_allow_private == "1") if args.import_allow_private else None,
+        usb_ids_file=Path(args.usb_ids) if args.usb_ids else None,
+        images_dir=Path(args.images_dir) if args.images_dir else None,
+        backup_dir=Path(args.backup_dir) if args.backup_dir else None,
+        adb_bin=args.adb_bin or None,
     )
     if args.command == "selftest":
         cfg.mock = True

@@ -23,6 +23,7 @@
     "mcp:gateway": "python3 mobile-server/mobile_ble_server.py --mock",
     "mcp:gateway:selftest": "python3 mobile-server/mobile_ble_server.py selftest",
     "mcp:gateway:tests": "python3 mobile-server/tests/test_gateway.py",
+    "mcp:vendors:selftest": "python3 mobile-server/vendors.py",
     "dev:full": "concurrently -n app,mcp,gw -c cyan,magenta,yellow \"npm run dev\" \"npm run mcp:bridge\" \"npm run mcp:gateway\"",
     "mcp:portview": "python3 mobile-server/discovery.py",
     "mcp:gateway:status": "curl -s http://127.0.0.1:8791/status"
