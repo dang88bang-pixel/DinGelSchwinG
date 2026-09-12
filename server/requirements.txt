@@ -1,0 +1,3 @@
+# NEXUS Manager Backend – nur Standardbibliothek + optionales Flask.
+# Start ohne pip:  python3 server/app.py
+# Optional (identische API):  pip install flask && NEXUS_USE_FLASK=1 python3 server/app.py

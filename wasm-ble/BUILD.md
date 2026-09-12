@@ -18,6 +18,7 @@ await init();
 const d = calculate_distance(-65, -59); // ≈ 2.0 m
 ```
 
-## Test (JS-Fallback exakt wie WASM)
-Siehe src/lib/bleWasm.ts — simuliert alle Exportfunktionen und versucht
-echtes `instantiateStreaming` auf `/ble_distance.wasm` (bzw. `/wasm/ble_distance_bg.wasm`).
+## Test (TypeScript-Implementierung exakt wie WASM)
+Siehe src/lib/bleWasm.ts — nutzt dieselbe Pfadverlustformel in TypeScript,
+wenn kein WASM-Artefakt ausgeliefert ist, und versucht echtes Laden von
+`/wasm/ble_distance_bg.wasm`.

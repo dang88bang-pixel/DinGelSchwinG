@@ -1,7 +1,7 @@
 """WebSocket-Client für /ws/status (optional).
 
 Nutzt `websocket-client`, wenn installiert – sonst None. Der
-StatusManager fällt dann auf periodisches API-Polling + Mock zurück.
+StatusManager fällt dann auf periodisches API-Polling mit leeren Offline-Listen zurück.
 """
 from __future__ import annotations
 

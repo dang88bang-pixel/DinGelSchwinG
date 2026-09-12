@@ -317,6 +317,81 @@ def import_asset_path(asset_id: str, base: str | None = None) -> str:
     return f"{base or gateway_base()}/import/file/{urllib.parse.quote(str(asset_id))}"
 
 
+# ---------------------------------------------------------------------------
+# USB-Hersteller, ADB-Geräte, Vorabprüfung – alle drei rein lesend
+# ---------------------------------------------------------------------------
+def usb_vendor(vid: str = "", pid: str = "", query: str = "", base: str | None = None) -> dict[str, Any]:
+    """VID → Hersteller. Ohne Argumente die komplette Tabelle inkl. Herkunftsquellen."""
+    if str(vid or "").strip():
+        path = "/vendors?vid=%s" % urllib.parse.quote(str(vid).strip())
+        if str(pid or "").strip():
+            path += "&pid=%s" % urllib.parse.quote(str(pid).strip())
+    elif str(query or "").strip():
+        path = "/vendors?q=%s" % urllib.parse.quote(str(query).strip())
+    else:
+        path = "/vendors"
+    return _gateway_request(path, None, base)
+
+
+def adb_devices(base: str | None = None) -> dict[str, Any]:
+    """`adb devices -l` auf dem Host des Gateways (Herstellernamen schon aufgelöst)."""
+    return _gateway_request("/devices/adb", None, base, timeout=25.0)
+
+
+def usb_host_devices(base: str | None = None) -> dict[str, Any]:
+    """`lsusb`-Sicht auf den USB-Bus des Gateways (Companion-Hardware, Cradles)."""
+    return _gateway_request("/devices/usb", None, base, timeout=20.0)
+
+
+def device_preflight(serial: str = "", model: str = "", image: str = "", backup_dir: str = "",
+                     base: str | None = None) -> dict[str, Any]:
+    """Vorabbericht vor einem Eingriff: Akku, Bootloader-Status, Patch, SHA-256, Backup.
+
+    Schreibend wird hier nichts – kein Unlock, kein Flash, kein fastboot-Aufruf.
+    """
+    params = {"serial": serial, "modell": model, "image": image, "backup_dir": backup_dir}
+    tail = urllib.parse.urlencode({k: v for k, v in params.items() if str(v or "").strip()})
+    return _gateway_request("/devices/preflight" + (f"?{tail}" if tail else ""), None, base, timeout=45.0)
+
+
+def format_devices(result: dict[str, Any] | None) -> str:
+    """Geräteliste als Konsole-Text; erklärt fehlendes adb, statt nur zu schweigen."""
+    if not isinstance(result, dict):
+        return "⚠️ kein Ergebnis"
+    if not result.get("ok"):
+        err = result.get("error") or "unbekannt"
+        hint = result.get("hint") or ""
+        return f"⚠️ adb meldet nichts ({err}){' – ' + hint if hint else ''}\nBefehl: {result.get('command') or 'adb devices -l'}"
+    rows = result.get("devices") or []
+    if not rows:
+        return "📱 keine Geräte gemeldet – USB-Debugging am Gerät prüfen"
+    lines = [f"📱 {len(rows)} Gerät(e) via adb ({result.get('command') or 'adb devices -l'}):"]
+    for row in rows:
+        maker = row.get("manufacturer_adb") or row.get("manufacturer_usb") or "Hersteller unbekannt"
+        lines.append(f"  · {row.get('serial')} [{row.get('state')}] {row.get('model') or row.get('product') or '—'} · {maker} · {row.get('transport') or 'usb'}")
+    return "\n".join(lines)
+
+
+def format_preflight(result: dict[str, Any] | None) -> str:
+    """Vorabbericht als lesbare Checkliste (derselbe Text wie im App-Panel)."""
+    if not isinstance(result, dict) or not result.get("checks"):
+        err = (result or {}).get("error") if isinstance(result, dict) else None
+        return f"⚠️ Vorabprüfung ohne Ergebnis{': ' + str(err) if err else ''}"
+    tone = {"ok": "✅", "warn": "⚠️", "bad": "⛔", "info": "·"}
+    head = {"ok": "bereit", "attention": "Vorher klären", "blockiert": "NICHT ausführen"}.get(str(result.get("verdict")), "unbekannt")
+    lines = [f"🛡️ Vorabprüfung: {head} · {len(result['checks'])} Prüfpunkte · Ziel {result.get('target') or '—'}"]
+    for row in result["checks"]:
+        lines.append(f"  {tone.get(row.get('status'), '·')} {row.get('label')}: {row.get('detail')}")
+        if row.get("command"):
+            lines.append(f"      $ {row['command']}")
+        if row.get("fix"):
+            lines.append(f"      → {row['fix']}")
+    if result.get("note"):
+        lines.append(f"Hinweis: {result['note']}")
+    lines.append("Grenze: Entsperrt und geflasht wird an der Wartungsstation – nicht von hier.")
+    return "\n".join(lines)
+
+
 def describe_imports(result: dict[str, Any] | None) -> str:
     """Kompakte Textdarstellung eines Import-Ergebnisses für Konsole/Chat."""
     if not isinstance(result, dict):

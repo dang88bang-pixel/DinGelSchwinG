@@ -346,6 +346,11 @@ class Agent:
             return self._intent_help()
         if "belege" in t and "button" in t:
             return self._intent_assign_button(t)
+        if (re.search(r"(hersteller|vendor|usb-?id|\bvid\b)", t) and re.search(r"(?:0x)?[0-9a-f]{4}\b", t)) \
+                or re.search(r"wem geh(ö|o)rt|hersteller (von|für|zu) \S+", t):
+            return self._intent_usb_vendor(t)
+        if re.search(r"vorabpr(ü|u)fung|vorabcheck|preflight|brick-?schutz", t):
+            return self._intent_preflight(t)
         if self.mode == "adb":
             adb = self._try_adb_intents(t)
             if adb is not None:
@@ -462,8 +467,66 @@ class Agent:
                 f"Vor Ausführung ist deine ausdrückliche Freigabe erforderlich.\n"
                 f"Antworte mit **„freigeben“**, um fortzufahren.")
 
+    def _intent_usb_vendor(self, t: str) -> str:
+        """VID/PID → Herstellername (Tabelle des Gateways, offline-fähig)."""
+        if _clients is None:
+            return "⚠️ utils/clients.py fehlt – Hersteller-Lookup ist nicht verfügbar."
+        match = re.search(r"(?:0x)?([0-9a-fA-F]{4})", t)
+        hex_id = match.group(1) if match and re.search(r"(hersteller|vendor|vid)", t) else ""
+        needle = ""
+        if not hex_id:
+            for name in ("honeywell", "zebra", "datalogic", "samsung", "google", "huawei",
+                         "xiaomi", "lenovo", "motorola", "sony", "lge", "oneplus", "fairphone"):
+                if re.search(r"\b%s\b" % name, t):
+                    needle = name
+                    break
+        if not hex_id and not needle:
+            return "Sag mir die VID (z. B. `hersteller 0x18d1`) oder einen Namen (`hersteller zebra`)."
+        res = _clients.usb_vendor(vid=hex_id, query=needle)
+        self._audit("usb_vendor", hex_id or needle)
+        if not res.get("ok"):
+            return f"⚠️ Hersteller-Lookup nicht erreichbar: {res.get('error', 'unbekannt')} – läuft das mobile Gateway?"
+        if isinstance(res.get("device"), dict):
+            dev = res["device"]
+            pid = f":{dev['pid']}" if dev.get("pid") else ""
+            note = f"\nHinweis: {dev['note']}" if dev.get("note") else ""
+            return (f"🔌 {dev.get('vid')}{pid} → {dev.get('name')}\n"
+                    f"Art: {dev.get('kind_label')} · ADB-Modus: {'ja' if dev.get('adb_capable') else 'nein'}{note}")
+        rows = res.get("results") or []
+        if not rows:
+            return (f"🔌 kein Eintrag für „{hex_id or needle}“ in der Kern-Tabelle.\n"
+                    "Für die vollständige Liste das Gateway mit --usb-ids /usr/share/hwdata/usb.ids starten.")
+        lines = [f"🔌 {len(rows)} Treffer für „{hex_id or needle}“:"]
+        lines += [f"  · {r.get('vid')} {r.get('name')}" for r in rows[:12]]
+        return "\n".join(lines)
+
+    def _intent_preflight(self, t: str) -> str:
+        """Vorabprüfung vor einem Eingriff – der Gateway liest nur, hier wird nichts geflasht."""
+        if _clients is None:
+            return "⚠️ utils/clients.py fehlt – Vorabprüfung ist nicht verfügbar."
+        serial = ""
+        model = ""
+        image = ""
+        m = re.search(r"(?:serial|ger[äa]t|geraet|device)\s+\W?([a-z0-9._:-]{3,})", t)
+        if m:
+            serial = m.group(1)
+        m = re.search(r"(?:modell|model|modell:)\s+\W?([a-z0-9_-]{2,})", t)
+        if m:
+            model = m.group(1)
+        m = re.search(r"([A-Za-z0-9._-]+\.(?:zip|img|tar\.gz|tar|ozip))", t)
+        if m:
+            image = m.group(1)
+        report = _clients.device_preflight(serial=serial, model=model, image=image)
+        self._audit("device_preflight", serial or "auto")
+        return _clients.format_preflight(report)
+
     def _intent_adb_devices(self) -> str:
         self._audit("adb_devices", "Geräteliste abgefragt")
+        if _clients is not None:
+            live = _clients.format_devices(_clients.adb_devices())
+            if not live.startswith("⚠️"):
+                return live + "\n\nHinweis: `adb devices -l` liefert Details (Modell, Transport); " \
+                    "das Gateway löst USB-IDs über data/usb_vendors.json auf (docs/usb-hersteller.md)."
         return ("📱 ADB-Geräte (USB/WiFi):\n"
                 "- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n"
                 "- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Beispiel-Skript: Scannt ein Subnetz nach aktiven Geräten (ARP-Ping)."""
+"""Produktionsskript: Scannt ein Subnetz nach aktiven Geräten (ICMP-Ping)."""
 import argparse
 import socket
 import subprocess

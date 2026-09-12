@@ -68,19 +68,19 @@ class TestScriptExecutor(unittest.TestCase):
 
 
 class TestStatusManager(unittest.TestCase):
-    def test_mock_fallback(self) -> None:
+    def test_offline_returns_empty_live_data(self) -> None:
         manager = StatusManager(poll_interval=0.5)
         manager.refresh()
-        self.assertGreaterEqual(len(manager.devices), 5)
-        self.assertGreaterEqual(len(manager.clients), 1)
-        self.assertGreaterEqual(manager.connected_devices(), 1)
+        self.assertEqual(manager.devices, [])
+        self.assertEqual(manager.clients, [])
+        self.assertEqual(manager.connected_devices(), 0)
         self.assertIsInstance(manager.summary(), str)
-        self.assertIn("Geräte", manager.summary())
+        self.assertIn("offline", manager.summary())
 
     def test_manual_workflows(self) -> None:
         manager = StatusManager(poll_interval=0.5)
         manager.refresh()
-        baseline = manager.active_workflows()  # Mock liefert 1 laufenden Workflow
+        baseline = manager.active_workflows()
         manager.add_workflow("test_wf", progress=10)
         self.assertEqual(manager.active_workflows(), baseline + 1)
         manager.update_workflow("test_wf", 100, "success")
@@ -470,6 +470,117 @@ class TestPortViewAndGrabber(unittest.TestCase):
         self.assertIn("beats", text)
         self.assertIn("❌", c.describe_imports({"ok": False, "error": "zu_gross", "hint": "Gateway-Limit"}))
         self.assertIn("/import/file/a%20b", c.import_asset_path("a b", base="http://h:1"))
+
+
+class TestUsbConnections(unittest.TestCase):
+    """USB-Hersteller, ADB-Geräte und Vorabprüfung – Desktop-Seite der Anbindungen."""
+
+    def setUp(self) -> None:
+        from utils import clients
+
+        self.c = clients
+        self.urls: list[str] = []
+
+    def _stub(self, payload: dict) -> None:
+        def fake_request(url, payload_=None, timeout=6.0):  # noqa: ANN001, ANN003
+            self.urls.append(url)
+            return payload
+
+        self.c._request = fake_request  # type: ignore[assignment]
+
+    def test_vendor_paths(self) -> None:
+        self._stub({"ok": True})
+        self.c.usb_vendor(vid="0x18d1", pid="4e12")
+        self.assertIn("/vendors?vid=0x18d1&pid=4e12", self.urls[-1])
+        self.c.usb_vendor(query="zebra")
+        self.assertIn("/vendors?q=zebra", self.urls[-1])
+        self.c.usb_vendor()
+        self.assertTrue(self.urls[-1].endswith("/vendors"))
+
+    def test_preflight_encodes_only_filled_params(self) -> None:
+        self._stub({"ok": True, "verdict": "ok", "checks": []})
+        self.c.device_preflight(serial="CT45-01", model="", image="rom.zip")
+        tail = self.urls[-1].split("?", 1)[1]
+        self.assertIn("serial=CT45-01", tail)
+        self.assertIn("image=rom.zip", tail)
+        self.assertNotIn("modell", tail)
+
+    def test_format_devices_explains_missing_adb(self) -> None:
+        missing = self.c.format_devices({"ok": False, "error": "adb_nicht_verfuegbar",
+                                         "hint": "platform-tools installieren", "command": "adb devices -l"})
+        self.assertIn("adb meldet nichts", missing)
+        self.assertIn("adb devices -l", missing)
+        listed = self.c.format_devices({"ok": True, "command": "adb devices -l", "devices": [
+            {"serial": "CT45-01", "state": "device", "model": "CT45",
+             "manufacturer_adb": "Honeywell", "transport": "usb"}]})
+        self.assertIn("1 Gerät(e)", listed)
+        self.assertIn("Honeywell", listed)
+
+    def test_format_preflight_lists_commands_and_boundary(self) -> None:
+        text = self.c.format_preflight({
+            "verdict": "attention", "target": "CT45-01", "note": "nur lesen",
+            "checks": [
+                {"id": "akku", "label": "Akkustand", "status": "warn", "detail": "31 %",
+                 "command": "adb shell dumpsys battery", "fix": "laden"},
+                {"id": "image", "label": "Image-Prüfsumme", "status": "bad", "detail": "passt nicht"},
+            ],
+        })
+        self.assertIn("Vorher klären", text)
+        self.assertIn("$ adb shell dumpsys battery", text)
+        self.assertIn("→ laden", text)
+        self.assertIn("⛔ Image-Prüfsumme", text)
+        self.assertIn("Wartungsstation", text)
+        self.assertIn("ohne Ergebnis", self.c.format_preflight({"error": "gateway_weg"}))
+
+    def test_agent_intents_route(self) -> None:
+        from types import SimpleNamespace
+
+        from utils import agent as agent_mod
+
+        seen: dict = {}
+
+        def stub_clients(vid: str = "", pid: str = "", query: str = "", base=None) -> dict:
+            seen["args"] = {"vid": vid, "query": query}
+            return {"ok": True, "device": {"vid": "0x18d1", "pid": None, "name": "Google",
+                                           "kind_label": "Android-OEM", "adb_capable": True}}
+
+        original = agent_mod._clients
+        agent_mod._clients = SimpleNamespace(usb_vendor=stub_clients,
+                                            format_devices=lambda r: "stub",
+                                            adb_devices=lambda base=None: {"ok": False})
+        try:
+            agent = Agent(role="admin", config={"engine": "none"})
+            reply = agent.ask("welcher hersteller steckt hinter 0x18d1")
+            self.assertIn("Google", reply)
+            self.assertIn("Android-OEM", reply)
+            self.assertEqual(seen["args"]["vid"], "18d1")
+        finally:
+            agent_mod._clients = original
+
+    def test_agent_preflight_intent_passes_serial_and_model(self) -> None:
+        from types import SimpleNamespace
+
+        from utils import agent as agent_mod
+
+        captured: dict = {}
+
+        def fake_preflight(serial="", model="", image="", backup_dir="", base=None) -> dict:
+            captured.update({"serial": serial, "model": model, "image": image})
+            return {"ok": True, "verdict": "ok", "checks": [
+                {"id": "scope", "label": "Umfang", "status": "info", "detail": "read-only"}], "target": serial}
+
+        original = agent_mod._clients
+        agent_mod._clients = SimpleNamespace(device_preflight=fake_preflight,
+                                            format_preflight=lambda r: "🛡️ Vorabprüfung: bereit · %s" % r.get("target"))
+        try:
+            agent = Agent(role="admin", config={"engine": "none"})
+            reply = agent.ask("mach eine vorabprüfung gerät CT45-01 mit modell CT45 für rom-ct45.zip")
+            self.assertIn("Vorabprüfung", reply)
+            self.assertEqual(captured["serial"].lower(), "ct45-01")
+            self.assertEqual(captured["model"].lower(), "ct45")
+            self.assertEqual(captured["image"], "rom-ct45.zip")
+        finally:
+            agent_mod._clients = original
 
 
 class TestConfig(unittest.TestCase):

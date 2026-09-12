@@ -178,6 +178,19 @@ class GatewayConfig:
     import_allow_private: bool = os.environ.get("DGS_IMPORT_ALLOW_PRIVATE", "1") == "1"
     import_allow_loopback: bool = os.environ.get("DGS_IMPORT_ALLOW_LOOPBACK", "1") == "1"
 
+    # ── USB-Hersteller + Vorabprüfung (read-only, „Brickschutz“ ohne Flash-Automatik) ─
+    #   usb_ids_file: pfad zu einer usb.ids (Linux USB ID Repository) für die
+    #                 vollständige Hersteller-Zuordnung; gewinnt gegen die Kern-Tabelle.
+    #   images_dir:   Ordner, in dem Image/SHA256-Prüfungen liegen müssen – die
+    #                 Vorabprüfung liest ausschließlich innerhalb dieses Ordners.
+    #   backup_dir:   hier sucht der Backup-Punkt nach einem frischen Sicherungsstand.
+    #   adb_bin:      adb für `devices -l`/`getprop`; leer = aus dem PATH. Kein Flashen,
+    #                 kein Unlock, kein fastboot-Aufruf von dieser Seite.
+    usb_ids_file: Path | None = Path(os.environ["DGS_USB_IDS"]) if os.environ.get("DGS_USB_IDS") else None
+    images_dir: Path | None = Path(os.environ["DGS_IMAGE_DIR"]) if os.environ.get("DGS_IMAGE_DIR") else None
+    backup_dir: Path | None = Path(os.environ["DGS_BACKUP_DIR"]) if os.environ.get("DGS_BACKUP_DIR") else None
+    adb_bin: str = os.environ.get("DGS_ADB_BIN", "")
+
     def shared_secret(self) -> bytes | None:
         """PSK zum Prüfen von `agent_proof` (nie der Token-Root-Key)."""
         if self.agent_secret:

@@ -28,6 +28,7 @@ import secrets
 import socket
 import time
 from collections import deque
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -323,7 +324,7 @@ class GatewayState:
                             "uptime_s": round(time.time() - self.started_at, 1),
                             "grants": self.metrics["grants"],
                             "denies": self.metrics["denies"],
-                            "agent_auth": self.agent_auth_summary(),
+            "agent_auth": self.agent_auth_summary(),
             "open_challenges": len([v for v in self.open_challenges.values() if v]),
             "simulated_token": bool(self.cfg.mock),
             "last_maintenance_error": self.last_maintenance_error or None,
@@ -710,12 +711,88 @@ class GatewayState:
                 "active": sum(1 for t in self.whitelist.get("tokens", []) if not t.get("revoked")),
                 "locked": sum(1 for t in self.whitelist.get("tokens", []) if self.is_locked(t["token_id"])),
             },
+            "usb": self.usb_block(),
+            "stores": self.stores_block(),
             "agent_auth": self.agent_auth_summary(),
             "open_challenges": len([v for v in self.open_challenges.values() if v]),
             "simulated_token": bool(self.cfg.mock),
             "last_maintenance_error": self.last_maintenance_error or None,
             "connected_agents": len(self.clients),
             "recent_sessions": [s.to_dict() for s in list(self.sessions)[-12:]][::-1],
+        }
+
+    def stores_block(self) -> dict:
+        """Welche Dateien/Ordner diesem Gateway als Speicher dienen (Größen, read-only).
+
+        Die App zeigt das im Panel „Anbindungen“ – dort sieht der Nutzer ohne
+        SSH-Sitzung, wo Whitelist, Audit-Protokoll, Sitzungen und Import-Katalog
+        liegen und ob sie geschrieben werden.
+        """
+        cfg = self.cfg
+        rows: list[dict[str, Any]] = []
+
+        def add(name: str, path: Any, kind: str) -> None:
+            entry: dict[str, Any] = {"name": name, "kind": kind, "path": str(path) if path else None}
+            try:
+                p = Path(str(path)).expanduser()
+                entry["exists"] = p.exists()
+                if p.is_file():
+                    stat = p.stat()
+                    entry["bytes"] = int(stat.st_size)
+                    entry["mtime"] = int(stat.st_mtime)
+                elif p.is_dir():
+                    files = [x for x in p.iterdir() if x.is_file()]
+                    entry["files"] = len(files)
+                    entry["bytes"] = sum(int(x.stat().st_size) for x in files)
+                    entry["mtime"] = int(max((x.stat().st_mtime for x in files), default=0))
+            except (OSError, ValueError) as exc:  # noqa: BLE001 - Anzeige, keine Kernfunktion
+                entry["error"] = str(exc)[:120]
+            rows.append(entry)
+
+        add("whitelist", getattr(cfg, "whitelist_file", None), "datei")
+        add("audit", getattr(cfg, "audit_file", None), "datei")
+        add("sessions", getattr(cfg, "sessions_file", None), "datei")
+        store = self.imports
+        if store is not None:
+            try:
+                stats = store.stats()
+                add("import_katalog", stats.get("dir") or getattr(store, "root", None), "ordner")
+                if rows:
+                    rows[-1]["entries"] = int(stats.get("count", 0))
+                    rows[-1]["assets_bytes"] = int(stats.get("bytes", 0))
+            except Exception as exc:  # noqa: BLE001
+                rows.append({"name": "import_katalog", "kind": "ordner", "error": str(exc)[:120]})
+        try:
+            rows.append({
+                "name": "wissen_bank",
+                "kind": "datastore",
+                "path": str(getattr(cfg, "data_dir", "") or "") + "/knowledge",
+                "session_count": len(self.sessions),
+                "note": "Abruf über `suche im wissen …` (Desktop-Konsole) bzw. /command act=rag_search",
+            })
+        except Exception:  # noqa: BLE001 - rein informativ
+            pass
+        return {"ok": True, "stores": rows}
+
+    def usb_block(self, *, refresh: bool = False) -> dict:
+        """Herkunft und Größe der USB-Hersteller-Tabelle (für `/status`, read-only)."""
+        from vendors import adb_binary, default_store  # lokal: ohne usb.ids/adb trotzdem startbar
+
+        paths = [str(self.cfg.usb_ids_file)] if getattr(self.cfg, "usb_ids_file", None) else None
+        try:
+            store = default_store(refresh=refresh, paths=paths)
+        except Exception as exc:  # noqa: BLE001 - optionale Erweiterung darf /status nicht killen
+            return {"ok": False, "error": str(exc)[:160], "vendors": 0, "sources": []}
+        meta = store.meta or {}
+        return {
+            "ok": True,
+            "vendors": len(store.vendors),
+            "sources": store.sources,
+            "bundled": meta.get("count"),
+            "generated": meta.get("generated"),
+            "adb": adb_binary(),
+            "images_dir": str(self.cfg.images_dir) if getattr(self.cfg, "images_dir", None) else None,
+            "note": "Vorabprüfung liest nur getprop/dumpsys/sha256 – es wird nichts geflasht oder entsperrt.",
         }
 
     def metrics_text(self) -> str:
@@ -771,6 +848,18 @@ class GatewayState:
                 ]
             except Exception as exc:  # noqa: BLE001 - Metrics-Endpunkt bleibt lesbar
                 lines.append("# import-metriken uebersprungen: %s" % str(exc)[:120].replace("\n", " "))
+        try:
+            usb = self.usb_block()
+            lines += [
+                "# HELP dingelschwing_gateway_usb_vendors Einträge der USB-Hersteller-Tabelle",
+                "# TYPE dingelschwing_gateway_usb_vendors gauge",
+                "dingelschwing_gateway_usb_vendors %d" % int(usb.get("vendors", 0)),
+                "# HELP dingelschwing_gateway_adb_available 1 wenn adb auf diesem Host auffindbar ist",
+                "# TYPE dingelschwing_gateway_adb_available gauge",
+                "dingelschwing_gateway_adb_available %d" % (1 if usb.get("adb") else 0),
+            ]
+        except Exception as exc:  # noqa: BLE001 - Metriken bleiben lesbar
+            lines.append("# usb-metriken uebersprungen: %s" % str(exc)[:120].replace("\n", " "))
         responder = self.portview
         if responder is not None:
             lines += [

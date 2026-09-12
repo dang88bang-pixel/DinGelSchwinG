@@ -336,7 +336,7 @@ python3 mobile-server/mobile_ble_server.py selftest
 #   ✅ grabber-katalog+datei · grabber-dedupe-sha · grabber-ssrf-filter
 
 python3 mobile-server/tests/test_gateway.py      # 32 Tests (PortView, Grabber, Ingest-Helfer)
-cd desktop && python3 -m unittest discover -s tests   # 44 Tests (PortView, Grabber, Seiten-Ingest)
+cd desktop && python3 -m unittest discover -s tests   # 50 Tests (PortView, Grabber, Seiten-Ingest, Anbindungen)
 
 # Seiten-Ingest ohne UI durchspielen (Gateway + Demo-Seite müssen laufen):
 curl -s -X POST http://127.0.0.1:8791/import -H 'content-type: application/json' \

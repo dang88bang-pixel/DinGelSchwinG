@@ -15,6 +15,13 @@ import McpServerPanel from './McpServerPanel';
 import PortViewPanel from './PortViewPanel';
 import DevicePortViewPanel from './DevicePortViewPanel';
 import FlashCenterPanel from './FlashCenterPanel';
+import IntegrationsPanel from './IntegrationsPanel';
+import AccessConsole from './AccessConsole';
+import NetworkPanel from './NetworkPanel';
+import StatusBoard from './StatusBoard';
+import OverviewPanel from './OverviewPanel';
+import NfcReader from './NfcReader';
+import OperationsCenter from './OperationsCenter';
 import AssetGrabberPanel from './AssetGrabberPanel';
 import LiveStatusStrip from './LiveStatusStrip';
 import { useSensors } from '../hooks/useSensors';
@@ -48,7 +55,8 @@ export default function NetworkDashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
-  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'devices' | 'flash' | 'grabber' | null>(null);
+  const [termOpen, setTermOpen] = useState(false);
+  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'devices' | 'flash' | 'grabber' | 'integrations' | null>(null);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -110,6 +118,13 @@ export default function NetworkDashboard() {
           >
             🤖 Agent
           </button>
+          <button
+            onClick={() => setTermOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-slate-800 text-cyan-100 ring-1 ring-cyan-500/30 shadow-xl hover:brightness-110 transition"
+            title="Access Console / Terminal (server-/Backend)"
+          >
+            ⌨ Terminal
+          </button>
           {([
             ['gallery', '🖼️', t('app.gallery'), t('panels.gallery.subtitle')],
             ['dashboard', '📊', t('app.dashboard'), t('panels.dashboard.subtitle')],
@@ -119,6 +134,7 @@ export default function NetworkDashboard() {
             ['devices', '📱', t('app.devices', 'Geräte'), t('panels.deviceportview.subtitle', 'USB + ADB automatisch · Hersteller, VID/PID, Status')],
             ['flash', '🚀', t('app.flash', 'Flash'), t('panels.flashcenter.subtitle', 'Custom-OS · Brick-Schutz · Einrichtung')],
             ['grabber', '📥', t('app.grabber', 'Grabber'), t('panels.grabber.subtitle', 'URLs importieren: Beats, Samples, Styles, Effekte, Filter')],
+            ['integrations', '🔗', t('app.integrations', 'Anbindungen'), t('panels.integrations.title', 'Anbindungen: Geräte, Hersteller, Bibliotheken, Speicher')],
           ] as const).map(([id, icon, label, title]) => (
             <button
               key={id}
@@ -227,10 +243,15 @@ export default function NetworkDashboard() {
               </div>
             </div>
           {/* Neue Diagnose-Module */}
+          <OverviewPanel />
+          <StatusBoard />
+          <NetworkPanel />
+          <NfcReader />
           <NetworkDiagnostics />
           <MeshControl />
           <ReplayEditor />
           <RosettaPanel />
+          <OperationsCenter />
           {/* Rekursiver Lern-Feedback */}
           <div className="glass-card p-5 relative overflow-hidden ring-gradient">
             <h3 className="text-sm font-black text-white flex items-center gap-2 mb-3"><Zap className="w-4 h-4 text-amber-300" /> Rekursives Lernen (WASM)</h3>
@@ -312,6 +333,7 @@ export default function NetworkDashboard() {
           ['devices', '📱', 'Geräte-Port-View (USB/ADB)'],
           ['flash', '🚀', 'Flash-Center (Custom-OS)'],
           ['grabber', '📥', 'Grabber (URL-Import)'],
+          ['integrations', '🔗', 'Anbindungen (Geräte · Hersteller · Speicher)'],
         ] as const).map(([id, icon, title]) => (
           <button
             key={id}
@@ -325,6 +347,7 @@ export default function NetworkDashboard() {
       </div>
 
       {agentOpen && <AgentConsole role="admin" onClose={() => setAgentOpen(false)} />}
+      {termOpen && <AccessConsole role="admin" onClose={() => setTermOpen(false)} />}
       {panel === 'gallery' && <AgentGalleryPanel onClose={() => setPanel(null)} />}
       {panel === 'dashboard' && <LiveDashboardPanel onClose={() => setPanel(null)} />}
       {panel === 'knowledge' && <KnowledgeBasePanel onClose={() => setPanel(null)} />}
@@ -333,6 +356,7 @@ export default function NetworkDashboard() {
       {panel === 'devices' && <DevicePortViewPanel onClose={() => setPanel(null)} />}
       {panel === 'flash' && <FlashCenterPanel onClose={() => setPanel(null)} />}
       {panel === 'grabber' && <AssetGrabberPanel onClose={() => setPanel(null)} />}
+      {panel === 'integrations' && <IntegrationsPanel onClose={() => setPanel(null)} />}
     </div>
   );
 }

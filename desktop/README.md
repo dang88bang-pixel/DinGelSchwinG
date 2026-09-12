@@ -17,6 +17,7 @@ Chat-zentrierte Agenten-Steuerung für Netzwerk- und Systemadministration:
   Gliederung, Skript-Anteil, Secret-Muster, Duplikat), dann Seite als Asset, verlinkte Software
   und ein `data/knowledge/`-Dokument ablegen; `format_ingest_report()` liefert den Chat-Text.
   Chat: „prüf den inhalt von <url>“ (schreibt nichts) bzw. „importiere <url> in die bibliothek“
+- 🔗 **Anbindungen** – Hersteller-Namen zu USB-IDs, ADB-/USB-Geräteliste und die read-only Vorabprüfung kommen über `utils/clients.py` (`usb_vendor`, `adb_devices`, `device_preflight`) aus dem Gateway; Logik + Daten: `mobile-server/vendors.py`, `mobile-server/data/usb_vendors.json`, Doku in [`docs/usb-hersteller.md`](../docs/usb-hersteller.md).
 - 📥 **Software-Grabber** – `import_url()`, `list_imports()`, `delete_import()`,
   `import_asset_path()`, `describe_imports()` sprechen die `/import`-Endpunkte des Gateways
   (Beats, Samples, UI-Styles, Effekte, Filter; Dedupe per SHA-256, SSRF-Filter);
@@ -108,6 +109,9 @@ Skills mit klarem Offline-Hinweis statt Fehler.
 | `importiere http://…/pack.json als styles` | URL-Import in den Asset-Katalog (Grabber) |
 | `prüf den inhalt von http://…` | Seiten-Gutachten ohne Ablage (Ingest) |
 | `importiere http://… in die bibliothek` | Seite + verlinkte Software + Wissensbasis-Dokument |
+| `adb geräte` *(Modus B)* · `welche geräte sind angeschlossen` | Live-Geräteliste über das Gateway: Seriennummer, Zustand, Modell, Hersteller |
+| `hersteller 0x18d1` · `hersteller zebra` · `wem gehört 0c2e` | USB-VID → Hersteller (Kern-Tabelle, durch `--usb-ids` erweiterbar) |
+| `vorabprüfung gerät CT45-01 modell CT45 image rom.zip` | Read-only-Checkliste vor einem Eingriff: Akku, Bootloader-Status, Patch-Alter, SHA-256, Backup-Frische |
 | `dashboard` · `leere den cache` · `exportiere das log als json` | Kennzahlen, Cache, Export |
 
 Die Schnellzugriffsleiste (über den sechs Aktionsbuttons) sendet dieselben Befehle:
