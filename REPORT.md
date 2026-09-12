@@ -21,6 +21,14 @@ Basis: `caf308f` (main) · Modus: 5-Phasen-Zyklus (Audit → Ersetzung → Integ
   -keyalg RSA -keysize 2048 -validity 10000`), danach Workflow erneut laufen lassen.
   Offizielles Release: PR mergen → Tag `v3.2.0` auf main → Workflow hängt das APK
   automatisch ans GitHub-Release.
+- ✅ **Release `v3.2.0` erstellt (2026-09-12, Latest):** PR #11 gemergt (`ac5d998`),
+  Tag `v3.2.0` gesetzt, Release-Run **34673156408 — success** inkl. Schritt
+  „Create GitHub Release (on tag)“. Assets:
+  `DinGelSchwinG-v1.0.0-debug.apk` (17,8 MB),
+  `DinGelSchwinG-v1.0.0-release.apk` (14,9 MB), `SHA256SUMS`.
+  Download: https://github.com/dang88bang-pixel/DinGelSchwinG/releases/tag/v3.2.0
+  (Hinweis: Dateiname trägt die App-`versionName` 1.0.0, Release-Tag ist v3.2.0;
+  beide APKs debug-signiert, sideload-fähig.)
 - **Testmatrix am Bereitstellungs-Tag erneut grün: 140/140**
   (npm 20 + gateway 43 + desktop 48 + genesis 10 + selftest 19) + tsc/eslint.
 - Sandbox-Hinweis: APK-Binärdatei und CI-Logs konnten nicht *in die Sandbox*
