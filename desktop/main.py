@@ -222,4 +222,27 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Phase 5: Unbehandeltes → Crash-Datei statt stillem Tod (kein Crash-Dialog nötig).
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    except BaseException as exc:  # noqa: BLE001 - letzter Ausweg mit Bug-Report
+        try:
+            import json as _json
+            import time as _time
+            import traceback as _tb
+            from pathlib import Path as _P
+
+            data_dir = _P(__file__).resolve().parent / "data"
+            data_dir.mkdir(parents=True, exist_ok=True)
+            path = data_dir / f"crash_{_time.strftime('%Y%m%d-%H%M%S')}.json"
+            path.write_text(_json.dumps({
+                "component": "desktop-console",
+                "error": f"{type(exc).__name__}: {exc}",
+                "traceback": _tb.format_exception(exc),
+            }, indent=2, ensure_ascii=False)[:200_000], encoding="utf-8")
+            print(f"❌ Unbehandelter Fehler – Bericht: {path}")
+        except Exception:
+            print(f"❌ Unbehandelter Fehler: {exc}")
+        raise SystemExit(1)

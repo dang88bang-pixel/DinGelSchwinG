@@ -4,7 +4,11 @@ import App from './App.tsx'
 import { registerServiceWorker } from './lib/pwa'
 import { appliedStyleInfo } from './lib/grabber'
 import { autoConfigure, isNativeApp } from './lib/portview'
+import { installGlobalHandlers } from './lib/bugReport'
 import './index.css'
+
+// Phase 5: globale Fehlerfalle + Bug-Report-Export (Banner + Download).
+installGlobalHandlers()
 
 registerServiceWorker()
 

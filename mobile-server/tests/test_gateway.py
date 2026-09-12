@@ -27,6 +27,8 @@ from gw_config import (  # noqa: E402
     GatewayConfig,
 )
 from gateway import GatewayState  # noqa: E402
+import resilience  # noqa: E402
+from retry_util import CircuitBreaker, get_breaker, reset_breakers, with_retry  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -594,6 +596,139 @@ def test_snapshot_reports_portview_and_import_catalog():
     assert "dingelschwing_gateway_import_assets 0" in text, text
     state.portview = discovery.DiscoveryResponder(discovery.build_announce(http_port=1), port=1)
     assert "dingelschwing_gateway_portview_answers 0" in state.metrics_text()
+
+# ---------------------------------------------------------------------------
+# Phase 3: Session-Snapshot (persistent, ohne Schlüsselmaterial)
+# ---------------------------------------------------------------------------
+def test_snapshot_roundtrip_granted_session():
+    state = _make_state("snap-roundtrip")
+    key = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+    sid, _ = _open_challenge(state, key)
+    res = state.simulate_token_response(sid, key)
+    assert res["ok"], res
+    snap_file = Path(str(state.cfg.sessions_file))
+    assert snap_file.exists(), "snapshot wurde beim Schließen nicht geschrieben"
+    state2 = GatewayState(cfg=state.cfg, auto_respond=False)
+    state2.load_whitelist()
+    found = [s for s in state2.sessions if s.sid == sid]
+    assert len(found) == 1 and found[0].state == "granted", [s.to_dict() for s in state2.sessions]
+    assert found[0].reason.endswith("(restart)")
+
+
+def test_snapshot_skips_keys_and_open_challenges():
+    state = _make_state("snap-nokeys")
+    state.cfg.verbose = True  # nur dann hält das Gateway K_root (RAM-only)
+    key = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+    sid, _ = _open_challenge(state, key)  # bleibt offen (kein Response)
+    assert sid in state.session_material  # Key liegt nur im RAM
+    state.save_snapshot()
+    raw = Path(str(state.cfg.sessions_file)).read_text(encoding="utf-8")
+    assert "session_material" not in raw and key.hex() not in raw, raw[:300]
+    assert sid not in raw, "offene Challenge darf nicht persistiert werden"
+
+
+def test_snapshot_corrupt_file_starts_empty():
+    state = _make_state("snap-corrupt")
+    Path(str(state.cfg.sessions_file)).write_text("{korrupt", encoding="utf-8")
+    state.load_snapshot()  # darf nicht werfen
+    assert len(state.sessions) == 0
+
+
+def test_snapshot_restores_locks_and_metrics():
+    state = _make_state("snap-locks")
+    state.locks["CT45P-0001"] = time.time() + 600
+    state.metrics["grants"] = 7
+    state.save_snapshot()
+    state2 = GatewayState(cfg=state.cfg, auto_respond=False)
+    state2.load_whitelist()
+    assert state2.locks.get("CT45P-0001", 0) > time.time()
+    assert state2.metrics["grants"] == 7
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Retry + Circuit-Breaker
+# ---------------------------------------------------------------------------
+def test_retry_succeeds_after_transient_failures():
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise OSError("kaputt")
+        return "ok"
+
+    assert with_retry(flaky, retries=3, base_delay=0.01) == "ok"
+    assert len(calls) == 3
+
+
+def test_retry_gives_up_and_reraises():
+    try:
+        with_retry(lambda: (_ for _ in ()).throw(OSError("dauerhaft")), retries=2, base_delay=0.01)
+    except OSError:
+        return
+    raise AssertionError("hätte nach Wiederholungen werfen müssen")
+
+
+def test_retry_ignores_app_errors():
+    try:
+        with_retry(lambda: (_ for _ in ()).throw(ValueError("anwendung")), retries=3, base_delay=0.01)
+    except ValueError:
+        return
+    raise AssertionError("Anwendungsfehler dürfen nicht wiederholt werden")
+
+
+def test_breaker_opens_and_recovers():
+    reset_breakers()
+    b = get_breaker("test-open", fail_threshold=2, reset_timeout=0.05)
+    assert b.allow()
+    b.record_failure()
+    assert b.allow()
+    b.record_failure()
+    assert not b.allow() and b.retry_in_s() > 0
+    time.sleep(0.06)
+    assert b.allow(), "nach Sperrzeit wieder halb-offen"
+    b.record_success()
+    assert b.allow()
+    reset_breakers()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Watchdog + Bug-Reports
+# ---------------------------------------------------------------------------
+def test_watchdog_fires_on_stall():
+    fired = []
+    wd = resilience.Watchdog(timeout_s=0.2, on_timeout=lambda age: fired.append(age)).start()
+    try:
+        time.sleep(0.5)
+        assert wd.fired and fired and fired[0] >= 0.2, fired
+    finally:
+        wd.stop()
+
+
+def test_watchdog_silent_with_heartbeat():
+    fired = []
+    wd = resilience.Watchdog(timeout_s=0.5, on_timeout=lambda age: fired.append(age)).start()
+    try:
+        for _ in range(4):
+            time.sleep(0.15)
+            wd.beat()
+        assert not fired and not wd.fired
+    finally:
+        wd.stop()
+
+
+def test_bug_report_written_without_secrets():
+    import tempfile
+
+    tmp = Path(tempfile.mkdtemp())
+    try:
+        raise RuntimeError("demo-fehler")
+    except RuntimeError as exc:
+        path = resilience.write_bug_report(tmp, exc, {"mode": "test"})
+    assert path.exists()
+    content = path.read_text(encoding="utf-8")
+    assert "demo-fehler" in content and "traceback" in content
+
 
 def main() -> int:
     tests = [(name, obj) for name, obj in sorted(globals().items()) if name.startswith("test_") and callable(obj)]

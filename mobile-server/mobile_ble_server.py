@@ -55,9 +55,11 @@ from gw_config import (  # noqa: E402
     T_STATUS,
     T_STATUS_SNAP,
     TYPE_NAMES,
+    DATA_DIR,
     GatewayConfig,
 )
 from gateway import GatewayState, handle_command  # noqa: E402
+import resilience  # noqa: E402 - Watchdog, Log-Rotation, Bug-Reports (Phase 5)
 from discovery import DiscoveryResponder, build_announce  # noqa: E402
 import discovery  # noqa: E402 - für PortView-Probes im Selbsttest
 from importer import CATEGORIES as IMPORT_CATEGORIES, ImportPolicy, ImportStore, public_index  # noqa: E402
@@ -672,11 +674,24 @@ def start_portview(cfg: GatewayConfig, state: GatewayState) -> DiscoveryResponde
     return responder
 
 
-async def run_forever(cfg: GatewayConfig) -> None:
+async def run_forever(cfg: GatewayConfig, enable_watchdog: bool = True) -> None:
     from ble_adapter import BleAdapter
 
+    # Phase 5: rotierende Logs + Watchdog + Asyncio-Fehler ins Audit.
+    log = resilience.setup_logging(cfg.data_dir or DATA_DIR, verbose=bool(cfg.verbose))
     state = GatewayState(cfg=cfg)
     state.load_whitelist()
+    loop = asyncio.get_running_loop()
+    resilience.install_asyncio_handler(loop, state.audit)
+    watchdog = resilience.Watchdog().start() if enable_watchdog else None
+
+    async def _heartbeat() -> None:
+        while True:
+            await asyncio.sleep(1.0)
+            if watchdog is not None:
+                watchdog.beat()
+
+    heartbeat_task = asyncio.create_task(_heartbeat())
     state.ble = BleAdapter(backend="mock" if cfg.mock else cfg.ble_backend, mac=cfg.mac, device_name=cfg.device_name)
     await state.ble.start()
     state.imports = make_import_store(cfg, state)
@@ -691,7 +706,9 @@ async def run_forever(cfg: GatewayConfig) -> None:
     asyncio.create_task(state.maintenance_loop())
     print(BANNER)
     print(f"[gateway] modus={'MOCK' if cfg.mock else 'HW'}  ble={state.ble.status.get('backend')}  "
-          f"whitelist={len(state.whitelist.get('tokens', []))}  auto_enroll={state.cfg.auto_enroll}")
+          f"whitelist={len(state.whitelist.get('tokens', []))}  auto_enroll={state.cfg.auto_enroll}  "
+          f"watchdog={'an (5 s)' if watchdog else 'aus'}")
+    log.info("gateway gestartet (mock=%s, http=%s, tcp=%s)", cfg.mock, cfg.http_port, cfg.tcp_port)
     print("[gateway] beenden mit Strg-C")
     try:
         async with srv:
@@ -699,6 +716,9 @@ async def run_forever(cfg: GatewayConfig) -> None:
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
     finally:
+        heartbeat_task.cancel()
+        if watchdog is not None:
+            watchdog.stop()
         if responder is not None:
             responder.stop()
         await state.ble.stop()
@@ -893,6 +913,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--discover-port", type=int, default=None, help="PortView: UDP-Port (DGS_DISCOVER_PORT)")
     parser.add_argument("--bridge-port", type=int, default=None, help="PortView: mitgemeldeter MCP-Bridge-Port")
+    parser.add_argument("--no-watchdog", dest="watchdog", action="store_false", default=True, help="Watchdog (Neustart bei hängender Schleife) abschalten (nur Labor)")
     parser.add_argument("--no-import", dest="import_enabled", action="store_false", default=None, help="Software-Grabber (URL-Import) ganz abschalten")
     parser.add_argument("--import-dir", default=None, help="Ablage für importierte Assets (Standard: data/imports)")
     parser.add_argument("--import-max-mb", type=int, default=None, help="Größenlimit pro Abruf in MiB (Standard 64)")
@@ -938,9 +959,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "fingerprint":
         return emit_fingerprint(args)
     try:
-        asyncio.run(run_forever(cfg))
+        # Phase 5: Unbehandeltes → Bug-Report-Datei + Log, dann Exit 1.
+        with resilience.crash_guard(cfg.data_dir or DATA_DIR, {"mode": "mock" if cfg.mock else "hw"}):
+            asyncio.run(run_forever(cfg, enable_watchdog=args.watchdog))
     except KeyboardInterrupt:
         print("\n[gateway] beendet")
+    except BaseException as exc:  # noqa: BLE001 - nach Bug-Report sauber melden
+        print(f"\n[gateway] ❌ abgestürzt ({exc}); Bug-Report unter data/bug_report_*.json")
+        return 1
     return 0
 
 

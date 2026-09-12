@@ -51,6 +51,7 @@ fun PolarConfigScreen(viewModel: PolarConfigViewModel = viewModel()) {
     val connectionState by viewModel.connectionState.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val devices by viewModel.devices.collectAsState()
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
 
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -90,7 +91,10 @@ fun PolarConfigScreen(viewModel: PolarConfigViewModel = viewModel()) {
         }
 
         item {
-            MeasurementSettingsCard()
+            MeasurementSettingsCard(
+                notificationsEnabled = notificationsEnabled,
+                onNotificationsChange = viewModel::setNotificationsEnabled,
+            )
         }
 
         item {
@@ -109,7 +113,12 @@ fun PolarConfigScreen(viewModel: PolarConfigViewModel = viewModel()) {
  * Demonstrates how the config UI grows with new [ExpandableCard]s.
  */
 @Composable
-private fun MeasurementSettingsCard() {
+private fun MeasurementSettingsCard(
+    notificationsEnabled: Boolean,
+    onNotificationsChange: (Boolean) -> Unit,
+) {
+    // REAL-IMPLEMENTATION 2026-09-11 (Phase 2.7): notification toggle is now
+    // ViewModel state instead of a dead `Switch(checked = true, {})`.
     var highRateAlert by remember { mutableStateOf(true) }
     var threshold by remember { mutableStateOf(160) }
 
@@ -144,7 +153,7 @@ private fun MeasurementSettingsCard() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Benachrichtigungen aktiv", style = MaterialTheme.typography.bodyLarge)
-            Switch(checked = true, onCheckedChange = {})
+            Switch(checked = notificationsEnabled, onCheckedChange = onNotificationsChange)
         }
     }
 }

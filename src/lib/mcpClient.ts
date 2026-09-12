@@ -10,6 +10,7 @@
  * strukturierte Fehler statt zu werfen, und die deterministische Engine läuft weiter.
  */
 import { apiUrl } from './endpoint';
+import { fetchWithRetry, getCircuitBreaker } from './retry';
 
 export interface McpTool {
   name: string;
@@ -51,12 +52,32 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 8000): P
   // Pfad durch den Endpoint-Resolver: im Browser relativ, in der App absolut
   // (PortView hat Host + Port gefunden) – siehe src/lib/endpoint.ts.
   const target = apiUrl(path);
+  // Phase 3: Circuit-Breaker je Gegenstelle + Retry mit Backoff (nur transient).
+  let origin = 'relativ';
   try {
-    const res = await fetch(target, {
-      ...init,
-      headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    origin = new URL(target, 'http://phase3.local').origin;
+  } catch {
+    /* relativer Pfad ohne Basis – ein Breaker für alle relativen Ziele */
+  }
+  const breaker = getCircuitBreaker(`mcp:${origin}`);
+  if (!breaker.allow()) {
+    return {
+      ok: false,
+      error: 'circuit_open',
+      detail: `Gegenstelle ${origin} pausiert nach Dauerfehlern (erneut in ${Math.round(breaker.retryInMs() / 1000)} s)`,
+      hint: `Prüfen:  npm run mcp:bridge   bzw. Gateway-Status unter ${target}`,
+    } as T;
+  }
+  try {
+    const res = await fetchWithRetry(
+      target,
+      {
+        ...init,
+        headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+      },
+      { timeoutMs },
+    );
+    breaker.recordSuccess();
     const text = await res.text();
     let payload: unknown = null;
     try {
@@ -69,11 +90,12 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 8000): P
     }
     return payload as T;
   } catch (e) {
+    breaker.recordFailure();
     const msg = (e as Error)?.name === 'TimeoutError' ? `Timeout nach ${timeoutMs} ms` : String((e as Error)?.message ?? e);
     return {
       ok: false,
       error: 'bridge_nicht_erreichbar',
-      detail: msg,
+      detail: `${msg} (nach Wiederholungen mit Backoff)`,
       hint: `Starten:  npm run mcp:bridge   (Port 8790, im Dev-Server über ${BASE} proxied)`,
     } as T;
   }

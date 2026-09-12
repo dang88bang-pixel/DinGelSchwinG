@@ -66,6 +66,7 @@ desktop/data/gallery_state.json
 desktop/data/agent_runs.json
 desktop/data/agent_runs*.jsonl
 desktop/data/keys.json
+desktop/data/crash_*.json
 
 # Lokale Modell-Dateien (transformers.js / GGUF)
 public/models/

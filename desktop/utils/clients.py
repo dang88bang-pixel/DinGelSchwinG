@@ -16,6 +16,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+try:  # Paket-Import (normal: `from utils import clients`)
+    from .retry import get_breaker, with_retry
+except ImportError:  # pragma: no cover - direkter Modulaufruf
+    from retry import get_breaker, with_retry  # type: ignore[no-redef]
+
 MCP_BRIDGE_URL = os.environ.get("DGS_MCP_BRIDGE_URL", "http://127.0.0.1:8790").rstrip("/")
 GATEWAY_URL = os.environ.get("DGS_GATEWAY_URL", "http://127.0.0.1:8791").rstrip("/")
 TIMEOUT = 6.0
@@ -151,14 +156,33 @@ def portview_status() -> dict[str, Any]:
 
 
 def _request(url: str, payload: dict[str, Any] | None = None, timeout: float = TIMEOUT) -> dict[str, Any]:
-    """GET (payload=None) oder POST (JSON) und Antwort als dict. Nie eine Exception."""
+    """GET (payload=None) oder POST (JSON) und Antwort als dict. Nie eine Exception.
+
+    // REAL-IMPLEMENTATION 2026-09-11 (Phase 3): Retry mit Backoff bei
+    transienten Fehlern + Circuit-Breaker je Gegenstelle. Antwortformat
+    unverändert (offline-tolerant wie bisher).
+    """
+    host = urllib.parse.urlsplit(url).netloc or "unbekannt"
+    breaker = get_breaker(f"desktop:{host}")
+    if not breaker.allow():
+        return {
+            "ok": False,
+            "error": "circuit_open",
+            "detail": f"{host} pausiert nach Dauerfehlern (erneut in {breaker.retry_in_s():.0f} s)",
+            "url": url,
+        }
     try:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(url, data=data, method="GET" if data is None else "POST")
-        if data is not None:
-            req.add_header("Content-Type", "application/json")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - feste Loopback-URLs
-            raw = resp.read().decode("utf-8", "replace")
+
+        def _do() -> str:
+            req = urllib.request.Request(url, data=data, method="GET" if data is None else "POST")
+            if data is not None:
+                req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - feste Loopback-URLs
+                return resp.read().decode("utf-8", "replace")
+
+        raw = with_retry(_do)
+        breaker.record_success()
         try:
             parsed = json.loads(raw)
         except ValueError:
@@ -167,6 +191,7 @@ def _request(url: str, payload: dict[str, Any] | None = None, timeout: float = T
             parsed = {"ok": True, "data": parsed}
         return parsed
     except urllib.error.HTTPError as exc:
+        breaker.record_success()  # Gegenstelle lebt (Antwort mit Status)
         body = exc.read().decode("utf-8", "replace") if exc.fp else ""
         try:
             parsed = json.loads(body)
@@ -177,6 +202,7 @@ def _request(url: str, payload: dict[str, Any] | None = None, timeout: float = T
             pass
         return {"ok": False, "error": f"http_{exc.code}", "raw": body[:400]}
     except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        breaker.record_failure()
         return {"ok": False, "error": "nicht_erreichbar", "detail": str(exc), "url": url}
 
 

@@ -3,8 +3,10 @@ package com.genesis.orchestrator.ble
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 
 /**
@@ -13,6 +15,9 @@ import kotlinx.coroutines.flow.stateIn
  * Exposes the manager's [StateFlow]s to Compose; the device list is converted
  * into a `StateFlow` for stable collection. All sensor updates flow through
  * Coroutines Flows end-to-end.
+ *
+ * // REAL-IMPLEMENTATION 2026-09-11 (Phase 2.7):
+ * Notification toggle is real ViewModel state (was a dead `Switch` in the UI).
  */
 class PolarConfigViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -25,6 +30,13 @@ class PolarConfigViewModel(application: Application) : AndroidViewModel(applicat
 
     val devices: StateFlow<List<BleDeviceItem>> = bleManager.devices
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _notificationsEnabled = MutableStateFlow(true)
+    val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled.asStateFlow()
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        _notificationsEnabled.value = enabled
+    }
 
     fun startScan() = bleManager.startScan()
     fun stopScan() = bleManager.stopScan()

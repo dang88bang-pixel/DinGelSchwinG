@@ -6,9 +6,15 @@
  * Optional wird ein eingebettetes Lightweight-LLM (Qwen2.5-0.5B-Instruct via
  * transformers.js) für freie Antworten genutzt – ohne Modell läuft die
  * deterministische Skill-Engine (immer funktionsfähig).
+ *
+ * // REAL-IMPLEMENTATION 2026-09-11 (Phase 2.1):
+ * Geräte/Clients/Scans kommen aus Live-Quellen (Gateway-Tokens/-Sessions,
+ * BLE-Scan, PortView, natives DeviceControl); die Mock-Daten aus
+ * `src/mocks/devices.mock.ts` sind nur noch gekennzeichneter Offline-Fallback.
+ * Alle bestehenden öffentlichen Methoden behalten ihre Signatur.
  */
 import { apiUrl, describeEndpoint, getEndpoint } from '../endpoint';
-import { autoConfigure, formatCandidate } from '../portview';
+import { autoConfigure, formatCandidate, runPortView } from '../portview';
 import { grabFromUrl } from '../grabber';
 import { formatIngestReport, ingestPage } from '../pageIngest';
 import { formatBytes, shortHash, type PackCategory } from '../packs';
@@ -17,15 +23,16 @@ import {
   ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, CHAT_SYSTEM_INSTRUCTION,
   MODE_LABELS,
 } from '../../config/systemInstructions';
-import { MOCK_DEVICES } from '../../mocks/devices.mock';
+import { MOCK_DEVICES, type MockDevice } from '../../mocks/devices.mock';
 import { TransformersBackend } from './transformersBackend';
 import { gallery } from '../../lib/galleryStore';
 import { liveMetrics, formatMs, formatTokens, formatCost, MetricsSnapshot } from '../../lib/liveMetrics';
 import { rag, RagHit } from '../../lib/rag';
 import {
-  fillRequired, gatewayCommand, gatewayStatus, mcpCall, mcpHealth, mcpTools, parseToolArgs, toolResultText,
+  fillRequired, gatewayCommand, gatewaySessions, gatewayStatus, gatewayTokens, mcpCall, mcpHealth, mcpTools, parseToolArgs, toolResultText,
   type GatewayStatus, type McpTool,
 } from '../../lib/mcpClient';
+import { deviceControl } from '../../lib/deviceControl';
 
 export interface AgentMessage {
   id: number;
@@ -54,6 +61,38 @@ export interface AuditEntry {
   detail: string;
 }
 
+/** Ein Gerät aus einer Live-Quelle (Gateway/Nativ/PortView) oder dem Demo-Fallback. */
+export interface LiveDevice {
+  id: string;
+  name: string;
+  rssi: number | null;
+  bound: boolean;
+  source: 'gateway-token' | 'gateway-session' | 'native-usb' | 'native-adb' | 'demo-fallback';
+  detail?: string;
+}
+
+export interface LiveClient {
+  name: string;
+  role: string;
+  device: string;
+  last_action: string;
+}
+
+interface DeviceCache {
+  at: number;
+  devices: LiveDevice[];
+  sources: string[];
+}
+
+interface ClientCache {
+  at: number;
+  clients: LiveClient[];
+  sources: string[];
+}
+
+/** Wie lange Live-Caches als „frisch" gelten (danach: erneute Abfrage). */
+const LIVE_CACHE_TTL_MS = 30_000;
+
 export const BUTTON_LABELS = ['📎', '📤', '📋', '▶️', '⏹️', '🗑️'];
 
 export const BUTTON_DEFAULTS: ActionButton[] = [
@@ -67,6 +106,8 @@ export const BUTTON_DEFAULTS: ActionButton[] = [
 
 const STORAGE_MODE_KEY = 'dgs.agentMode';
 const STORAGE_CUSTOM_KEY = 'dgs.customInstruction';
+const STORAGE_AUDIT_KEY = 'dgs.auditLog';
+const AUDIT_CAP = 200;
 
 const APPROVAL_RE = /^\s*(freigeben|freigegeben|bestätigen|bestaetigen|freigabe|approve|approved)\b/i;
 
@@ -85,6 +126,10 @@ export class AgentEngine {
   backend: TransformersBackend = new TransformersBackend();
   pendingPlan: { kind: string; plan: string } | null = null;
   private nextMsgId = 1;
+  /** Live-Caches (Phase 2.1): frische Gateway-/Nativ-Daten, sonst Demo-Fallback. */
+  private deviceCache: DeviceCache | null = null;
+  private clientCache: ClientCache | null = null;
+  private adbCache: { at: number; text: string } | null = null;
 
   constructor(role = 'admin') {
     this.role = role;
@@ -93,6 +138,16 @@ export class AgentEngine {
       const mode = localStorage.getItem(STORAGE_MODE_KEY) as AgentMode | null;
       if (mode && mode in MODE_LABELS) this.mode = mode;
       this.customInstruction = localStorage.getItem(STORAGE_CUSTOM_KEY) ?? '';
+      // Phase 3: Audit-Log überdauert Reloads (gecappt, validiert).
+      const rawAudit = localStorage.getItem(STORAGE_AUDIT_KEY);
+      if (rawAudit) {
+        const parsed = JSON.parse(rawAudit) as AuditEntry[];
+        if (Array.isArray(parsed)) {
+          this.auditLog = parsed
+            .filter((e) => e && typeof e.action === 'string')
+            .slice(-AUDIT_CAP);
+        }
+      }
     } catch {
       /* localStorage nicht verfügbar (z.B. WebView) – Defaults bleiben */
     }
@@ -257,7 +312,7 @@ export class AgentEngine {
     const context =
       `Aktueller Kontext:\n- Rolle: ${this.role}\n` +
       (agent ? `- Aktiver Agent: ${agent.name} – ${agent.tagline}\n` : '') +
-      `- Geräte: ${MOCK_DEVICES.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ')}\n` +
+      `- Geräte: ${this.describeDevicesShort()}\n` +
       `- Aktive Workflows: ${this.activeWorkflows().length}\n` +
       `- Laufzeit: ${this.metricsLine()}\n` +
       (knowledge ? `\n## Wissensbasis-Auszug (nur daraus antworten, mit Quelle zitieren)\n${knowledge}\n` : '') +
@@ -285,9 +340,9 @@ export class AgentEngine {
         const [k, v] = p.split('=');
         if (k && v) params[k] = v;
       }
-      if (skill === 'scan_network') return this.intentScan(`scan ${params.subnet ?? '192.168.1.0/24'}`);
-      if (skill === 'show_devices') return this.intentDevices();
-      if (skill === 'show_clients') return this.intentClients();
+      if (skill === 'scan_network') return this.intentScanLive(`scan ${params.subnet ?? '192.168.1.0/24'}`);
+      if (skill === 'show_devices') return this.intentDevicesLive();
+      if (skill === 'show_clients') return this.intentClientsLive();
       if (skill === 'run_script') return this.intentRunScript(`führe ${params.script ?? params.file ?? ''} aus`);
       if (skill === 'export_log') return this.intentExport(`export ${params.format ?? 'json'}`);
       if (skill === 'gateway_status') return this.intentGatewayStatus();
@@ -421,13 +476,18 @@ export class AgentEngine {
   }
 
   intentAdbDevices(): string {
-    this.audit('adb_devices', 'Geräteliste abgefragt');
+    // Synchrone Variante: zuletzt live gesehene Liste oder ehrlicher Hinweis.
+    // (Der Async-Pfad intentAdbDevicesLive() fragt immer aktuell ab.)
+    const cached = this.adbCache && Date.now() - this.adbCache.at < LIVE_CACHE_TTL_MS ? this.adbCache.text : null;
+    this.audit('adb_devices', cached ? 'cache' : 'hinweis');
+    if (cached) return `${cached}\n(Stand: Live-Abfrage, < 30 s alt)`;
+    if (deviceControl.isNative()) {
+      void this.intentAdbDevicesLive().catch(() => null);
+      return '📱 ADB-Geräte werden live abgefragt – bitte gleich erneut fragen (Liste erscheint dann hier).';
+    }
     return (
-      '📱 ADB-Geräte (USB/WiFi):\n' +
-      '- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n' +
-      '- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n' +
-      '- `offline` R22X987DEF – Gerät reaktivieren\n' +
-      '- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n' +
+      '📱 ADB-Geräte: Im Browser sind keine USB-Geräte erreichbar (nur installierte App).\n' +
+      'In der App: Panel „🖥️ Port-View“ zeigt USB + `adb devices` live.\n' +
       'Hinweis: `adb devices -l` liefert Details (Modell, Transport).'
     );
   }
@@ -482,33 +542,356 @@ export class AgentEngine {
     const subnet = m ? m[1] : '192.168.1.0/24';
     this.startTask('network_scan', 5);
     this.audit('scan_network', `subnet=${subnet}`);
-    // Simulation: Task läuft ~8 s im Hintergrund
+    // REAL-IMPLEMENTATION 2026-09-11: echter Scan (PortView + Gateway-BLE + Tokens)
+    // läuft im Hintergrund; Ergebnis landet im Task-/Status-Panel.
     const started = now();
-    window.setTimeout(() => this.finishTask('network_scan'), 8000);
-    return `✅ Netzwerk-Scan für ${subnet} gestartet (Skript network_scan.py).\n▶️ Status im Status-Panel: network_scan läuft (seit ${started}).`;
+    void this.runLiveScan(subnet).then(
+      (found) => {
+        this.finishTask('network_scan');
+        this.audit('scan_network_done', `${found} fund(e), subnet=${subnet}`);
+      },
+      (e) => {
+        this.failTask('network_scan');
+        this.audit('scan_network_failed', String((e as Error)?.message ?? e).slice(0, 120));
+      },
+    );
+    return `✅ Netzwerk-Scan für ${subnet} gestartet (PortView + Gateway-BLE, live).\n▶️ Status im Status-Panel: network_scan läuft (seit ${started}).`;
   }
 
   intentDevices(): string {
-    this.audit('show_devices', `${MOCK_DEVICES.length} Geräte`);
-    const lines = [`📡 Gefundene Geräte: ${MOCK_DEVICES.length}`];
-    for (const d of MOCK_DEVICES) {
-      const icon = d.bound ? '🟢' : d.type === 'target' ? '🔴' : '🟡';
-      lines.push(`- ${icon} ${d.name} (${d.id}, RSSI ${d.rssi} dBm)`);
+    const live = this.freshDeviceCache();
+    if (live) {
+      this.audit('show_devices', `${live.devices.length} geräte (live: ${live.sources.join('+')})`);
+      return this.renderDevices(live.devices, `📡 Gefundene Geräte: ${live.devices.length} (live, ${live.sources.join(' + ')})`);
     }
-    return lines.join('\n');
+    // Offline-Fallback: gekennzeichnete Demo-Daten (kein Raten, kein Verschweigen)
+    const demo = this.demoDevices();
+    this.audit('show_devices', `${demo.length} geräte (demo-fallback, offline)`);
+    return (
+      this.renderDevices(demo, `📡 Gefundene Geräte: ${demo.length} (Offline-Demo – Gateway offline)`) +
+      '\nℹ️ Live-Abfrage: Gateway starten (`npm run mcp:gateway`) und erneut fragen.'
+    );
   }
 
   intentClients(): string {
-    const clients = [
-      { name: 'admin', role: 'admin', device: 'MASTER-Gold', last_action: 'login' },
-      { name: 'service-1', role: 'service', device: 'Client-A-Grün', last_action: 'scan_network' },
-    ];
-    this.audit('show_clients', `${clients.length} Clients`);
-    const lines = [`👥 Eingeloggte Clients: ${clients.length}`];
+    const live = this.freshClientCache();
+    if (live) {
+      this.audit('show_clients', `${live.clients.length} clients (live: ${live.sources.join('+')})`);
+      return this.renderClients(live.clients, `👥 Eingeloggte Clients: ${live.clients.length} (live, ${live.sources.join(' + ')})`);
+    }
+    // Echte Sitzungsdaten statt erfundener Clients: Rollen aus dem Audit-Log.
+    const session = this.sessionClients();
+    this.audit('show_clients', `${session.length} clients (sitzung)`);
+    return (
+      this.renderClients(session, `👥 Eingeloggte Clients: ${session.length} (diese Sitzung)`) +
+      '\nℹ️ Gateway-Sessions erscheinen hier, sobald das Gateway erreichbar ist.'
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Live-Quellen (Phase 2.1): Gateway-Tokens/-Sessions, BLE-Scan,
+  // PortView, natives DeviceControl. Alles mit Timeout (siehe Clients),
+  // Fehler → strukturierter Fallback, nie ein Crash.
+  // ------------------------------------------------------------------
+  private freshDeviceCache(): DeviceCache | null {
+    if (this.deviceCache && Date.now() - this.deviceCache.at < LIVE_CACHE_TTL_MS) return this.deviceCache;
+    return null;
+  }
+
+  private freshClientCache(): ClientCache | null {
+    if (this.clientCache && Date.now() - this.clientCache.at < LIVE_CACHE_TTL_MS) return this.clientCache;
+    return null;
+  }
+
+  private demoDevices(): LiveDevice[] {
+    return MOCK_DEVICES.map((d: MockDevice): LiveDevice => ({
+      id: d.id,
+      name: d.name,
+      rssi: d.rssi,
+      bound: d.bound,
+      source: 'demo-fallback',
+    }));
+  }
+
+  /** Synchroner Kurztext für LLM-Kontext + Status-Bar (Cache oder Demo). */
+  describeDevicesShort(): string {
+    const live = this.freshDeviceCache();
+    const list = live ? live.devices : this.demoDevices();
+    return list.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ');
+  }
+
+  private renderDevices(devices: LiveDevice[], header: string): string {
+    const lines = [header];
+    for (const d of devices) {
+      const icon = d.source === 'demo-fallback' ? '🟡' : d.bound ? '🟢' : '🟡';
+      const rssi = typeof d.rssi === 'number' ? `, RSSI ${d.rssi} dBm` : '';
+      const extra = d.detail ? ` – ${d.detail}` : '';
+      lines.push(`- ${icon} ${d.name} (${d.id}${rssi})${extra}`);
+    }
+    if (!devices.length) lines.push('- (keine)');
+    return lines.join('\n');
+  }
+
+  private renderClients(clients: LiveClient[], header: string): string {
+    const lines = [header];
     for (const c of clients) {
       lines.push(`- ${c.name} (${c.role}) – ${c.device} – zuletzt: ${c.last_action}`);
     }
+    if (!clients.length) lines.push('- (keine)');
     return lines.join('\n');
+  }
+
+  /** Echte Clients dieser Sitzung: unterschiedliche Rollen aus dem Audit-Log. */
+  private sessionClients(): LiveClient[] {
+    const seen = new Map<string, LiveClient>();
+    for (const e of this.auditLog) {
+      seen.set(e.user, { name: e.user, role: e.user, device: 'diese Sitzung', last_action: e.action });
+    }
+    if (!seen.has(this.role)) {
+      seen.set(this.role, { name: this.role, role: this.role, device: 'diese Sitzung', last_action: 'login' });
+    }
+    return [...seen.values()];
+  }
+
+  /** Sammelt Geräte aus allen erreichbaren Live-Quellen (wirft nie). */
+  async refreshDevices(): Promise<DeviceCache> {
+    const devices: LiveDevice[] = [];
+    const sources: string[] = [];
+    // 1) Gateway-Whitelist (Token-Bestand)
+    try {
+      const res = await gatewayTokens();
+      if (res.ok && res.tokens?.length) {
+        for (const t of res.tokens) {
+          devices.push({
+            id: String(t.token_id ?? 'unbekannt'),
+            name: String(t.label ?? t.token_id ?? 'Token'),
+            rssi: null,
+            bound: !t.revoked,
+            source: 'gateway-token',
+            detail: `zone ${String(t.zone ?? '—')}${t.locked ? ', 🔒 gesperrt' : ''}${t.revoked ? ', 🔴 revokiert' : ''}`,
+          });
+        }
+        sources.push('gateway-tokens');
+      }
+    } catch {
+      /* Quelle offline – nächste versuchen */
+    }
+    // 2) Gateway-Sessions (zuletzt gesehene Token)
+    try {
+      const res = await gatewaySessions(12);
+      if (res.ok && res.sessions?.length) {
+        const known = new Set(devices.map((d) => d.id));
+        for (const s of res.sessions) {
+          const id = String(s.token_id ?? '');
+          if (!id || known.has(id)) continue;
+          known.add(id);
+          devices.push({
+            id,
+            name: `${id} (Session)`,
+            rssi: null,
+            bound: s.state === 'granted',
+            source: 'gateway-session',
+            detail: String(s.state ?? s.reason ?? 'gesehen'),
+          });
+        }
+        sources.push('gateway-sessions');
+      }
+    } catch {
+      /* Quelle offline – nächste versuchen */
+    }
+    // 3) Natives DeviceControl (nur installierte App: USB-Port-View + adb)
+    if (deviceControl.isNative()) {
+      try {
+        const pv = await deviceControl.portView();
+        for (const d of pv.devices ?? []) {
+          devices.push({
+            id: d.serial || d.label,
+            name: d.label,
+            rssi: null,
+            bound: true,
+            source: 'native-usb',
+            detail: `${d.vendor} ${d.type} (${d.state})`.trim(),
+          });
+        }
+        if ((pv.devices ?? []).length) sources.push('native-usb');
+      } catch {
+        /* nativ nicht verfügbar */
+      }
+      try {
+        const adb = await deviceControl.adbDevices();
+        const known = new Set(devices.map((d) => d.id));
+        for (const d of adb.devices ?? []) {
+          if (known.has(d.serial)) continue;
+          devices.push({
+            id: d.serial,
+            name: `adb:${d.serial}`,
+            rssi: null,
+            bound: d.connected,
+            source: 'native-adb',
+            detail: `${d.type} ${d.state}`.trim(),
+          });
+        }
+        if ((adb.devices ?? []).length) sources.push('native-adb');
+      } catch {
+        /* nativ nicht verfügbar */
+      }
+    }
+    this.deviceCache = { at: Date.now(), devices, sources };
+    return this.deviceCache;
+  }
+
+  /** Sammelt Clients aus Gateway-Sessions (+ lokale Sitzung als Anker). */
+  async refreshClients(): Promise<ClientCache> {
+    const clients: LiveClient[] = [];
+    const sources: string[] = [];
+    try {
+      const res = await gatewaySessions(25);
+      if (res.ok && res.sessions?.length) {
+        for (const s of res.sessions) {
+          clients.push({
+            name: String(s.token_id ?? 'unbekannt'),
+            role: String((s as Record<string, unknown>).zone ?? 'token'),
+            device: 'BLE-Gateway',
+            last_action: String(s.state ?? s.reason ?? 'gesehen'),
+          });
+        }
+        sources.push('gateway-sessions');
+      }
+    } catch {
+      /* Gateway offline */
+    }
+    const g = await gatewayStatus().catch(() => null);
+    if (g?.ok && (g.connected_agents ?? 0) > 0) sources.push(`${g.connected_agents} agent(en)`);
+    if (!clients.length) return { at: Date.now(), clients: this.sessionClients(), sources: ['sitzung'] };
+    this.clientCache = { at: Date.now(), clients, sources };
+    return this.clientCache;
+  }
+
+  async intentDevicesLive(): Promise<string> {
+    const live = await this.refreshDevices();
+    if (!live.sources.length) return this.intentDevices();
+    this.audit('show_devices', `${live.devices.length} geräte (live: ${live.sources.join('+')})`);
+    liveMetrics.noteTool('devices:live');
+    return this.renderDevices(live.devices, `📡 Gefundene Geräte: ${live.devices.length} (live, ${live.sources.join(' + ')})`);
+  }
+
+  async intentClientsLive(): Promise<string> {
+    const live = await this.refreshClients();
+    this.audit('show_clients', `${live.clients.length} clients (${live.sources.join('+')})`);
+    liveMetrics.noteTool('clients:live');
+    return this.renderClients(live.clients, `👥 Eingeloggte Clients: ${live.clients.length} (${live.sources.join(' + ')})`);
+  }
+
+  /**
+   * Echter Scan: PortView-Suchlauf (nativ inkl. Subnetz-Sweep, sonst HTTP-Probe)
+   * plus Gateway-BLE-Scan plus Token-Bestand. Gibt die Fund-Anzahl zurück.
+   */
+  async runLiveScan(subnet: string): Promise<number> {
+    this.updateTask('network_scan', 25);
+    const found: string[] = [];
+    const notes: string[] = [];
+    // (a) PortView – findet Server im Netz, schreibt aber nichts um (nur lesen)
+    try {
+      const pv = await runPortView({ sweepSubnet: true });
+      for (const c of pv.candidates) found.push(`${c.kind}@${c.host}:${c.port} (${c.latencyMs} ms)`);
+      notes.push(`portview/${pv.mode}: ${pv.candidates.length} kandidat(en) in ${pv.tookMs} ms`);
+    } catch (e) {
+      notes.push(`portview: ${String((e as Error)?.message ?? e).slice(0, 80)}`);
+    }
+    this.updateTask('network_scan', 55);
+    // (b) Gateway-BLE-Scan (4 s-Fenster, echtes Backend oder dokumentierter Mock)
+    try {
+      const res = await gatewayCommand('ble_scan', { timeout: 4 });
+      const devs = (res.devices ?? []) as Record<string, unknown>[];
+      for (const d of devs) found.push(`ble:${String(d.id ?? d.name ?? '?')} (RSSI ${String(d.rssi ?? '—')})`);
+      notes.push(`ble(${String(res.backend ?? '?')}): ${devs.length} gerät(e)`);
+    } catch (e) {
+      notes.push(`ble: ${String((e as Error)?.message ?? e).slice(0, 80)}`);
+    }
+    // (c) Token-Bestand als bekannte Geräte
+    try {
+      const res = await gatewayTokens();
+      if (res.ok) notes.push(`tokens: ${(res.tokens ?? []).length} in whitelist`);
+    } catch {
+      notes.push('tokens: gateway offline');
+    }
+    this.updateTask('network_scan', 100);
+    await this.refreshDevices().catch(() => null);
+    this.audit('scan_network_detail', `${found.length} funde [${notes.join(' · ').slice(0, 160)}] subnet=${subnet}`);
+    return found.length;
+  }
+
+  async intentScanLive(t: string): Promise<string> {
+    const m = t.match(/([\d.]+\/\d{1,2})/);
+    const subnet = m ? m[1] : '192.168.1.0/24';
+    this.startTask('network_scan', 5);
+    this.audit('scan_network', `subnet=${subnet} (live)`);
+    liveMetrics.noteTool('scan:live');
+    try {
+      const found = await this.runLiveScan(subnet);
+      this.finishTask('network_scan');
+      const lines = [
+        `✅ Netzwerk-Scan für ${subnet} abgeschlossen (live): ${found} Fund/Funde.`,
+        ...this.describeLastScan(),
+        '▶️ Details im Status-Panel (Task network_scan).',
+      ];
+      return lines.join('\n');
+    } catch (e) {
+      this.failTask('network_scan');
+      return `❌ Live-Scan fehlgeschlagen: ${String((e as Error)?.message ?? e).slice(0, 200)}\nTipp: Gateway starten (\`npm run mcp:gateway\`) und erneut versuchen.`;
+    }
+  }
+
+  private describeLastScan(): string[] {
+    const cache = this.deviceCache;
+    if (!cache?.devices.length) return ['- (keine Geräte gefunden – Quellen offline oder Netz leer)'];
+    return cache.devices.slice(0, 10).map((d) => `- ${d.name} (${d.id}) via ${d.source}`);
+  }
+
+  /** Echte ADB-Geräteliste (nativ) statt festcodierter Beispielgeräte. */
+  async intentAdbDevicesLive(): Promise<string> {
+    this.audit('adb_devices', 'live-abfrage');
+    liveMetrics.noteTool('adb:devices');
+    if (!deviceControl.isNative()) {
+      return (
+        '📱 ADB-Geräte: Im Browser sind keine USB-Geräte erreichbar (nur installierte App).\n' +
+        'In der App: Panel „🖥️ Port-View“ zeigt USB + `adb devices` live.\n' +
+        'Hinweis: `adb devices -l` liefert Details (Modell, Transport).'
+      );
+    }
+    try {
+      const [adb, pv] = await Promise.all([deviceControl.adbDevices(), deviceControl.portView()]);
+      const lines = [`📱 ADB-Geräte (${adb.devices.length}) + USB-Port-View (${pv.devices.length}):`];
+      for (const d of adb.devices) {
+        lines.push(`- \`${d.state}\` ${d.serial} (${d.type}${d.connected ? ', verbunden' : ''})`);
+      }
+      for (const d of pv.devices) {
+        lines.push(`- USB ${d.label} – ${d.vendor} [${d.vid}:${d.pid}] (${d.state})`);
+      }
+      if (!adb.devices.length && !pv.devices.length) lines.push('- (keine Geräte verbunden)');
+      const text = lines.join('\n');
+      this.adbCache = { at: Date.now(), text };
+      return text;
+    } catch (e) {
+      return `❌ ADB-Abfrage fehlgeschlagen: ${String((e as Error)?.message ?? e).slice(0, 200)}`;
+    }
+  }
+
+  /** Echter Skript-Start: network_scan läuft live, Rest ehrlich verortet. */
+  async intentRunScriptLive(t: string): Promise<string> {
+    const m = t.match(/([\w.-]+\.(py|sh|ps1|js))/);
+    if (!m) return this.intentRunScript(t);
+    const name = m[1];
+    const rest = t.split(name)[1]?.trim() ?? '';
+    this.audit('run_script', `${name} ${rest} (live)`);
+    if (/network_scan\.py/i.test(name)) {
+      return this.intentScanLive(rest || 'scan');
+    }
+    return (
+      `▶️ Skript '${name}' ${rest ? `mit Argumenten '${rest}' ` : ''}– Ausführung im Browser nicht möglich.\n` +
+      `Echte Ausführung: Desktop-Konsole → Skripte-Galerie (\`desktop/data/scripts/${name}\`) ` +
+      `oder MCP-Tool passend zum Skript („mcp tools ${name.split('.')[0].slice(0, 12)}“).`
+    );
   }
 
   intentWorkflows(): string {
@@ -528,7 +911,11 @@ export class AgentEngine {
     const name = m[1];
     const rest = t.split(name)[1]?.trim() ?? '';
     this.audit('run_script', `${name} ${rest}`);
-    return `▶️ Skript '${name}' ${rest ? `mit Argumenten '${rest}' ` : ''}gestartet.\nErgebnisse werden im Status-Panel angezeigt.`;
+    if (/network_scan\.py/i.test(name)) {
+      // Echter Start auch aus dem Sync-Pfad (Ergebnis im Status-Panel).
+      return this.intentScan(rest || 'scan');
+    }
+    return `▶️ Skript '${name}' ${rest ? `mit Argumenten '${rest}' ` : ''}– Ausführung im Browser nicht möglich.\nEchte Ausführung: Desktop-Konsole → Skripte-Galerie oder passendes MCP-Tool.`;
   }
 
   intentExport(t: string): string {
@@ -711,6 +1098,23 @@ export class AgentEngine {
       if (/(sessions|protokoll|lesevorgänge|lesevorgaenge|wer wurde)/.test(lower)) return this.intentGatewaySessions();
       if (/(selbsttest|selftest)/.test(lower)) return this.intentGatewaySelftest();
       if (/(status|wie ist|prüfung|pruefung|da? sein|bereit)/.test(lower)) return this.intentGatewayStatus();
+    }
+
+    // REAL-IMPLEMENTATION 2026-09-11: Geräte/Clients/Scans/Skripte zuerst live
+    // versuchen (Sync-Varianten in tryIntents bleiben als Fallback bestehen).
+    if (this.mode === 'adb' && /\badb\b/.test(lower) && /(gerät|geraet|device|list|zeige|welche|status)/.test(lower)) {
+      return this.intentAdbDevicesLive();
+    }
+    if (/\bscann|netzwerk-?scan/.test(lower)) return this.intentScanLive(t);
+    if (/(zeige|list|show).*(geräte|geraete|devices)|welche geräte|geräte anzeigen/.test(lower)) {
+      return this.intentDevicesLive();
+    }
+    if (/\bclients\b|eingeloggt|wer ist (gerade )?(eingeloggt|online)/.test(lower)) {
+      return this.intentClientsLive();
+    }
+    const runScript = lower.match(/([\w.-]+\.(py|sh|ps1|js))/);
+    if (runScript && /(führe|fuehre|starte|run|exec)/.test(lower)) {
+      return this.intentRunScriptLive(t);
     }
 
     // NFC/Token-Auth: „token CT45P-0001 uid 04:a2 …“ oder „nfc-uid … öffne tor“
@@ -1035,6 +1439,18 @@ export class AgentEngine {
     }
   }
 
+  /** Fortschritt eines laufenden Tasks melden (additiv, z. B. für Live-Scans). */
+  updateTask(name: string, progress: number): void {
+    const task = this.tasks.find((t) => t.name === name);
+    if (task && task.status === 'running') task.progress = Math.max(0, Math.min(100, progress));
+  }
+
+  /** Task als fehlgeschlagen markieren (additiv). */
+  failTask(name: string): void {
+    const task = this.tasks.find((t) => t.name === name);
+    if (task) task.status = 'failed';
+  }
+
   activeWorkflows(): WorkflowEntry[] {
     return this.tasks.filter((t) => t.status === 'running');
   }
@@ -1058,12 +1474,17 @@ export class AgentEngine {
     if (action === 'clear_cache') return this.intentClearCache();
     if (action.startsWith('script:')) {
       const name = action.split(':')[1];
-      this.audit('run_script', name);
-      return `▶️ Skript '${name}' gestartet (simulierte Ausführung).`;
+      this.audit('run_script', `${name} (button)`);
+      // REAL-IMPLEMENTATION 2026-09-11: keine simulierte Ausführung mehr.
+      if (/network_scan\.py/i.test(name)) return this.intentScanLive('scan');
+      return (
+        `▶️ Skript '${name}': Ausführung im Browser nicht möglich.\n` +
+        'Echte Ausführung: Desktop-Konsole → Skripte-Galerie oder passendes MCP-Tool.'
+      );
     }
     if (action.startsWith('workflow:')) {
       const name = action.split(':')[1];
-      if (name === 'scan') return this.intentScan('scan');
+      if (name === 'scan') return this.intentScanLive('scan');
       this.startTask(name, 10);
       window.setTimeout(() => this.finishTask(name), 6000);
       this.audit('start_workflow', name);
@@ -1077,7 +1498,13 @@ export class AgentEngine {
   // ------------------------------------------------------------------
   audit(action: string, detail: string): void {
     this.auditLog.push({ time: now(), user: this.role, action, detail });
-    if (this.auditLog.length > 200) this.auditLog = this.auditLog.slice(-200);
+    if (this.auditLog.length > AUDIT_CAP) this.auditLog = this.auditLog.slice(-AUDIT_CAP);
+    // Phase 3: persistent statt In-Memory-Only (Fehler still ignorieren).
+    try {
+      localStorage.setItem(STORAGE_AUDIT_KEY, JSON.stringify(this.auditLog));
+    } catch {
+      /* Quota/Privacy-Modus – In-Memory weiter */
+    }
   }
 
   auditText(limit = 15): string {
@@ -1108,10 +1535,17 @@ export class AgentEngine {
   // Status-Bar
   // ------------------------------------------------------------------
   summary(): string {
-    const devices = MOCK_DEVICES.filter((d) => d.bound).length;
+    // REAL-IMPLEMENTATION 2026-09-11: Live-Zähler aus frischen Caches,
+    // sonst ehrliche Sitzungs-/Fallback-Werte (Format unverändert).
+    const liveDevices = this.freshDeviceCache();
+    const liveClients = this.freshClientCache();
+    const devices = liveDevices
+      ? liveDevices.devices.filter((d) => d.bound).length
+      : MOCK_DEVICES.filter((d) => d.bound).length;
+    const clients = liveClients ? liveClients.clients.length : this.sessionClients().length;
     const wf = this.activeWorkflows().length;
     const state = wf > 0 ? 'BUSY' : 'IDLE';
-    return `🟢 Geräte: ${devices}  |  👥 Clients: 2  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
+    return `🟢 Geräte: ${devices}  |  👥 Clients: ${clients}  |  ⚡ Workflows: ${wf}  |  🛡️ ${state}`;
   }
 
   modelStatus(): string {
