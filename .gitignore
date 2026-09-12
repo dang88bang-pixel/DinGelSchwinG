@@ -73,3 +73,8 @@ public/models/
 *.onnx
 *.gguf
 *.safetensors
+
+# Backend runtime (server/)
+server/data/
+server/**/__pycache__/
+logs/

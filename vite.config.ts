@@ -29,6 +29,28 @@ export default defineConfig({
       '/gateway': {
         target: process.env.MCP_BRIDGE_URL ?? 'http://127.0.0.1:8790',
         changeOrigin: true
+      },
+      // server/-Backend (PR #4/#5): REST auf :5000, Terminal-/Discovery-/Status-WS
+      '/api/ws/terminal': { target: 'http://127.0.0.1:8765', ws: true, changeOrigin: true },
+      '/api/ws/discovery': { target: 'http://127.0.0.1:8766', ws: true, changeOrigin: true },
+      '/api/ws/status': { target: 'http://127.0.0.1:8767', ws: true, changeOrigin: true },
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true
+      }
+    }
+  },
+  preview: {
+    host: true,
+    port: 4173,
+    allowedHosts: true,
+    proxy: {
+      '/api/ws/terminal': { target: 'http://127.0.0.1:8765', ws: true, changeOrigin: true },
+      '/api/ws/discovery': { target: 'http://127.0.0.1:8766', ws: true, changeOrigin: true },
+      '/api/ws/status': { target: 'http://127.0.0.1:8767', ws: true, changeOrigin: true },
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true
       }
     }
   },

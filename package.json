@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "server": "python3 server/app.py",
+    "server:all": "bash start.sh --backend-only",
     "build": "tsc && vite build",
     "test": "vitest run",
     "preview": "vite preview",

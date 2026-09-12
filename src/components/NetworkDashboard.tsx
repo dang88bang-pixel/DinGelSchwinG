@@ -115,6 +115,13 @@ export default function NetworkDashboard() {
           >
             🤖 Agent
           </button>
+          <button
+            onClick={() => setTermOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-extrabold bg-slate-800 text-cyan-100 ring-1 ring-cyan-500/30 shadow-xl hover:brightness-110 transition"
+            title="Access Console / Terminal (server-/Backend)"
+          >
+            ⌨ Terminal
+          </button>
           {([
             ['gallery', '🖼️', t('app.gallery'), t('panels.gallery.subtitle')],
             ['dashboard', '📊', t('app.dashboard'), t('panels.dashboard.subtitle')],

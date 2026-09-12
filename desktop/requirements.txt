@@ -1,5 +1,6 @@
 # DinGelSchwinG Agent Console v3.0 – Abhängigkeiten
 # Pflicht (GUI):
+# Systempaket vorab installieren: python3-tk (Debian/Ubuntu) bzw. Tkinter für die genutzte Python-Distribution.
 customtkinter>=5.2.0
 
 # Optional – Live-Status über WebSocket (/ws/status):
