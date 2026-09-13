@@ -23,6 +23,9 @@ tags:
   - name: audit
   - name: webauthn
   - name: console
+  - name: discovery
+  - name: diagnostics
+  - name: ops
 
 servers:
   - url: http://localhost:5000
@@ -412,6 +415,29 @@ paths:
       x-rbac: operator
       responses:
         "200": { description: Workflow-Liste }
+    post:
+      tags: [console]
+      summary: Workflow starten — nur implementierte Namen führen echte Arbeit aus
+      description: |
+        Implementiert ist derzeit `scan_network` (Alias `network_scan`, `scan`):
+        führt einen echten Discovery-Scan aus und liefert `result.scanned`.
+        Jeder andere Name antwortet **501 NOT_IMPLEMENTED** statt eines
+        erfundenen Erfolgs.
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: scan_network }
+                subnet: { type: string, example: "192.168.1.0/24" }
+      responses:
+        "200":
+          description: "{ name, status, progress, started, finished, result }"
+        "501": { $ref: "#/components/responses/JsonError" }
 
   /api/tests:
     get:
@@ -428,6 +454,189 @@ paths:
       x-rbac: operator
       responses:
         "200": { description: Systeminfo }
+
+  /api/scan:
+    post:
+      tags: [discovery]
+      summary: Netzwerk-Scan (Alias von /api/discovery/scan, Operations-Center)
+      x-rbac: service
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subnet: { type: string, example: "192.168.1.0/24" }
+      responses:
+        "200":
+          description: Scan-Ergebnis (devices, scanned, subnet)
+        "403": { $ref: "#/components/responses/JsonError" }
+
+  /api/discovery/scan:
+    get:
+      tags: [discovery]
+      summary: Discovery-Scan (mDNS/SSDP/ARP, optional Netz-Scan)
+      x-rbac: service
+      parameters:
+        - name: subnet
+          in: query
+          schema: { type: string, example: "192.168.1.0/24" }
+        - name: deep
+          in: query
+          schema: { type: string, enum: ["0", "1"] }
+      responses:
+        "200":
+          description: "{ devices, scanned, subnet }"
+        "403": { $ref: "#/components/responses/JsonError" }
+
+  /api/scripts/run:
+    post:
+      tags: [ops]
+      summary: Skript-Executor (Discovery-Scan mit Audit-Eintrag)
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                script: { type: string, example: network_scan.py }
+                name: { type: string, description: "Alias für script (Operations-Center)" }
+                args:
+                  description: "Objekt ({subnet}) ODER CLI-String ('--subnet 10.0.0.0/24')"
+                  oneOf:
+                    - type: object
+                    - type: string
+      responses:
+        "200":
+          description: "{ ok, script, output }"
+        "403": { $ref: "#/components/responses/JsonError" }
+        "501":
+          description: Skript wird serverseitig nicht ausgeführt (nur `network_scan.py`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/diagnostics/iperf:
+    get:
+      tags: [diagnostics]
+      summary: Durchsatz-Selbsttest (HTTP-Loopback, Ziel local-mesh)
+      x-rbac: operator
+      responses:
+        "200":
+          description: "{ target, throughputMbps, packets, durationMs, status, tool }"
+        "403": { $ref: "#/components/responses/JsonError" }
+
+  /api/diag/ping:
+    get:
+      tags: [diagnostics]
+      summary: Ping-/Latenzmessung gegen Ziel-Liste
+      x-rbac: operator
+      parameters:
+        - name: targets
+          in: query
+          description: Kommaseparierte Ziele (leer ⇒ Default-Gateway, 1.1.1.1, 8.8.8.8)
+          schema: { type: string }
+      responses:
+        "200": { description: "{ results: [{target, ok, latencyMs, status}] }" }
+        "403": { $ref: "#/components/responses/JsonError" }
+    post:
+      tags: [diagnostics]
+      summary: Ping mit Ziel-Liste im Body
+      x-rbac: operator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targets:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200": { description: "{ results: [...] }" }
+
+  /api/diag/payload:
+    get:
+      tags: [diagnostics]
+      summary: Download-Payload für Durchsatzmessung im Browser
+      x-rbac: guest
+      parameters:
+        - name: bytes
+          in: query
+          schema: { type: integer, default: 1048576, maximum: 8388608 }
+      responses:
+        "200":
+          description: application/octet-stream
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+
+  /api/diag/throughput:
+    get:
+      tags: [diagnostics]
+      summary: Lokaler Durchsatz-Selbsttest (Kopier-Untergrenze)
+      x-rbac: operator
+      responses:
+        "200": { description: "{ target, bytes, durationMs, throughputMbps, packets, status }" }
+
+  /api/research:
+    get:
+      tags: [ops]
+      summary: Recherche-Aggregation (konfigurierte Quellen)
+      x-rbac: operator
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: sources
+          in: query
+          schema: { type: string, description: kommasepariert }
+      responses:
+        "200": { description: Recherche-Ergebnis }
+        "400": { $ref: "#/components/responses/JsonError" }
+        "502": { $ref: "#/components/responses/JsonError" }
+
+  /api/rosetta:
+    post:
+      tags: [ops]
+      summary: Rosetta-AI-Gateway (lokale Route mit Geräte-/Lastkontext)
+      x-rbac: operator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                route: { type: string, example: net-analysis }
+      responses:
+        "200": { description: "{ route, backendId, result }" }
+
+  /api/nodes/validate:
+    get:
+      tags: [ops]
+      summary: Endpunkt-Selbstprüfung des Backends (keine fiktiven qloud-Hosts)
+      x-rbac: operator
+      responses:
+        "200": { description: "{ ok, endpoint }" }
+
+  /metrics:
+    get:
+      tags: [console]
+      summary: Prometheus-Metriken (Textformat)
+      x-rbac: guest
+      responses:
+        "200":
+          description: Metriken im Prometheus-Textformat
+          content:
+            text/plain:
+              schema: { type: string }
+
 
 components:
   securitySchemes:

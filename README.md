@@ -124,7 +124,7 @@ und Terminal-Zugriff – getrennt vom mobilen BLE-Gateway (`mobile-server/`):
 
 ```bash
 npm run server          # python3 server/app.py → REST auf :5000
-npm run server:all      # start.sh --backend-only (REST + WS 8765–8767)
+npm run server:all      # start.sh --backend-only (REST + WS 8766–8768)
 python3 server/tests/test_discovery.py   # 5 Unit-Tests
 python3 tests/suite.py                   # 13 E2E-Checks (Backend muss laufen)
 make help                                # Build-/Deploy-Ziele (Docker optional)
@@ -132,8 +132,10 @@ make help                                # Build-/Deploy-Ziele (Docker optional)
 
 - **REST :5000** – `/api/health`, Login (JWT,argon2-Hashes), `/api/devices`,
   `/api/clients`, `/api/audit`, `/api/discovery/scan`, `/metrics`
-- **WebSockets** – Terminal `:8765`, Discovery `:8766`, Live-Status `:8767`
-  (Vite-Proxy `/api` → Dev-Backend, siehe `vite.config.ts`)
+- **WebSockets** – Terminal `:8768`, Discovery `:8766`, Live-Status `:8767`
+  (Vite-Proxy `/api` → Dev-Backend, siehe `vite.config.ts`).
+  TCP `:8765` gehört **nicht** dazu — das ist das Frame-Protokoll des mobilen
+  BLE-Gateways (`DGS_TCP_PORT`), beide Dienste laufen damit parallel.
 - **Web-App**: Button **⌨ Terminal** (Access Console mit RBAC-Rollenprüfung),
   neue Module OverviewPanel, StatusBoard, NetworkPanel (Live-Discovery),
   NfcReader (Web-NFC) und OperationsCenter (Endpoint-/Rollen-Checks)
@@ -153,6 +155,9 @@ Details: [`docs/api-websockets.md`](docs/api-websockets.md) ·
 
 | Dokument | Inhalt |
 |---|---|
+| [`TODO.md`](TODO.md) | 📝 Arbeitsliste aller offenen & teilfertigen Punkte (`A-*`/`G-*` mit Ist-Zustand, Schritten, „Fertig wenn") |
+| [`GAP_MATRIX.md`](GAP_MATRIX.md) | 🔍 Befund-/Gap-Matrix Fassung 2.0: 197 Checks, 390 Dateien, Rest-Gaps § 12, Aktionsketten § 14 |
+| [`INVENTAR.csv`](INVENTAR.csv) | 🗂️ Datei-Inventar mit REAL/STUB/PLACEHOLDER/TODO-Befund je Datei |
 | [`docs/device-control.md`](docs/device-control.md) | 🔧 Device-Control: ADB/Fastboot-Binaries, Port-View, Hersteller-DB, Befehl-Referenz, ROM-Datenbank, Brick-Schutz (ARB), Flash-Assistent, Fehlerbehebung |
 | [`docs/usb-hersteller.md`](docs/usb-hersteller.md) | USB-Hersteller (VID→Name, `usb.ids`-Merge), ADB-/USB-Geräteabruf, Vorabprüfung vor Eingriffen, Befehlsreferenz, Grenzen (kein Unlock/IMEI/FRP) |
 | [`docs/INDEX.md`](docs/INDEX.md) | 📇 Querverweis-Index aller Dokumente (Kurzbeschreibung je Datei) |
@@ -161,7 +166,7 @@ Details: [`docs/api-websockets.md`](docs/api-websockets.md) ·
 | [`docs/hardware-setup.md`](docs/hardware-setup.md) | Produktives Hardware-Setup: USB-C-Dongles (VID/PID-Whitelist, udev), PTY-Bridge ohne `cat`-Stub (seriell/socat/SSH), SSH-Key-Handling, BLE-Scan an Linux-Hosts |
 | [`docs/production-backend.md`](docs/production-backend.md) | Produktionshärtung: PostgreSQL via SQLAlchemy, Passwort-Hashes (argon2), WebAuthn-Credential-DB, LDAP & OAuth2/OIDC |
 | [`docs/openapi.yaml`](docs/openapi.yaml) | OpenAPI 3.0-Spezifikation der REST-API (inkl. `x-rbac`-Mindestrollen je Endpunkt) |
-| [`docs/api-websockets.md`](docs/api-websockets.md) | WebSocket-Protokolle: Terminal (:8765), Discovery (:8766), Live-Status (:8767), Desktop-Konsole |
+| [`docs/api-websockets.md`](docs/api-websockets.md) | WebSocket-Protokolle: Terminal (:8768), Discovery (:8766), Live-Status (:8767), Desktop-Konsole |
 | [`docs/monitoring.md`](docs/monitoring.md) | Mitgelieferter Monitoring-Stack: Prometheus, Loki, Grafana-Dashboard, Slack-Alerting |
 | [`docs/i18n.md`](docs/i18n.md) | i18n-Gerüst (de/en) + Rollout-Anleitung für weitere Komponenten |
 | [`docs/enterprise-node-database.md`](docs/enterprise-node-database.md) | Getunnelt erreichbare Abfrageknotenpunkte (MCP, API, Web-Hook, Notebook, Inferenz) |
@@ -432,7 +437,7 @@ npm run dev            # http://localhost:5173 (proxied /api -> Flask)
 cd server
 pip install -r requirements.txt
 python app.py          # Auth auf :5000
-python pty_bridge.py   # Terminal-Bridge auf :8765
+python pty_bridge.py   # Terminal-Bridge auf :8768
 
 # 3. Produktion (docker-compose)
 cd ..
@@ -451,8 +456,8 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-  location /api/ws/ {
-    proxy_pass http://127.0.0.1:8765/;
+  location /api/ws/terminal {
+    proxy_pass http://127.0.0.1:8768/;   # Discovery :8766, Status :8767 → eigene Location, siehe deploy/nginx.conf
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -469,7 +474,7 @@ server {
 | Von (Client) | Zu (Service) | Pfad/Port | Protokoll | Zweck |
 |--------------|--------------|-----------|-----------|-------|
 | Browser/Frontend | Auth | :5173→/api→:5000 | HTTPS REST | Login, JWT, CRUD, Pairing, Audit |
-| Browser/Frontend | Terminal-Bridge | :5173→/api/ws/terminal→:8765 | wss:// | Terminal-Sessions |
+| Browser/Frontend | Terminal-Bridge | :5173→/api/ws/terminal→:8768 | wss:// | Terminal-Sessions |
 | Browser/Frontend | Scanner | :5173→/api/ws/discovery→:8766 | wss:// | Live-Discovery |
 | Browser/Frontend | Status-Board | :5173→/api/ws/status→:8767 | wss:// | Live-Präsenz + Device-Status |
 | Auth | (intern) | — | JWT | Token-Erstellung/-Prüfung |
@@ -477,11 +482,17 @@ server {
 | Bridge | Netzwerkgerät | SSH (paramiko) | SSH | Remote-Shell |
 | Scanner | Netzwerk/WiFi | UDP 5353/1900 | mDNS/SSDP | Geräte-Erkennung |
 | Scanner | BLE-Dongle | bluetoothctl | BLE | BLE-Token-Erkennung |
-| Auth | Audit-Log | — | in-memory | trace_id-Ketten |
+| Auth | Audit-Log | — | SQLite (`server/data/data.db`, Tabelle `audit`) | trace_id-Ketten |
 
-**Abhängigkeiten (geprüft & konsistent):**
-- **JS:** react, react-dom, xterm, xterm-addon-fit, xterm-addon-web-links
-- **Python:** Flask 3.0.3, PyJWT 2.9.0, websockets 13.0, pyserial 3.5, paramiko 3.5.0
+**Abhängigkeiten (Stand 2026-09-13, gegen `package.json` / `server/requirements.txt` geprüft):**
+- **JS:** react 19.2.8, react-dom 19.2.8, @capacitor/* 8.x, i18next, three/@react-three —
+  das Terminal ist eine Eigenimplementierung (`src/hooks/useTerminal.ts`), **kein** xterm.
+- **Python (Backend `server/`):** reine Standardbibliothek (`http.server`, `socket`,
+  `sqlite3`, `hashlib/pbkdf2`, `hmac`) — kein Flask/PyJWT/pyserial/paramiko im Produktionspfad.
+  Die Flask-Alternative in `server/requirements.txt` ist **nicht implementiert**
+  (kein `NEXUS_USE_FLASK`-Code-Pfad; Vermerk dort korrigiert).
+- **Python (Gateway `mobile-server/`):** Standardbibliothek; optionale Extras in
+  `mobile-server/requirements.txt` (NFC) und `requirements-nfc.txt`.
 
 **Reproduzierbarer Start:** installiert Abhängigkeiten (falls fehlend), baut und startet alle 5 Dienste mit PID-/Log-Dateien; `./start.sh --docker` nutzt docker compose.
 

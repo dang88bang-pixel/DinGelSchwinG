@@ -1,47 +1,53 @@
 Datei,Zeilen,Status,Begruendung
-.eslintrc.cjs,19,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-.github/workflows/build-apk.yml,248,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-.gitignore,74,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-.npmrc,4,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-BUILD_INSTRUCTIONS.md,330,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-README.md,598,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/.gitignore,101,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/.gitignore,2,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/build.gradle,101,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/capacitor.build.gradle,21,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/proguard-rules.pro,21,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java,26,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/debug/AndroidManifest.xml,7,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/AndroidManifest.xml,136,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/assets/devicecontrol/LICENSE-adb-ladb.txt,201,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/assets/devicecontrol/README.md,14,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+.eslintrc.cjs,19,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+.github/workflows/build-apk.yml,278,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+.gitignore,80,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+.npmrc,4,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+BUILD_INSTRUCTIONS.md,330,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+Dockerfile,14,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+GAP_MATRIX.md,366,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+INVENTAR.csv,391,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+Makefile,66,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+README.md,649,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+REPORT.md,180,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+TODO.md,357,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/.gitignore,101,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/.gitignore,2,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/build.gradle,101,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/capacitor.build.gradle,21,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/proguard-rules.pro,21,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java,26,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/debug/AndroidManifest.xml,7,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/AndroidManifest.xml,136,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/assets/devicecontrol/LICENSE-adb-ladb.txt,201,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/assets/devicecontrol/README.md,14,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/app/src/main/assets/devicecontrol/adb,5142600 B,REAL,Binaer-/Asset-Datei
-android/app/src/main/assets/devicecontrol/commands.json,13,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/assets/devicecontrol/fastboot,13,PLACEHOLDER,542-Byte-Textdatei statt ARM64-Binary; CI holt echtes Binary (fetch-android-tools.sh)
-android/app/src/main/assets/devicecontrol/rom_database.json,163,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/assets/devicecontrol/supported_devices.json,106,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/assets/devicecontrol/usb_vendors.json,43,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/MainActivity.java,27,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/PortViewPlugin.java,453,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/AdbWrapper.kt,140,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/AdminReceiver.kt,28,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/CommandParser.kt,185,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/DeviceControlActivity.kt,199,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/DeviceControlPlugin.kt,308,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/DeviceManager.kt,169,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/FastbootWrapper.kt,100,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/ToolManager.kt,84,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/db/DeviceHistoryDb.kt,143,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/db/UsbVendorDatabase.kt,97,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/BackupManager.kt,57,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/BrickProtectionManager.kt,97,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/FlashSafetyChecker.kt,112,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/FlashSetupWizard.kt,161,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/models/Models.kt,136,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/rom/RomRepository.kt,107,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/utils/FileUtils.kt,72,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/utils/PermissionUtils.kt,40,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/utils/ProcessUtils.kt,68,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+android/app/src/main/assets/devicecontrol/commands.json,13,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/assets/devicecontrol/fastboot,13,PLACEHOLDER,542-Byte-Textdatei statt ARM64-Binary; CI holt echtes Binary (fetch-android-tools.sh); App meldet Handlungsanweisung statt abzustuerzen
+android/app/src/main/assets/devicecontrol/rom_database.json,163,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/assets/devicecontrol/supported_devices.json,106,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/assets/devicecontrol/usb_vendors.json,43,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/java/com/dingelschwinng/moeagent/MainActivity.java,27,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/PortViewPlugin.java,453,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/AdbWrapper.kt,140,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/AdminReceiver.kt,28,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/CommandParser.kt,185,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/DeviceControlActivity.kt,199,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/DeviceControlPlugin.kt,308,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/DeviceManager.kt,169,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/FastbootWrapper.kt,100,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/ToolManager.kt,84,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/db/DeviceHistoryDb.kt,143,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/db/UsbVendorDatabase.kt,97,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/BackupManager.kt,57,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/BrickProtectionManager.kt,97,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/FlashSafetyChecker.kt,112,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/flash/FlashSetupWizard.kt,161,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/models/Models.kt,136,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/rom/RomRepository.kt,107,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/utils/FileUtils.kt,72,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/utils/PermissionUtils.kt,40,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/app/src/main/java/com/dingelschwinng/moeagent/devicecontrol/utils/ProcessUtils.kt,68,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 android/app/src/main/res/drawable-land-hdpi/splash.png,7705 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/drawable-land-mdpi/splash.png,4040 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/drawable-land-xhdpi/splash.png,9251 B,REAL,Binaer-/Asset-Datei
@@ -52,15 +58,15 @@ android/app/src/main/res/drawable-port-mdpi/splash.png,4096 B,REAL,Binaer-/Asset
 android/app/src/main/res/drawable-port-xhdpi/splash.png,9875 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/drawable-port-xxhdpi/splash.png,13346 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/drawable-port-xxxhdpi/splash.png,17489 B,REAL,Binaer-/Asset-Datei
-android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml,34,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/drawable/ic_launcher_background.xml,170,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml,34,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/drawable/ic_launcher_background.xml,170,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/app/src/main/res/drawable/splash.png,4040 B,REAL,Binaer-/Asset-Datei
-android/app/src/main/res/layout/activity_device_control.xml,93,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/layout/activity_main.xml,12,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/layout/item_chat_message.xml,26,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/layout/item_device_row.xml,46,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+android/app/src/main/res/layout/activity_device_control.xml,93,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/layout/activity_main.xml,12,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/layout/item_chat_message.xml,26,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/layout/item_device_row.xml,46,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml,5,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml,5,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/app/src/main/res/mipmap-hdpi/ic_launcher.png,2786 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png,3450 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png,4341 B,REAL,Binaer-/Asset-Datei
@@ -76,236 +82,310 @@ android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png,10455 B,REAL,Binaer
 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png,9441 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png,15529 B,REAL,Binaer-/Asset-Datei
 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png,15916 B,REAL,Binaer-/Asset-Datei
-android/app/src/main/res/values/colors.xml,11,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/values/ic_launcher_background.xml,4,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/values/strings.xml,17,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/values/styles.xml,22,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/xml/admin_receiver.xml,14,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/xml/file_paths.xml,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/xml/network_security_config.xml,28,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/xml/network_security_config_hardened.xml,24,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/main/res/xml/usb_device_filter.xml,36,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java,18,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/build.gradle,38,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/capacitor.settings.gradle,12,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/gradle.properties,24,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+android/app/src/main/res/values/colors.xml,11,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/values/ic_launcher_background.xml,4,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/values/strings.xml,17,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/values/styles.xml,22,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/xml/admin_receiver.xml,14,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/xml/file_paths.xml,5,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/xml/network_security_config.xml,28,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/xml/network_security_config_hardened.xml,24,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/main/res/xml/usb_device_filter.xml,36,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java,18,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/build.gradle,38,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/capacitor.settings.gradle,12,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/gradle.properties,24,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/gradle/wrapper/gradle-wrapper.jar,61608 B,REAL,Binaer-/Asset-Datei
-android/gradle/wrapper/gradle-wrapper.properties,7,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/gradlew,244,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/gradlew.bat,92,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/settings.gradle,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-android/variables.gradle,20,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-build-apk.sh,83,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-build-release.sh,51,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-build.sh,54,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-capacitor.config.json,23,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-config/enterprise-nodes.csv,6,TODO,Pruefen: Beispieldaten vs. echte Netz-Knoten (siehe GAP-Matrix)
-deploy/.env.example,43,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/alertmanager/alertmanager.yml,21,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/docker-compose.monitoring.yml,81,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/grafana/dashboards/nexus-overview.json,373,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/grafana/provisioning/dashboards/dashboards.yml,9,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/grafana/provisioning/datasources/datasources.yml,12,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/loki/loki-config.yml,35,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/prometheus/alert-rules.yml,61,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/prometheus/prometheus.yml,43,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-deploy/monitoring/promtail/promtail-config.yml,57,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/README.md,173,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/data/agent_gallery.json,365,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/data/scripts/backup_config.sh,15,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/data/scripts/network_scan.py,48,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/data/skillz.md,166,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/data/skillz_adb.md,44,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/data/system_instruction_adb.txt,85,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/data/system_instruction_chat.txt,68,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/main.py,225,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/requirements.txt,13,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/tests/test_core.py,484,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/tools/download_model.py,95,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/agent.py,1361,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/agentGallery.py,435,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/api_client.py,132,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/clients.py,368,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/config.py,54,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+android/gradle/wrapper/gradle-wrapper.properties,7,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/gradlew,244,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/gradlew.bat,92,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+android/settings.gradle,5,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+android/variables.gradle,20,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+backups/phase2/android/app/src/main/assets/devicecontrol/fastboot.bak,13,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/PolarConfigScreen.kt.bak,214,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeGraphViewModel.kt.bak,106,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/genesis-orchestrator/fastapi-backend/app/main.py.bak,208,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/src/lib/agent/agentEngine.ts.bak,1125,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/src/mocks/bleWasm.mock.ts.bak,20,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/src/mocks/devices.mock.ts.bak,24,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/src/mocks/pairing.mock.ts.bak,16,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+backups/phase2/src/mocks/sensors.mock.ts.bak,19,BACKUP,"Backup-Kopie (Phase 2, backups/) — nicht im Produktionspfad, kein Befund"
+build-apk.sh,83,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+build-release.sh,51,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+build.sh,54,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+capacitor.config.json,23,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+config/enterprise-nodes.csv,6,TODO,"Planungsdaten (*.qloud.local, 5 Knoten) statt Produktivbestand — echten Bestand einpflegen"
+deploy/.env.example,44,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+deploy/monitoring/alertmanager/alertmanager.yml,21,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/monitoring/docker-compose.monitoring.yml,81,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/monitoring/grafana/dashboards/nexus-overview.json,373,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+deploy/monitoring/grafana/provisioning/dashboards/dashboards.yml,9,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/monitoring/grafana/provisioning/datasources/datasources.yml,12,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/monitoring/loki/loki-config.yml,35,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/monitoring/prometheus/alert-rules.yml,61,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/monitoring/prometheus/prometheus.yml,43,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/monitoring/promtail/promtail-config.yml,57,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+deploy/nginx.conf,31,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/README.md,177,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/data/agent_gallery.json,365,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/data/scripts/backup_config.sh,15,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/data/scripts/network_scan.py,48,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/data/skillz.md,161,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/data/skillz_adb.md,44,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/data/system_instruction_adb.txt,85,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/data/system_instruction_chat.txt,68,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/main.py,249,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/requirements.txt,14,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+desktop/tests/test_core.py,688,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+desktop/tests/test_skill_chain.py,115,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+desktop/tools/download_model.py,95,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/agent.py,1495,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/agentGallery.py,435,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/api_client.py,93,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/clients.py,469,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/config.py,54,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/model_backend.py,226,REAL,NotImplementedError nur in abstrakter Basisklasse; 3 reale Backends implementiert
-desktop/utils/page_ingest.py,459,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/script_executor.py,129,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/skill_loader.py,124,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/utils/status_manager.py,177,REAL,Mock nur als dokumentierter Fallback wenn Backend offline; Live-Pfad real
-desktop/utils/ws_client.py,70,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/views/__init__.py,1,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/views/chat.py,284,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/views/dashboard.py,67,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/views/scripts.py,165,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/views/settings.py,231,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-desktop/views/status_panel.py,92,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/agent-gallery.md,114,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/api-websockets.md,109,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/device-control.md,270,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/enterprise-node-database.md,222,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/hardware-setup.md,192,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/i18n.md,74,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/mcp-integration.md,176,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/mobile-ble-gateway.md,273,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/monitoring.md,180,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/openapi.yaml,529,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/portview-import.md,355,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-docs/production-backend.md,149,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/.env.example,20,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/.github/workflows/build-android.yml,70,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/.github/workflows/build-backend.yml,66,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/.gitignore,30,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/README.md,172,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/build.gradle.kts,106,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/proguard-rules.pro,4,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/AndroidManifest.xml,43,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/MainActivity.kt,29,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/adb/AdbBridge.kt,72,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/BleDeviceItem.kt,22,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/NordicUartHandler.kt,91,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/PolarBleManager.kt,256,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/PolarConfigViewModel.kt,37,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/ExpandableCard.kt,100,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/PolarConfigExpandableCard.kt,221,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/PolarConfigScreen.kt,214,TODO,"Switch(checked=true, onCheckedChange={}) ohne State-Bindung (Zeile ~147)"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/HitTest.kt,77,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/MainScreen.kt,59,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeDetailPopup.kt,87,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeGraphScreen.kt,135,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeGraphViewModel.kt,106,PLACEHOLDER,Festcodierte Demo-Knoten ('in production driven by Neo4j graph sync'); WS-Anbindung real
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/RaycastUtil.kt,39,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/theme/Theme.kt,19,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/websocket/WebSocketClient.kt,98,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/res/drawable/ic_launcher_foreground.xml,10,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/res/values/colors.xml,4,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/res/values/strings.xml,4,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/app/src/main/res/values/themes.xml,8,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/build.gradle.kts,6,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/gradle.properties,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+desktop/utils/page_ingest.py,459,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/retry.py,104,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/script_executor.py,129,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/skill_loader.py,124,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/status_manager.py,178,REAL,"Kein Mock-Provider mehr: offline bleibt leer (EmptyLiveDataSource), live holt REST-Daten"
+desktop/utils/ws_client.py,70,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/views/__init__.py,1,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/views/chat.py,284,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/views/dashboard.py,67,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/views/scripts.py,165,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/views/settings.py,231,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/views/status_panel.py,92,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+docker-compose.yml,59,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+docs/INDEX.md,100,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/agent-gallery.md,114,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/api-websockets.md,110,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/device-control.md,270,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/enterprise-node-database.md,222,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/hardware-setup.md,192,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/i18n.md,74,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/mcp-integration.md,176,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/mobile-ble-gateway.md,273,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/monitoring.md,180,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/openapi.yaml,738,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+docs/portview-import.md,355,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/production-backend.md,149,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/store-compliance.md,149,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/store-listing.md,178,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/usb-hersteller.md,163,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/.env.example,20,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/.github/workflows/build-android.yml,70,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/.github/workflows/build-backend.yml,66,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/.gitignore,30,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/README.md,172,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/build.gradle.kts,106,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/proguard-rules.pro,4,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/src/main/AndroidManifest.xml,43,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/MainActivity.kt,29,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/adb/AdbBridge.kt,72,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/BleDeviceItem.kt,22,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/NordicUartHandler.kt,91,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/PolarBleManager.kt,256,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/PolarConfigViewModel.kt,49,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/ExpandableCard.kt,100,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/PolarConfigExpandableCard.kt,221,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/PolarConfigScreen.kt,223,REAL,Switch an ViewModel-StateFlow gebunden (notificationsEnabled/collectAsState)
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/HitTest.kt,77,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/MainScreen.kt,59,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeDetailPopup.kt,87,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeGraphScreen.kt,135,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeGraphViewModel.kt,227,REAL,Knoten live aus GET /graph (Neo4j) per OkHttp mit Timeouts; Demo-Layout nur als gekennzeichneter Offline-Fallback (graphSource='demo')
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/RaycastUtil.kt,39,STUB,"perform3DRaycast() liefert null (Filament-AABB-Pfad nicht implementiert); ohne Aufrufer im Repo, realer Pfad ist das 2D-HitTest.kt — siehe GAP-Matrix 6.9"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/theme/Theme.kt,19,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/websocket/WebSocketClient.kt,98,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/app/src/main/res/drawable/ic_launcher_foreground.xml,10,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml,5,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml,5,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/src/main/res/values/colors.xml,4,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/src/main/res/values/strings.xml,4,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/app/src/main/res/values/themes.xml,8,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/build.gradle.kts,6,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/android-app/gradle.properties,5,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 genesis-orchestrator/android-app/gradle/wrapper/gradle-wrapper.jar,43453 B,REAL,Binaer-/Asset-Datei
-genesis-orchestrator/android-app/gradle/wrapper/gradle-wrapper.properties,7,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/gradlew,249,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/gradlew.bat,92,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/android-app/settings.gradle.kts,18,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/docker-compose.yml,38,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/.dockerignore,9,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/Dockerfile,28,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/__init__.py,2,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/config.py,45,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/main.py,208,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/moe/__init__.py,6,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/moe/base.py,39,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/moe/loader.py,104,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/moe/parsers/__init__.py,1,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+genesis-orchestrator/android-app/gradle/wrapper/gradle-wrapper.properties,7,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/gradlew,249,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/gradlew.bat,92,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/android-app/settings.gradle.kts,18,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/docker-compose.yml,38,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/.dockerignore,9,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/fastapi-backend/Dockerfile,28,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/fastapi-backend/app/__init__.py,2,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/config.py,45,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/main.py,247,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/moe/__init__.py,6,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/moe/base.py,39,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/moe/loader.py,104,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/moe/parsers/__init__.py,1,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 genesis-orchestrator/fastapi-backend/app/moe/parsers/ninebot.py,53,REAL,"Minimale Beispiel-Implementierung, als solche dokumentiert"
 genesis-orchestrator/fastapi-backend/app/moe/parsers/vesc.py,54,REAL,"Minimale Beispiel-Implementierung, als solche dokumentiert ('minimal subset ... to demonstrate')"
-genesis-orchestrator/fastapi-backend/app/moe/registry.py,38,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/proto/__init__.py,7,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/proto/telemetry_pb2.py,51,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/services/__init__.py,1,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/services/gemini_service.py,68,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/app/services/neo4j_service.py,74,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/fastapi-backend/requirements.txt,11,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/proto/telemetry.proto,90,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-genesis-orchestrator/scripts/generate_proto.py,34,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-index.html,16,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mcp/bridge.mjs,634,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mcp/list-tools.mjs,86,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mcp/mcp.json,34,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+genesis-orchestrator/fastapi-backend/app/moe/registry.py,38,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/proto/__init__.py,7,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/proto/telemetry_pb2.py,51,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/services/__init__.py,1,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/services/gemini_service.py,68,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+genesis-orchestrator/fastapi-backend/app/services/neo4j_service.py,119,REAL,"Graceful-Fallback ohne Neo4j/Gemini-Key (dokumentiert, Quelle wird im Payload markiert)"
+genesis-orchestrator/fastapi-backend/requirements.txt,11,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/fastapi-backend/tests/test_api.py,65,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+genesis-orchestrator/proto/telemetry.proto,90,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+genesis-orchestrator/scripts/generate_proto.py,34,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+index.html,16,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mcp/bridge.mjs,634,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mcp/list-tools.mjs,86,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mcp/mcp.json,34,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 mobile-server/ble_adapter.py,269,REAL,Mock nur ein Backend von drei (mock|bluetoothctl|gdbus); Auswahl dokumentiert
-mobile-server/bleak_token.py,304,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+mobile-server/bleak_token.py,304,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mobile-server/data/usb_vendors.json,293,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 mobile-server/data/whitelist.json,42,REAL,Funktionale Token-Whitelist inkl. Demo-Eintraegen; Produktion: eigene Tokens einpflegen
-mobile-server/discovery.py,354,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/gateway.py,878,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/gw_config.py,286,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/honeywell.py,470,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/honeywell_keys.py,249,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/importer.py,646,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+mobile-server/discovery.py,354,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mobile-server/gateway.py,1040,REAL,'placeholder' = temporaerer Dict-Eintrag (Kommentar Z.451); Krypto/Persistenz/Audit real
+mobile-server/gw_config.py,299,REAL,"'mock' ist der dokumentierte Demo-Schalter (--mock) bzw. BLE-Backend-Auswahl, kein Fake-Pfad"
+mobile-server/honeywell.py,470,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mobile-server/honeywell_keys.py,266,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mobile-server/importer.py,646,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 mobile-server/keys.example.json,39,REAL,"Beispiel-Keyset, Platzhalterwerte, by-design"
-mobile-server/mobile_ble_server.py,948,REAL,--mock ist dokumentierter Demo-Modus; TCP/HTTP/Krypto real und selbstgetestet
-mobile-server/nfc_reader.py,249,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/requirements-nfc.txt,5,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/requirements.txt,23,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-mobile-server/tests/test_gateway.py,613,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-package-lock.json,6810,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-package.json,66,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-postcss.config.js,6,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/demo/packs/cinem-lut-filter.json,13,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/demo/packs/dgs-demo-pack.json,43,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/demo/packs/hall-reverb.jsfx,13,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/demo/packs/werkhof-dark.css,28,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/demo/seite/index.html,43,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/devicecontrol/rom_database.json,163,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/devicecontrol/supported_devices.json,106,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/devicecontrol/usb_vendors.json,43,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/manifest.webmanifest,18,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/sw.js,83,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/vite.svg,15,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-public/wasm/README.txt,1,PLACEHOLDER,Kein gebautes .wasm-Artefakt im Repo; bleWasm.ts nutzt JS-Fallback
-scripts/fetch-android-tools.sh,165,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/App.css,12,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/App.tsx,15,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/AdvancedResearchChat.tsx,1095,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/AgentConsole.tsx,524,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/AgentGalleryPanel.tsx,355,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/AppChrome.tsx,52,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/AssetGrabberPanel.tsx,514,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/DevicePortViewPanel.tsx,257,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/FlashCenterPanel.tsx,418,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/KnowledgeBasePanel.tsx,322,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/LiveDashboardPanel.tsx,377,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/LiveStatusStrip.tsx,93,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/McpServerPanel.tsx,306,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/MeshControl.tsx,80,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/MoEChatInterface.tsx,690,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/NetworkDashboard.tsx,338,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/NetworkSettings.tsx,112,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/PairingPanel.tsx,133,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/PortViewPanel.tsx,271,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/ReplayEditor.tsx,143,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/RosettaPanel.tsx,60,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/Scene3D.tsx,81,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/diagnostics/NetworkDiagnostics.tsx,154,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/components/panels/ui.tsx,148,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/config/agentGallery.ts,332,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/config/ai-models.ts,35,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/config/enterprise-nodes.ts,180,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/config/skills.ts,245,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/config/systemInstructions.ts,258,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/hooks/useSensors.ts,78,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/i18n/index.ts,35,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/i18n/locales/de.json,203,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/i18n/locales/en.json,203,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/index.css,60,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/agent/agentEngine.ts,1125,MOCK,intentDevices/intentClients liefern hartcodierte MOCK_DEVICES/Clients; intentScan simuliert (setTimeout); summary() nutzt Mocks
+mobile-server/mobile_ble_server.py,1066,REAL,--mock ist dokumentierter Demo-Modus; TCP/HTTP/Krypto real und selbstgetestet
+mobile-server/nfc_reader.py,249,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mobile-server/requirements-nfc.txt,5,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+mobile-server/requirements.txt,23,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+mobile-server/resilience.py,169,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mobile-server/retry_util.py,105,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+mobile-server/tests/test_gateway.py,871,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+mobile-server/vendors.py,790,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+package-lock.json,7471,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+package.json,72,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+postcss.config.js,6,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+public/demo/packs/cinem-lut-filter.json,13,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/demo/packs/dgs-demo-pack.json,43,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/demo/packs/hall-reverb.jsfx,13,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/demo/packs/werkhof-dark.css,28,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+public/demo/seite/index.html,43,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+public/devicecontrol/rom_database.json,163,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/devicecontrol/supported_devices.json,106,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/devicecontrol/usb_vendors.json,43,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/manifest.webmanifest,18,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/sw.js,83,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+public/vite.svg,15,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+public/wasm/README.txt,1,PLACEHOLDER,"Kein gebautes .wasm-Artefakt im Repo (kein Rust/crates.io in der Sandbox); bleWasm.ts nutzt validierte JS-Simulation, CI-Schritt 'Build BLE WASM' fail-soft"
+scripts/audit_inventar.py,210,REAL,"Das Audit-Skript selbst: enthaelt die Marker-Regexe als Literale (Selbsttreffer, kein Befund)"
+scripts/fetch-android-tools.sh,165,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/__init__.py,1,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/app.py,712,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/audit_log.py,21,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/auth.py,80,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/device_manager.py,113,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/diagnostics.py,48,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/discovery.py,259,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/error_handler.py,36,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/models/__init__.py,3,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/models/pairing.py,45,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/pty_bridge.py,168,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/rate_limiter.py,34,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/rbac.py,36,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/requirements.txt,8,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+server/research.py,84,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/scanner_service.py,138,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/status_board.py,131,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/store.py,243,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+server/tests/test_api_contract.py,135,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+server/tests/test_discovery.py,146,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+server/tests/test_todo_consistency.py,82,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+server/wsutil.py,195,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/App.css,12,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/App.tsx,15,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/AccessConsole.tsx,79,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/AdvancedResearchChat.tsx,1095,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/AgentConsole.tsx,524,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/AgentGalleryPanel.tsx,355,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/AppChrome.tsx,52,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/AssetGrabberPanel.tsx,514,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/DevicePortViewPanel.tsx,257,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/FlashCenterPanel.tsx,418,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/IntegrationsPanel.tsx,352,REAL,Zeigt 'Mock-Gateway'-Pill nur bei simulated_token=true (ehrliche Kennzeichnung)
+src/components/KnowledgeBasePanel.tsx,322,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/LiveDashboardPanel.tsx,377,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/LiveStatusStrip.tsx,93,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/McpServerPanel.tsx,306,REAL,Nennt '--mock' nur in Bedienhinweisen/Labels; ruft echte Bridge-/Gateway-APIs ab
+src/components/MeshControl.tsx,80,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/MoEChatInterface.tsx,690,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/NetworkDashboard.tsx,362,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/NetworkPanel.tsx,28,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/NetworkSettings.tsx,112,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/NfcReader.tsx,42,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/OperationsCenter.tsx,253,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/OverviewPanel.tsx,48,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/PairingPanel.tsx,133,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/PortViewPanel.tsx,271,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/ReplayEditor.tsx,143,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/RosettaPanel.tsx,60,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/Scene3D.tsx,81,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/StatusBoard.tsx,34,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/diagnostics/NetworkDiagnostics.tsx,154,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/panels/ui.tsx,148,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/config/__tests__/enterpriseNodes.test.ts,122,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+src/config/agentGallery.ts,332,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/config/ai-models.ts,35,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/config/enterprise-nodes.ts,268,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/config/skills.ts,238,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/config/systemInstructions.ts,258,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/hooks/useDiscovery.ts,71,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/hooks/useSensors.ts,78,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/hooks/useStatusBoard.ts,61,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/hooks/useTerminal.ts,49,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/i18n/index.ts,35,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/i18n/locales/de.json,254,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+src/i18n/locales/en.json,254,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+src/index.css,60,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/__tests__/bugReport.test.ts,56,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+src/lib/__tests__/retry.test.ts,96,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+src/lib/agent/__tests__/actionChainCoverage.test.ts,84,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+src/lib/agent/__tests__/agentEngine.test.ts,124,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+src/lib/agent/agentEngine.ts,1616,REAL,"Live-Quellen zuerst (Gateway-Tokens/-Sessions, BLE-Scan, PortView, nativ); MOCK_DEVICES nur als gekennzeichneter 'demo-fallback' wenn keine Quelle antwortet"
 src/lib/agent/onnxRuntimeNodeStub.ts,16,STUB,"By-design: Vite-Alias-Stub, verhindert Node-Bundling; wirft erklaerenden Fehler"
-src/lib/agent/transformersBackend.ts,75,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/assetStore.ts,201,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/bleWasm.ts,79,REAL,"Laedt echtes WASM wenn vorhanden, sonst verifizierte mathematisch identische JS-Simulation (Fallback dokumentiert)"
-src/lib/deviceControl.ts,394,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/endpoint.ts,202,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/galleryStore.ts,230,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/grabber.ts,372,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/liveMetrics.ts,269,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/mcpClient.ts,238,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/packs.ts,146,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/pageIngest.ts,525,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/portview.ts,353,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/pwa.ts,15,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/rag.ts,437,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/rosetta/rosettaConverter.ts,56,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/lib/rosetta/types.ts,19,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/main.tsx,27,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-src/mocks/bleWasm.mock.ts,20,DEAD,Unreferenziert (kein Import im Repo); bleWasm.ts hat eigene JS_SIMULATION
-src/mocks/devices.mock.ts,24,MOCK,"Hartcodierte Geraeteliste, von agentEngine.ts im Produktionspfad verwendet"
-src/mocks/pairing.mock.ts,16,DEAD,Unreferenziert (kein Import im Repo)
-src/mocks/sensors.mock.ts,19,DEAD,Unreferenziert (kein Import im Repo)
-tailwind.config.js,19,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-tsconfig.json,25,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-tsconfig.node.json,10,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-vite.config.ts,40,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-wasm-ble/BUILD.md,23,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
-wasm-ble/Cargo.toml,17,REAL,"Auditiert: keine Mock/Stub/TODO-Marker, keine Dummy-Returns, keine toten Imports"
+src/lib/agent/transformersBackend.ts,75,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/api/client.ts,139,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/assetStore.ts,201,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/bleWasm.ts,91,REAL,"Laedt echtes WASM wenn vorhanden, sonst verifizierte mathematisch identische JS-Simulation (Fallback dokumentiert + getestet)"
+src/lib/bugReport.ts,141,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/deviceControl.ts,394,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/devices/browserDiscovery.ts,166,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/devices/registry.ts,153,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/discovery.ts,29,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/endpoint.ts,202,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/errors.ts,33,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/galleryStore.ts,230,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/grabber.ts,372,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/liveMetrics.ts,269,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/mcpClient.ts,260,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/nfc.ts,39,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/packs.ts,146,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/pageIngest.ts,525,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/portview.ts,353,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/pwa.ts,15,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/rag.ts,437,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/rbac.ts,56,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/retry.ts,145,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/rosetta/rosettaConverter.ts,56,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/rosetta/types.ts,19,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/runtimeData.ts,81,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/vendors.ts,210,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/ws_status_client.ts,73,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/main.tsx,31,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/mocks/devices.mock.ts,40,REAL,"Nur Offline-Fallback-Provider (IS_FALLBACK_DATA=true, @deprecated); wird von agentEngine.ts ausschließlich im Fallback-Pfad genutzt"
+start.sh,40,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+tailwind.config.js,19,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+tests/chain.py,78,REAL,JWT-/Datei-Kette gegen laufendes Backend :5000 (make smoke)
+tests/stress.py,49,REAL,Leichter Lasttest gegen /api/health + /api/login (make smoke)
+tests/suite.py,71,REAL,Funktionale REST-Checks gegen laufendes Backend :5000 (make smoke)
+tsconfig.json,25,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+tsconfig.node.json,10,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+vite.config.ts,62,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+vitest.config.ts,11,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+wasm-ble/BUILD.md,24,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+wasm-ble/Cargo.toml,17,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 wasm-ble/src/lib.rs,62,REAL,"Reale Pfadverlust-Mathematik; get_learned_n()=2.0 Default (stateless WASM, dokumentiert)"

@@ -6,16 +6,17 @@ ist, hier die Nachrichten-Verträge. Alle Kanäle setzen TLS (`wss://`) voraus;
 das JWT wird als Query-Parameter mitgegeben (WS-Handshake kann keine
 Authorization-Header setzen — HTTPS verhindert Leaks, README §4).
 
-Ports gemäß README-Verbindungsmatrix: **8765** Terminal, **8766** Discovery,
+Ports gemäß README-Verbindungsmatrix: **8768** Terminal, **8766** Discovery,
 **8767** Status-Board — am Proxy unter `/api/ws/…` erreichbar.
+(TCP **8765** ist das Frame-Protokoll des mobilen BLE-Gateways, kein WS-Kanal.)
 
 ---
 
-## 1. `/api/ws/terminal` (Terminal-Bridge :8765)
+## 1. `/api/ws/terminal` (Terminal-Bridge :8768)
 
 Zweck: interaktive Hardware-/SSH-Session (xterm.js ↔ PTY).
 
-**Handshake:** `wss://host:8765/?token=<JWT>&kind=hardware|dongle|network&target=<id>`
+**Handshake:** `wss://host:8768/?token=<JWT>&kind=hardware|dongle|network&target=<id>`
 
 **Serverseitig vor Session-Start:**
 1. `_authorize()` — JWT dekodieren, Action-Matrix

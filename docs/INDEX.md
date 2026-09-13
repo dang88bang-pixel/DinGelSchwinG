@@ -7,6 +7,9 @@ Diese Datei verlinkt die aktiven Projektbereiche, damit jede beschriebene Funkti
 | Bereich | Link |
 |---|---|
 | Projektübersicht | [README](../README.md) |
+| Offene Punkte (TODO) | [TODO.md](../TODO.md) |
+| Befund-/Gap-Matrix | [GAP_MATRIX.md](../GAP_MATRIX.md) |
+| Datei-Inventar | [INVENTAR.csv](../INVENTAR.csv) |
 | Web-/APK-Build | [BUILD_INSTRUCTIONS.md](../BUILD_INSTRUCTIONS.md) |
 | Desktop-Konsole | [desktop/README.md](../desktop/README.md) |
 | API-Spezifikation | [docs/openapi.yaml](openapi.yaml) |

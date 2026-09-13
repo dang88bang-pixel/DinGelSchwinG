@@ -7,7 +7,7 @@ README-Checkliste als Platzhalter markiert sind (`cat`-PTY-Bridge, SSH-Key-Pfade
 > **Scope-Hinweis:** Der eigentliche Server-Code (PTY-Bridge, Scanner, Auth)
 > ist nicht Teil dieses Repos — diese Anleitung beschreibt den produktiven
 > Betrieb gemäß der Architektur in der [README](../README.md) (Ports 5000 /
-> 8765–8767). Dieses Repo enthält die Clients (Web-App/APK, Desktop-Konsole).
+> 8766–8768, dazu Gateway-TCP 8765). Dieses Repo enthält die Clients (Web-App/APK, Desktop-Konsole).
 
 ---
 
@@ -183,7 +183,7 @@ Lesevorgänge anstoßen kann. Der Leser selbst ist bewusst **kein** Trust-Anker.
 
 - [ ] `lsusb` zeigt Dongle, VID in Whitelist (Client **und** Server)
 - [ ] `udev` liefert stabilen `/dev/dingelschwing/ttyACM0`-Symlink
-- [ ] Bridge-Health: `curl -s https://host:8765/...` bzw. WS-Handshake über Proxy
+- [ ] Bridge-Health: `curl -s https://host:8768/...` bzw. WS-Handshake über Proxy
 - [ ] SSH: Login mit Service-Key ohne Passwort, `known_hosts` gepinnt
 - [ ] BLE: `bluetoothctl scan le` liefert Beacons auf dem Host
 - [ ] Interlock-Test: nicht-gewhitelistetes Gerät → `DONGLE_MISSING`

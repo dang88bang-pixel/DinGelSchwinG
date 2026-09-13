@@ -80,11 +80,6 @@ Beschreibung: Status des mobilen BLE-Gateways (Honeywell CT45P Xon+): Zähler, B
 Aufruf: "gateway status" | "wie ist der gateway-status?" | "BLE-Gateway prüfen"
 Parameter: keine
 
-## gateway_tokens
-Beschreibung: Zeigt die Token-Whitelist inkl. Sperr- und Revoke-Status.
-Aufruf: "token whitelist" | "zeige die berechtigten token" | "wer ist gesperrt?"
-Parameter: keine
-
 ## gateway_sessions
 Beschreibung: Letzte Lesevorgänge mit Begründung, Dauer und Batterie.
 Aufruf: "gateway sessions" | "wer wurde abgelehnt" | "protokoll der lesungen"

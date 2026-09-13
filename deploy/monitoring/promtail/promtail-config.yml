@@ -8,7 +8,7 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 # Sammelt die JSON-Container-Logs des App-Stacks (Flask auth :5000,
-# pty_bridge :8765, scanner :8766, status_board :8767). Strukturierte
+# pty_bridge :8768, scanner :8766, status_board :8767). Strukturierte
 # Logs (session_id/trace_id) werden als Loki-Labels nutzbar.
 scrape_configs:
   - job_name: docker

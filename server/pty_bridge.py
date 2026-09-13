@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Terminal-Bridge :8765 — PTY / Serial / SSH (RBAC + Interlock)."""
+"""Terminal-Bridge :8768 — PTY / Serial / SSH (RBAC + Interlock)."""
 from __future__ import annotations
 
 import json
@@ -23,7 +23,7 @@ from .rbac import allows
 from .wsutil import WsClient, decode_frame, serve
 
 BIND = os.environ.get("NEXUS_BIND", "0.0.0.0")
-PORT = int(os.environ.get("PTY_PORT", "8765"))
+PORT = int(os.environ.get("PTY_PORT", "8768"))
 IDLE = 10 * 60
 ABS_MAX = 60 * 60
 

@@ -16,10 +16,10 @@ services:
     command: python3 -m server.pty_bridge
     environment:
       NEXUS_BIND: 0.0.0.0
-      PTY_PORT: "8765"
+      PTY_PORT: "8768"
       SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
     ports:
-      - "8765:8765"
+      - "8768:8768"
     volumes:
       - nexus-data:/app/server/data
     privileged: true

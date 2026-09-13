@@ -353,6 +353,49 @@ export class AgentEngine {
       if (skill === 'gallery_list') return this.intentGallery(params.query ?? 'gallerie');
       if (skill === 'gallery_install') return this.intentGalleryInstall('', params.id ?? '');
       if (skill === 'knowledge_search') return this.intentKnowledgeSearch(params.query ?? 'wissen');
+      if (skill === 'show_workflows') return this.intentWorkflows();
+      if (skill === 'show_audit') return this.intentAudit();
+      if (skill === 'clear_cache') return this.intentClearCache();
+      if (skill === 'stop_workflow') return this.intentStop();
+      if (skill === 'help') return this.intentHelp();
+      if (skill === 'assign_button') {
+        const slot = params.button ?? params.slot ?? '';
+        const target = params.script ?? params.workflow ?? params.skill ?? '';
+        return this.intentAssignButton(`belege button ${slot} mit ${target}`.trim());
+      }
+      if (skill === 'mcp_list') return this.intentMcpList(params.query ?? params.tool ?? '');
+      if (skill === 'mcp_connect') return this.intentMcpConnectText();
+      if (skill === 'mcp_call') {
+        if (!params.tool) return '⚠️ `mcp_call` braucht `tool=<name>` (z. B. `tool=health_check`).';
+        return this.intentMcpCall(params.tool, line);
+      }
+      if (skill === 'token_auth') {
+        const tokenId = params.token ?? params.token_id ?? '';
+        if (!tokenId) return '⚠️ `token_auth` braucht `token=<token-id>` (und `uid=<uid>`).';
+        return this.intentTokenAuth(tokenId, params.uid ?? '');
+      }
+      if (skill === 'token_demo') return this.intentGatewayDemo();
+      if (skill === 'knowledge_add') {
+        const text = params.text ?? '';
+        if (text.length < 6) return '⚠️ `knowledge_add` braucht `text=<mindestens 6 Zeichen>`.';
+        return this.intentKnowledgeAddRaw(text, params.title);
+      }
+      if (skill === 'page_ingest' || skill === 'content_review') {
+        const url = params.url ?? '';
+        if (!/^https?:\/\//i.test(url)) return `⚠️ \`${skill}\` braucht \`url=https://…\`.`;
+        return this.intentPageIngest(url, {
+          reviewOnly: skill === 'content_review',
+          importSoftware: params.software !== 'false',
+        });
+      }
+      if (skill === 'portview_scan') {
+        return this.intentPortview(params.force === 'true' || params.erzwingen === 'true');
+      }
+      if (skill === 'grabber_import_url') {
+        const url = params.url ?? '';
+        if (!/^https?:\/\//i.test(url)) return '⚠️ `grabber_import_url` braucht `url=https://…`.';
+        return this.intentGrabber(url, line.toLowerCase());
+      }
       if (skill === 'gateway_grant') {
         const sid = String(params.sid ?? '').trim();
         if (!sid) return '⚠️ `gateway_grant` braucht `sid=<sid>` (und optional `granted=false`).';
@@ -1485,10 +1528,24 @@ export class AgentEngine {
     if (action.startsWith('workflow:')) {
       const name = action.split(':')[1];
       if (name === 'scan') return this.intentScanLive('scan');
-      this.startTask(name, 10);
-      window.setTimeout(() => this.finishTask(name), 6000);
-      this.audit('start_workflow', name);
-      return `✅ Workflow '${name}' gestartet (siehe Status-Panel).`;
+      // Ehrlich bleiben: der Browser führt keine fremden Workflows aus und
+      // erfindet keinen Fortschritt. Der Task bleibt als 'queued' sichtbar.
+      this.startTask(name, 0);
+      this.audit('start_workflow', `${name} (queued – keine Browser-Ausführung)`);
+      return (
+        `⏸️ Workflow '${name}' ist eingetragen (Status: queued) – ausgeführt wird er hier nicht.\n` +
+        'Echte Ausführung: Operations-Center → `/api/scripts/run`, Desktop-Konsole → Skripte-Galerie\n' +
+        'oder ein passendes MCP-Tool („mcp tools“). Nur `workflow:scan` läuft im Browser (Live-Scan).'
+      );
+    }
+    if (action.startsWith('task:')) {
+      const name = action.split(':')[1] ?? 'custom';
+      this.audit('task_button', name);
+      return (
+        `ℹ️ Button-Aktion '${name}' ist eine freie Platzhalter-Aktion.\n` +
+        'Belege den Button mit etwas Ausführbarem: „Belege Button 3 mit network_scan.py“\n' +
+        'oder „Belege Button 3 mit workflow scan“.'
+      );
     }
     return `❓ Unbekannte Aktion: ${action}`;
   }

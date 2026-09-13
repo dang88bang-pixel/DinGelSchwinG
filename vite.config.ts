@@ -31,7 +31,7 @@ export default defineConfig({
         changeOrigin: true
       },
       // server/-Backend (PR #4/#5): REST auf :5000, Terminal-/Discovery-/Status-WS
-      '/api/ws/terminal': { target: 'http://127.0.0.1:8765', ws: true, changeOrigin: true },
+      '/api/ws/terminal': { target: 'http://127.0.0.1:8768', ws: true, changeOrigin: true },
       '/api/ws/discovery': { target: 'http://127.0.0.1:8766', ws: true, changeOrigin: true },
       '/api/ws/status': { target: 'http://127.0.0.1:8767', ws: true, changeOrigin: true },
       '/api': {
@@ -45,7 +45,7 @@ export default defineConfig({
     port: 4173,
     allowedHosts: true,
     proxy: {
-      '/api/ws/terminal': { target: 'http://127.0.0.1:8765', ws: true, changeOrigin: true },
+      '/api/ws/terminal': { target: 'http://127.0.0.1:8768', ws: true, changeOrigin: true },
       '/api/ws/discovery': { target: 'http://127.0.0.1:8766', ws: true, changeOrigin: true },
       '/api/ws/status': { target: 'http://127.0.0.1:8767', ws: true, changeOrigin: true },
       '/api': {

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -34,6 +35,10 @@ from .research import research as do_research
 BIND = os.environ.get("NEXUS_BIND", "0.0.0.0")
 PORT = int(os.environ.get("NEXUS_PORT", "5000"))
 WORKFLOWS: list[dict[str, Any]] = []
+#: Skripte, die der Executor wirklich ausführt (alles andere → 501).
+SCRIPT_IMPL = {"network_scan.py", "network_scan", "scan"}
+#: Workflows, die serverseitig echte Arbeit ausführen (alles andere → 501).
+WORKFLOW_IMPL = {"scan_network", "network_scan", "scan"}
 WF_LOCK = threading.Lock()
 
 
@@ -188,6 +193,24 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         _json(handler, 200, {"token": token, "role": user["role"], "email": user["email"]})
         return
 
+    # Geräte-Statusübersicht für die Desktop-Konsole (docs/openapi.yaml)
+    if path == "/api/devices-status" and method == "GET":
+        if not _need(handler, "devices.read"):
+            return
+        _json(handler, 200, [
+            {
+                "id": d.get("id"),
+                "name": d.get("name"),
+                "type": d.get("type"),
+                "online": bool(d.get("online")),
+                "bound": bool(d.get("bound")),
+                "rssi": d.get("rssi"),
+                "lastSeen": d.get("lastSeen") or d.get("last_seen"),
+            }
+            for d in store.list_devices()
+        ])
+        return
+
     if path == "/api/devices" and method == "GET":
         claims = _need(handler, "devices.read")
         if not claims:
@@ -250,12 +273,16 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         handler.end_headers()
         return
 
-    if path == "/api/discovery/scan" and method in ("GET", "POST"):
+    # `/api/scan` ist der von Operations-Center/Agent-Konsole genutzte Alias.
+    if path in ("/api/discovery/scan", "/api/scan") and method in ("GET", "POST"):
         claims = _need(handler, "discovery.scan")
         if not claims:
             return
-        subnet = qs.get("subnet") or "192.168.1.0/24"
+        subnet = qs.get("subnet") or ""
         deep = qs.get("deep") == "1" or method == "POST"
+        if not subnet and method == "POST":
+            subnet = str(_read_json(handler).get("subnet") or "")
+        subnet = subnet or "192.168.1.0/24"
         scanned = collect_all(do_net_scan=deep, subnet=subnet)
         merged = _merge_discovered(scanned)
         store.audit("discovery.scan", claims["sub"], claims["role"], "ok", f"{len(scanned)} nodes")
@@ -356,6 +383,52 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         _json(handler, 200, {"synced": True, "ts": pairing["lastSync"]})
         return
 
+    # Gerät zu einem Pairing hinzufügen (docs/openapi.yaml: POST /api/pairings/{pid}/devices)
+    if path.startswith("/api/pairings/") and path.endswith("/devices") and method == "POST":
+        claims = _need(handler, "devices.write")
+        if not claims:
+            return
+        pid = path.split("/")[3]
+        pairing = store.get_pairing(pid)
+        if not pairing:
+            _json(handler, 404, {"type": "error", "code": "NOT_FOUND", "message": "Pairing unbekannt"})
+            return
+        device_id = str(_read_json(handler).get("deviceId") or "")
+        known = {d["id"] for d in store.list_devices()}
+        if not device_id or device_id not in known:
+            _json(handler, 404, {"type": "error", "code": "NOT_FOUND", "message": "Gerät unbekannt"})
+            return
+        ids = list(pairing.get("deviceIds") or [])
+        if device_id not in ids:
+            ids.append(device_id)
+        pairing["deviceIds"] = ids
+        store.save_pairing(pairing)
+        store.audit("pairing.device.add", claims["sub"], claims["role"], "ok", f"{pid}:{device_id}")
+        _json(handler, 200, pairing)
+        return
+
+    # Gerät aus einem Pairing entfernen (DELETE /api/pairings/{pid}/devices/{id})
+    if (path.startswith("/api/pairings/") and "/devices/" in path
+            and method == "DELETE" and path.count("/") == 5):
+        claims = _need(handler, "devices.write")
+        if not claims:
+            return
+        parts = path.split("/")
+        pid, device_id = parts[3], parts[5]
+        pairing = store.get_pairing(pid)
+        if not pairing:
+            _json(handler, 404, {"type": "error", "code": "NOT_FOUND", "message": "Pairing unbekannt"})
+            return
+        ids = list(pairing.get("deviceIds") or [])
+        if device_id not in ids:
+            _json(handler, 404, {"type": "error", "code": "NOT_FOUND", "message": "Gerät nicht im Pairing"})
+            return
+        pairing["deviceIds"] = [i for i in ids if i != device_id]
+        store.save_pairing(pairing)
+        store.audit("pairing.device.remove", claims["sub"], claims["role"], "ok", f"{pid}:{device_id}")
+        _json(handler, 200, pairing)
+        return
+
     if path.startswith("/api/pairings/") and method == "DELETE" and path.count("/") == 3:
         claims = _need(handler, "devices.delete")
         if not claims:
@@ -388,27 +461,47 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         if not claims:
             return
         body = _read_json(handler)
-        name = body.get("name") or "task"
-        entry = {
+        name = str(body.get("name") or "")
+        subnet = str(body.get("subnet") or "192.168.1.0/24")
+        # Ehrlich bleiben: nur benannte Workflows führen echte Arbeit aus –
+        # alles andere bekommt 501 statt eines erfundenen "success".
+        if name not in WORKFLOW_IMPL:
+            _json(handler, 501, {
+                "type": "error",
+                "code": "NOT_IMPLEMENTED",
+                "message": (
+                    f"Workflow '{name or '(leer)'}' führt hier keine echte Arbeit aus. "
+                    f"Implementiert: {', '.join(sorted(WORKFLOW_IMPL))}."
+                ),
+            })
+            return
+        entry: dict[str, Any] = {
             "name": name,
             "status": "running",
-            "progress": 5,
+            "progress": 25,
             "started": time.strftime("%H:%M:%S"),
         }
         with WF_LOCK:
             WORKFLOWS[:] = [w for w in WORKFLOWS if w.get("name") != name]
             WORKFLOWS.append(entry)
         store.audit("workflow.start", claims["sub"], claims["role"], "ok", name)
-
-        def _finish() -> None:
-            time.sleep(2)
-            with WF_LOCK:
-                for w in WORKFLOWS:
-                    if w.get("name") == name:
-                        w["progress"] = 100
-                        w["status"] = "success"
-
-        threading.Thread(target=_finish, daemon=True).start()
+        try:
+            scanned = collect_all(do_net_scan=True, subnet=subnet)
+            merged = _merge_discovered(scanned)
+            entry.update({
+                "status": "success",
+                "progress": 100,
+                "result": {"subnet": subnet, "scanned": len(scanned), "devices": len(merged)},
+                "finished": time.strftime("%H:%M:%S"),
+            })
+        except Exception as exc:  # noqa: BLE001
+            entry.update({
+                "status": "error",
+                "progress": 100,
+                "error": str(exc)[:200],
+                "finished": time.strftime("%H:%M:%S"),
+            })
+            store.audit("workflow.error", claims["sub"], claims["role"], "error", name)
         _json(handler, 200, entry)
         return
 
@@ -459,6 +552,13 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         _json(handler, 200, throughput_selftest())
         return
 
+    # Alias für die Netzdiagnose-Oberfläche (Operations-Center, docs/INDEX.md).
+    if path == "/api/diagnostics/iperf" and method in ("GET", "POST"):
+        if not _need(handler, "diag.run"):
+            return
+        _json(handler, 200, {**throughput_selftest(), "tool": "http-loopback", "target": "local-mesh"})
+        return
+
     if path == "/api/research" and method == "GET":
         if not _need(handler, "diag.run"):
             return
@@ -503,8 +603,30 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         if not claims:
             return
         body = _read_json(handler)
-        name = body.get("script") or "network_scan.py"
-        subnet = (body.get("args") or {}).get("subnet") or "192.168.1.0/24"
+        # Zwei Aufrufer-Formate: Agent/CLI {script, args:{subnet}} und
+        # Operations-Center {name, args:"--subnet 10.0.0.0/24"} (args als String).
+        name = str(body.get("script") or body.get("name") or "network_scan.py")
+        args = body.get("args")
+        subnet = ""
+        if isinstance(args, dict):
+            subnet = str(args.get("subnet") or "")
+        elif isinstance(args, str):
+            found = re.search(r"--subnet[= ]+([0-9A-Fa-f:.]+/\d{1,2})", args)
+            subnet = found.group(1) if found else ""
+        subnet = subnet or str(body.get("subnet") or "") or "192.168.1.0/24"
+        # Ehrlich bleiben: ausgeführt wird hier nur der Discovery-Scan. Ein
+        # fremdes Skript wird nicht vorgetäuscht, sondern mit 501 beantwortet.
+        if name not in SCRIPT_IMPL:
+            _json(handler, 501, {
+                "type": "error",
+                "code": "NOT_IMPLEMENTED",
+                "message": (
+                    f"Skript '{name}' wird serverseitig nicht ausgeführt. "
+                    f"Implementiert: {', '.join(sorted(SCRIPT_IMPL))}. "
+                    "Echte Skripte laufen in der Desktop-Konsole (desktop/data/scripts)."
+                ),
+            })
+            return
         scanned = collect_all(do_net_scan=True, subnet=subnet)
         _merge_discovered(scanned)
         store.audit("run_script", claims["sub"], claims["role"], "ok", name)

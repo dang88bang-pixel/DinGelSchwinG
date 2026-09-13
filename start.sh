@@ -24,7 +24,7 @@ python3 -m server.scanner_service >> logs/scan.log 2>&1 & echo $! > logs/scan.pi
 python3 -m server.status_board >> logs/status.log 2>&1 & echo $! > logs/status.pid
 
 echo "API     :5000   (pid $(cat logs/api.pid))"
-echo "Terminal:8765   (pid $(cat logs/pty.pid))"
+echo "Terminal:8768   (pid $(cat logs/pty.pid))"
 echo "Discover:8766   (pid $(cat logs/scan.pid))"
 echo "Status  :8767   (pid $(cat logs/status.pid))"
 

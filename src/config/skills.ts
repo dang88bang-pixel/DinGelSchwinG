@@ -159,13 +159,6 @@ export const SKILLS: Skill[] = [
     example: 'knowledge_search ct45p reichweite',
   },
   {
-    name: 'gateway_tokens',
-    description: 'Zeigt die Token-Whitelist des Gateways (Zonen, Rollen, Sperr-/Tamper-Status).',
-    calls: ['"gateway whitelist"', '"welche token sind freigeschaltet?"', '"sind token gesperrt?"'],
-    params: 'keine',
-    example: '',
-  },
-  {
     name: 'gateway_sessions',
     description: 'Letzte Lesevorgänge am Gateway inkl. Grant/Deny-Grund und Latenz.',
     calls: ['"gateway sessions"', '"wer wurde abgelehnt?"', '"letzte lesungen"'],
