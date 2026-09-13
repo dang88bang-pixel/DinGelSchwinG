@@ -2,8 +2,8 @@
 
 **Stand: 2026-09-13 · Fassung 2.0 (100 % erfasst, jede Zeile gegen den Arbeitsbaum verifiziert)**
 
-> **Vollständigkeitsanspruch.** Diese Matrix erfasst **alle 386 tracked Dateien**
-> (`git ls-files | wc -l` → 386) über alle neun Baugruppen des Repos. Jede Zeile nennt die
+> **Vollständigkeitsanspruch.** Diese Matrix erfasst **alle 388 tracked Dateien**
+> (`git ls-files | wc -l` → 388) über alle neun Baugruppen des Repos. Jede Zeile nennt die
 > Anforderungsquelle, die Umsetzung **mit Datei/Beweis** und den am 2026-09-13 selbst
 > ausgeführten Nachweis (Befehle + Ausgaben in **§ 11 Verifikationsprotokoll**).
 > Zeilen ohne lauffähigen Nachweis sind ausdrücklich als ⛔/„nicht ausführbar" markiert —
@@ -32,9 +32,10 @@
 | Betrieb (Docker/NGINX/Monitoring/CI) | `deploy/`, `docker-compose.yml`, `.github/` | § 8 (6) | ✅ |
 | Qualitätssicherung & Audit-Artefakte | `tests/`, `*/tests/`, `INVENTAR.csv`, `Makefile` | § 9 (7) | ✅ |
 | Phasen-Spec-Sonderpunkte | — | § 10 (8) | ✅ |
+| **Aktionsketten** (Skills → Tools → Buttons → Workflows) | `src/lib/agent/`, `desktop/utils/agent.py`, `server/app.py` | § 14 (Tiefenprüfung + Liste A-1…A-11) | ✅ |
 
 **Audit-Artefakt `INVENTAR.csv`** (Generator `scripts/audit_inventar.py`, `make inventar`):
-**386 Dateien** → REAL 372 · BACKUP 9 · STUB 2 · PLACEHOLDER 2 · TODO 1 · MOCK 0 · FIXME 0 · DEAD 0.
+**388 Dateien** → REAL 374 · BACKUP 9 · STUB 2 · PLACEHOLDER 2 · TODO 1 · MOCK 0 · FIXME 0 · DEAD 0.
 Die fünf Nicht-REAL-Befunde (ohne Backups) stehen 1:1 in § 12 „Offene Punkte".
 Der Status ist **belegt, nicht behauptet**: Der Generator scannt jede Quelldatei nach
 Markern (TODO/FIXME/MOCK/STUB/PLACEHOLDER/„not implemented") und nennt in der Begründung
@@ -164,11 +165,11 @@ Zeilennummer + Textstelle; Doku-/Datendateien und Test-Dateien werden als solche
 
 | # | Gefordert | Vorhanden (Beweis) | Status |
 |---|---|---|---|
-| 9.1 | Einheitliche Test-Matrix | `make test-all` (2026-09-13, **exit 0**): server 10 + desktop 55 + gateway 47 + selftest 24 + genesis 10 + web 30 = **176 Checks**, dazu Smoke 13 + 20 + Lasttest | ✅ |
-| 9.2 | `npm test` | Vitest 0.34 + happy-dom: **30/30** (retry 8, bugReport 3, agentEngine 10, enterprise-nodes 9) | ✅ |
+| 9.1 | Einheitliche Test-Matrix | `make test-all` (2026-09-13, **exit 0**): server 10 + desktop **61** + gateway 47 + selftest 24 + genesis 10 + web **36** = **188 Checks**, dazu Smoke 13 + 20 + Lasttest | ✅ |
+| 9.2 | `npm test` | Vitest 0.34 + happy-dom: **36/36** (retry 8, bugReport 3, agentEngine 10, enterprise-nodes 9, **Aktionsketten-Deckung 6**) | ✅ |
 | 9.3 | Typen/Lint/Build | `tsc --noEmit` clean, `eslint --max-warnings 0` clean, `vite build` Erfolg (35 s; Chunk-Warnung > 500 kB bleibt Tech-Debt) | ✅ |
 | 9.4 | Test-Isolation gegen Ambient-Dienste | **Neu:** Desktop-Tests pinnen `api_client.BASE_URL` auf `127.0.0.1:1`; Agent-Engine-Tests stubben `fetch` (vorher schlug `intentScanLive` fehl, sobald Gateway/Bridge liefen — im Voll-Lauf reproduziert und behoben) | ✅ |
-| 9.5 | Audit-Inventar aktuell | `INVENTAR.csv` neu erzeugt: **386 Dateien** (vorher 310 — `server/`, `tests/`, `deploy/` fehlten), marker-basiert belegt | ✅ |
+| 9.5 | Audit-Inventar aktuell | `INVENTAR.csv` neu erzeugt: **388 Dateien** (vorher 310 — `server/`, `tests/`, `deploy/` fehlten), marker-basiert belegt | ✅ |
 | 9.6 | Keine Secrets im Code | grep-Audit über `*.py/ts/tsx/kt/mjs/json/yml` → **0 Treffer** (§ 11) | ✅ |
 | 9.7 | Keine TODO/FIXME-Marker im Produktionscode | Generator-Befund: **FIXME 0**, TODO **1** (nur `config/enterprise-nodes.csv`, Datenebene) | ✅ |
 
@@ -210,7 +211,7 @@ Alles selbst ausgeführt (Sandbox: Node v22.22.3, Python 3.11.2, `npm ci` → 52
 | OpenAPI | PyYAML-Parse + Zählung | **31 Pfade**, alle mit Operation |
 | i18n | Schlüssel-Vergleich de/en | 222/222, **0** Abweichungen |
 | Secrets | grep über alle Quell-/Config-Dateien | **0 Treffer** |
-| Inventar | `python3 scripts/audit_inventar.py` | **386 Dateien**, 5 Nicht-REAL (+9 Backups) |
+| Inventar | `python3 scripts/audit_inventar.py` | **388 Dateien**, 5 Nicht-REAL (+9 Backups) |
 | CI | `gh run list --workflow=build-apk.yml` | letzter `main`-Run **success** (34718200773) |
 | Nicht ausführbar | Docker, NGINX, Gradle/Kotlin, Rust/crates.io, `dl.google.com` | in der Sandbox blockiert/abwesend (⛔-Zeilen 4.6, 6.10, 8.1, 8.2, 1.16) |
 
@@ -253,13 +254,94 @@ Alles selbst ausgeführt (Sandbox: Node v22.22.3, Python 3.11.2, `npm ci` → 52
 11. `README.md`: falsche Abhängigkeitsliste (xterm/Flask/PyJWT/pyserial/paramiko) und
     „Audit in-memory" korrigiert; `server/requirements.txt`: nicht implementierte Flask-Variante entfernt.
 
+## 14. Aktionsketten — Tiefenprüfung (Nachtrag 2026-09-13)
+
+**Kettenaufbau (Code gelesen, nicht angenommen).** Web: `ask()` → `answer()` mit
+(0) Freigabe eines ausstehenden ADB-Plans → (1) Laufzeit-Cache → (2) `tryAsyncIntents()`
+(20 Async-Intents) → (3) `tryIntents()` (15 deterministische Skills) → (4) optionales Modell
+mit RAG-Kontext, dessen `TOOL:`-Zeilen über `executeToolLine()` laufen → (5) ehrlicher Fallback.
+Desktop: gleiche Stufen, Tool-Kette über `_dispatch_tool_line()`. Buttons: `executeAction(idx)`
+→ `executeActionString()` (`attach`, `export`, `audit`, `stop`, `clear_cache`, `script:*`,
+`workflow:*`, `task:*`). Backend-Aktionen: `/api/scan`, `/api/scripts/run`,
+`/api/diagnostics/iperf`, `/api/workflows`.
+
+### 14.1 Deckung — gemessen
+
+| Kette | Deklariert | Bedient | Beleg (läuft in `make test-all`) |
+|---|---|---|---|
+| Web-Skills → `executeToolLine` | **30** (Duplikat `gateway_tokens` entfernt) | **30/30** | `src/lib/agent/__tests__/actionChainCoverage.test.ts` (6/6) |
+| Web-Buttons → `executeActionString` | 6 | **6/6** | dito |
+| Desktop-Skills → Tool-Kette | **37** (30 Chat + 7 ADB; Duplikat in `skillz.md` entfernt) | **37/37** | `desktop/tests/test_skill_chain.py` (6/6) |
+| Desktop-Buttons | 6 | **6/6** | dito |
+| Deterministischer Chat-Pfad Web | — | 20 Async- + 15 Sync-Intents | `tryAsyncIntents`/`tryIntents` (Code) |
+| MCP-Tools | 31 listbar | 1 Call live verifiziert (22 ms), 5 upstream „not implemented" | `npm run mcp:list`, Bridge-Call |
+| Backend-Aktionen | 4 | 4/4 (200), unbekannte Skripte/Workflows → **501** | Live-Curls, § 14.3 |
+
+**Vor der Prüfung:** Web 14/30 Skills verdrahtet (16 liefen in „⚠️ Unbekannter Skill"),
+Desktop 18/37, `gateway_grant` lieferte `None` (TypeError-Risiko), `workflow:<name>`
+erfand nach 6 s `success`, `POST /api/workflows` markierte **jeden** Namen nach 2 s als
+`success`, `POST /api/scripts/run` lieferte für **jedes** Skript ein Scan-Ergebnis.
+
+### 14.2 In dieser Prüfung repariert (live nachgewiesen)
+
+| # | Kette | vorher | nachher |
+|---|---|---|---|
+| 1 | Web `executeToolLine` | 14/30 | **30/30** (u. a. `mcp_*`, `token_*`, `portview_scan`, `grabber_import_url`, `page_ingest`, `content_review`, `show_workflows`, `show_audit`, `clear_cache`, `stop_workflow`, `help`, `assign_button`, `knowledge_add`) |
+| 2 | `content_review` | Skill ohne Handler | `intentPageIngest(url, {reviewOnly:true})` (schreibt nichts) |
+| 3 | `skills.ts` | 31 Einträge, `gateway_tokens` doppelt | 30 eindeutige Skills (Test prüft Duplikatfreiheit) |
+| 4 | Desktop-Tool-Kette | 18/37 | **37/37** inkl. 7 ADB-Skills |
+| 5 | Desktop `gateway_grant` | `None` → `TypeError` im Aufrufer | sid-Pflicht + `_execute_tool_line` gibt nie `None` zurück |
+| 6 | `skillz.md` | `gateway_tokens` doppelt | eindeutig |
+| 7 | Web-Button `workflow:<name>` | `setTimeout` → erfundener `success` | Task bleibt `queued`, Antwort nennt die echten Ausführungswege |
+| 8 | Web-Button `task:*` | „❓ Unbekannte Aktion" | erklärt sich + zeigt, wie man den Button belegt |
+| 9 | `POST /api/workflows` | jeder Name → 2 s → `success` | `scan_network` führt echten Scan aus (`result.scanned=24`), sonst **501** |
+| 10 | `POST /api/scripts/run` | jedes Skript → Scan-Ergebnis | nur `network_scan.py` (200), sonst **501** mit Verweis auf die Desktop-Konsole |
+| 11 | `docs/openapi.yaml` | POST `/api/workflows` und 501-Fälle fehlten | ergänzt (31 Pfade, YAML parse-bar) |
+
+### 14.3 Offene Teile in den Aktionsketten (vollständige Liste)
+
+| ID | Offener Teil | Ist-Zustand | Schließen durch |
+|---|---|---|---|
+| **A-1** | Skript-Ausführung serverseitig | Nur `network_scan.py` läuft echt; alles andere 501. Browser führt gar nichts aus (Hinweis), echte Skripte nur Desktop (`desktop/data/scripts`) | Skript-Runner im Backend (Whitelist, Timeout, Sandbox) + `scripts`-Tabelle |
+| **A-2** | Workflow-Kette | Nur `scan_network` implementiert; Web-Button trägt fremde Workflows als `queued` ein | Workflow-Registry mit echten Schritten + Fortschritt aus `/api/workflows` |
+| **A-3** | LLM-Kette | Max. **5** `TOOL:`-Zeilen pro Antwort (`slice(0, 5)`), **ein** Durchgang — Tool-Ergebnisse gehen nicht zurück ins Modell | Multi-Turn-Agent-Loop mit Ergebnis-Rückkopplung + Abbruchkriterium |
+| **A-4** | MCP-Kette | 5 der 31 Upstream-Tools „not implemented" (Fremdpaket) | Upstream-Issue / eigener Tool-Adapter |
+| **A-5** | ADB-Kette im Browser | `adb_backup/rescue/pentest/logs/connect/shell` liefern Plan + generiertes Skript, **keine** Ausführung; `adb_devices` nur Hinweis (Browser-Grenze) | Native App (APK) oder Desktop; Web bleibt Plan-Generator |
+| **A-6** | `assign_button` → `task:custom` | Platzhalter-Aktion (erklärt sich selbst, führt nichts aus) | Freie Aktionen auf echte Skills/Endpoints abbilden |
+| **A-7** | Ingest-/Grabber-Kette offline | `page_ingest`, `content_review`, `grabber_import_url` brauchen Gateway/Bridge; offline strukturierte Fehlermeldung (kein Fake), aber kein Offline-Pfad | Lokaler Ingest ohne Gateway (RAG + Asset-Store direkt) |
+| **A-8** | Genesis-3D-Kette | `RaycastUtil.perform3DRaycast()` Dummy ohne Aufrufer; real ist `HitTest.kt` (2D) — siehe G-4 | Filament-Renderer + inverse View-Projection, sonst Datei entfernen |
+| **A-9** | Terminal- + Gateway-Kette gleichzeitig | Default-Port **8765** doppelt belegt (G-5); nur mit `PTY_PORT`/`DGS_TCP_PORT` parallel | Einen Default verschieben + Doku nachziehen |
+| **A-10** | Enterprise-Knoten-Kette | `probeNodeEndpoint()` funktioniert (9 Tests), aber **keine UI** ruft sie auf (G-2); `GET /api/nodes/validate` prüft nur das eigene Backend | Panel/Skill anbinden; `/api/nodes/validate` auf echte Knoten erweitern |
+| **A-11** | Audio-/JNI-Kette | Nicht vorhanden (Spec-Abweichung 10.3/10.4) | Nur bei neuer Anforderung |
+
+**Außerhalb der Aktionsketten offen:** G-1 (Knoten-Planungsdaten), G-3 (`fastboot`-Platzhalter),
+G-6 (kein `.wasm`), G-7 (CT45P proprietär), G-8 (kein Android-SDK lokal), G-9 (Bundle > 500 kB),
+G-10 (Upstream-Paket) — Details in § 12.
+
+### 13.1 Nachtrag Tiefenprüfung Aktionsketten (gleicher Tag, zweite Runde)
+
+12. Web-Tool-Kette 14/30 → **30/30** verdrahtet (`executeToolLine`), `content_review` bekam
+    einen echten Handler (`reviewOnly`-Ingest), Duplikat `gateway_tokens` entfernt.
+13. Desktop-Tool-Kette 18/37 → **37/37** (inkl. 7 ADB-Skills), `gateway_grant`-`None`-Pfad
+    beseitigt, `_execute_tool_line` liefert garantiert Text, Duplikat in `skillz.md` entfernt.
+14. Fake-Erfolge entfernt: Web-Button `workflow:<name>` (erfundener `success` nach 6 s),
+    `POST /api/workflows` (jeder Name → `success`), `POST /api/scripts/run`
+    (jedes Skript → Scan-Ergebnis). Jetzt: echte Arbeit oder **501**.
+15. Neue Deckungs-Tests: `actionChainCoverage.test.ts` (6) + `desktop/tests/test_skill_chain.py` (6);
+    `docs/openapi.yaml` um POST `/api/workflows` + 501-Antworten ergänzt.
+16. Neuer Abschnitt **§ 14** mit gemessener Deckung und der vollständigen Liste offener
+    Kettenteile **A-1…A-11**.
+
 ## Zusammenfassung
 
 - **Erfasste Anforderungen: 93 Zeilen** in 10 Kapiteln (§1 21 · §2 5 · §3 12 · §4 7 · §5 5 ·
   §6 10 · §7 12 · §8 6 · §9 7 · §10 8) — **✅ 80 · ⚠️ 5 · ⛔ 5 · N/A 2 · Teil-N/A 1**
-- **Teststand 2026-09-13: 176/176 Checks grün** (server 10, desktop 55, gateway 47,
-  selftest 24, genesis 10, web 30) **+ 33 Smoke-Checks** + tsc/eslint/vite-build grün;
-  `make test-all` exit 0.
+- **Teststand 2026-09-13 (nach Tiefenprüfung): 188/188 Checks grün** (server 10, desktop 61,
+  gateway 47, selftest 24, genesis 10, web 36) **+ 33 Smoke-Checks** + tsc/eslint/vite-build
+  grün; `make test-all` exit 0.
+- **Aktionsketten (§ 14):** Web 30/30 Skills + 6/6 Buttons, Desktop 37/37 Skills + 6/6 Buttons —
+  offen bleiben **A-1…A-11** (u. a. Skript-Runner, Workflow-Registry, LLM-Multi-Turn,
+  ADB-Ausführung, 3D-Raycast, Port 8765).
 - **Echte Code-Lücken:** keine funktionalen mehr in Web/Gateway/Desktop/Backend —
   verbleibend: G-1/G-2 (Datenbestand + UI-Anbindung), G-4 (ungenutzter 3D-Stub), G-9 (Chunk-Größe).
 - **Infrastruktur-Lücken:** G-3 (fastboot-Binary), G-6 (WASM-Artefakt), G-8 (Android-SDK) —

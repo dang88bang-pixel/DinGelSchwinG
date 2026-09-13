@@ -1097,6 +1097,14 @@ class Agent:
         return body.strip() or "🤖 (leere Antwort – bitte versuche es noch einmal.)"
 
     def _execute_tool_line(self, line: str) -> str:
+        """Öffentliche Tool-Kette: liefert immer einen Text (nie None)."""
+        reply = self._dispatch_tool_line(line)
+        if isinstance(reply, str) and reply.strip():
+            return reply
+        return ("⚠️ Keine ausführbare Antwort für diese TOOL-Zeile – "
+                "Parameter prüfen oder „hilfe“ für die Skill-Liste.")
+
+    def _dispatch_tool_line(self, line: str) -> str | None:
         try:
             _, rest = line.split("TOOL:", 1)
             parts = rest.strip().split()
@@ -1129,10 +1137,15 @@ class Agent:
             if skill == "gateway_selftest":
                 return self._intent_gateway("gateway selbsttest")
             if skill == "gateway_grant":
+                sid = str(params.get("sid", "")).strip()
+                if not re.fullmatch(r"[0-9a-z][0-9a-f-]{5,23}", sid, re.I):
+                    return ("⚠️ `gateway_grant` braucht `sid=<session-id>` "
+                            "(und optional `granted=false` zum Verweigern).")
                 granted = str(params.get("granted", "true")).lower() != "false"
-                return self._intent_gateway(
-                    f"gateway-freigabe sid={params.get('sid', '')} " + ("grant" if granted else "deny")
+                reply = self._intent_gateway(
+                    f"freigabe für sid={sid} " + ("grant" if granted else "deny")
                 )
+                return reply or "⚠️ Gateway-Freigabe nicht möglich (Gateway antwortet nicht)."
             if skill == "gallery_list":
                 return self._intent_gallery("gallerie " + params.get("query", ""))
             if skill == "gallery_install":
@@ -1141,6 +1154,60 @@ class Agent:
                 return self._intent_knowledge_search("suche im wissen: " + params.get("query", ""))
             if skill in {"mcp_call", "mcp_list", "mcp_connect"}:
                 return self._intent_mcp(f"mcp {params.get('tool', 'tools')}")
+            if skill == "show_workflows":
+                return self._intent_workflows()
+            if skill == "show_audit":
+                return self._intent_audit()
+            if skill == "clear_cache":
+                return self._intent_clear_cache()
+            if skill == "stop_workflow":
+                return self._intent_stop()
+            if skill == "help":
+                return self._intent_help()
+            if skill == "assign_button":
+                ziel = params.get("script") or params.get("workflow") or params.get("skill") or ""
+                return self._intent_assign_button(
+                    f"belege button {params.get('button', params.get('slot', ''))} mit {ziel}".strip()
+                )
+            if skill == "knowledge_add":
+                text = params.get("text", "")
+                if len(text) < 6:
+                    return "⚠️ `knowledge_add` braucht `text=<mindestens 6 Zeichen>`."
+                return self._intent_knowledge_add(
+                    f"lern: {params.get('title') or 'chat-import'}: {text}"
+                )
+            if skill == "token_auth":
+                token = params.get("token") or params.get("token_id") or ""
+                if not token:
+                    return "⚠️ `token_auth` braucht `token=<token-id>` (und `uid=<uid>`)."
+                return self._gateway_token_auth(token, params.get("uid", ""), line)
+            if skill == "portview_scan":
+                force = str(params.get("force", params.get("erzwingen", ""))).lower() in {"1", "true", "ja"}
+                return self._intent_portview("portview erzwingen" if force else "portview")
+            if skill in {"page_ingest", "content_review"}:
+                url = params.get("url", "")
+                if not url.lower().startswith(("http://", "https://")):
+                    return f"⚠️ `{skill}` braucht `url=https://…`."
+                return self._intent_page_ingest(url, line, review_only=(skill == "content_review"))
+            if skill == "grabber_import_url":
+                url = params.get("url", "")
+                if not url.lower().startswith(("http://", "https://")):
+                    return "⚠️ `grabber_import_url` braucht `url=https://…`."
+                return self._intent_grabber(url, line)
+            if skill.startswith("adb_"):
+                art = skill[4:]
+                if art == "devices":
+                    return self._intent_adb_devices()
+                phrase = {
+                    "backup": "adb backup planen",
+                    "rescue": "adb rescue datenrettung",
+                    "pentest": "adb pentest schwachstellen",
+                    "logs": "adb logs logcat",
+                    "connect": "adb wifi verbinden connect",
+                    "shell": "adb shell befehl",
+                }.get(art)
+                if phrase:
+                    return self._try_adb_intents(phrase) or f"⚠️ ADB-Plan '{art}' nicht verfügbar."
             return f"⚠️ Unbekannter Skill im Tool-Aufruf: {skill}"
         except Exception as exc:  # noqa: BLE001
             return f"⚠️ Tool-Ausführung fehlgeschlagen: {exc}"

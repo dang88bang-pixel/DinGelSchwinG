@@ -35,6 +35,10 @@ from .research import research as do_research
 BIND = os.environ.get("NEXUS_BIND", "0.0.0.0")
 PORT = int(os.environ.get("NEXUS_PORT", "5000"))
 WORKFLOWS: list[dict[str, Any]] = []
+#: Skripte, die der Executor wirklich ausführt (alles andere → 501).
+SCRIPT_IMPL = {"network_scan.py", "network_scan", "scan"}
+#: Workflows, die serverseitig echte Arbeit ausführen (alles andere → 501).
+WORKFLOW_IMPL = {"scan_network", "network_scan", "scan"}
 WF_LOCK = threading.Lock()
 
 
@@ -457,27 +461,47 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         if not claims:
             return
         body = _read_json(handler)
-        name = body.get("name") or "task"
-        entry = {
+        name = str(body.get("name") or "")
+        subnet = str(body.get("subnet") or "192.168.1.0/24")
+        # Ehrlich bleiben: nur benannte Workflows führen echte Arbeit aus –
+        # alles andere bekommt 501 statt eines erfundenen "success".
+        if name not in WORKFLOW_IMPL:
+            _json(handler, 501, {
+                "type": "error",
+                "code": "NOT_IMPLEMENTED",
+                "message": (
+                    f"Workflow '{name or '(leer)'}' führt hier keine echte Arbeit aus. "
+                    f"Implementiert: {', '.join(sorted(WORKFLOW_IMPL))}."
+                ),
+            })
+            return
+        entry: dict[str, Any] = {
             "name": name,
             "status": "running",
-            "progress": 5,
+            "progress": 25,
             "started": time.strftime("%H:%M:%S"),
         }
         with WF_LOCK:
             WORKFLOWS[:] = [w for w in WORKFLOWS if w.get("name") != name]
             WORKFLOWS.append(entry)
         store.audit("workflow.start", claims["sub"], claims["role"], "ok", name)
-
-        def _finish() -> None:
-            time.sleep(2)
-            with WF_LOCK:
-                for w in WORKFLOWS:
-                    if w.get("name") == name:
-                        w["progress"] = 100
-                        w["status"] = "success"
-
-        threading.Thread(target=_finish, daemon=True).start()
+        try:
+            scanned = collect_all(do_net_scan=True, subnet=subnet)
+            merged = _merge_discovered(scanned)
+            entry.update({
+                "status": "success",
+                "progress": 100,
+                "result": {"subnet": subnet, "scanned": len(scanned), "devices": len(merged)},
+                "finished": time.strftime("%H:%M:%S"),
+            })
+        except Exception as exc:  # noqa: BLE001
+            entry.update({
+                "status": "error",
+                "progress": 100,
+                "error": str(exc)[:200],
+                "finished": time.strftime("%H:%M:%S"),
+            })
+            store.audit("workflow.error", claims["sub"], claims["role"], "error", name)
         _json(handler, 200, entry)
         return
 
@@ -590,6 +614,19 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
             found = re.search(r"--subnet[= ]+([0-9A-Fa-f:.]+/\d{1,2})", args)
             subnet = found.group(1) if found else ""
         subnet = subnet or str(body.get("subnet") or "") or "192.168.1.0/24"
+        # Ehrlich bleiben: ausgeführt wird hier nur der Discovery-Scan. Ein
+        # fremdes Skript wird nicht vorgetäuscht, sondern mit 501 beantwortet.
+        if name not in SCRIPT_IMPL:
+            _json(handler, 501, {
+                "type": "error",
+                "code": "NOT_IMPLEMENTED",
+                "message": (
+                    f"Skript '{name}' wird serverseitig nicht ausgeführt. "
+                    f"Implementiert: {', '.join(sorted(SCRIPT_IMPL))}. "
+                    "Echte Skripte laufen in der Desktop-Konsole (desktop/data/scripts)."
+                ),
+            })
+            return
         scanned = collect_all(do_net_scan=True, subnet=subnet)
         _merge_discovered(scanned)
         store.audit("run_script", claims["sub"], claims["role"], "ok", name)

@@ -415,6 +415,29 @@ paths:
       x-rbac: operator
       responses:
         "200": { description: Workflow-Liste }
+    post:
+      tags: [console]
+      summary: Workflow starten — nur implementierte Namen führen echte Arbeit aus
+      description: |
+        Implementiert ist derzeit `scan_network` (Alias `network_scan`, `scan`):
+        führt einen echten Discovery-Scan aus und liefert `result.scanned`.
+        Jeder andere Name antwortet **501 NOT_IMPLEMENTED** statt eines
+        erfundenen Erfolgs.
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: scan_network }
+                subnet: { type: string, example: "192.168.1.0/24" }
+      responses:
+        "200":
+          description: "{ name, status, progress, started, finished, result }"
+        "501": { $ref: "#/components/responses/JsonError" }
 
   /api/tests:
     get:
@@ -490,6 +513,11 @@ paths:
         "200":
           description: "{ ok, script, output }"
         "403": { $ref: "#/components/responses/JsonError" }
+        "501":
+          description: Skript wird serverseitig nicht ausgeführt (nur `network_scan.py`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /api/diagnostics/iperf:
     get:
