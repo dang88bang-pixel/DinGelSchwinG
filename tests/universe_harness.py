@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -137,7 +138,7 @@ def describe_stack(root: Path) -> list[str]:
 
 
 # ── Schritt 5: Build/Test je Stack ───────────────────────────────────────────
-def _node_check(root: Path, timeout: int) -> tuple[str, str, str]:
+def _node_check(root: Path, timeout: int, strict: bool = False) -> tuple[str, str, str]:
     if not (root / "node_modules").is_dir() and "test" in json.loads(
         (root / "package.json").read_text(encoding="utf-8")
     ).get("scripts", {}):
@@ -147,7 +148,7 @@ def _node_check(root: Path, timeout: int) -> tuple[str, str, str]:
     return "Build/Test (node)", (OK if proc.returncode == 0 else FAIL), detail
 
 
-def _rust_check(root: Path, timeout: int) -> tuple[str, str, str]:
+def _rust_check(root: Path, timeout: int, strict: bool = False) -> tuple[str, str, str]:
     if not has_cmd("cargo"):
         return "Build/Test (rust)", SKIP, "cargo fehlt — https://rustup.rs installieren"
     proc = run("cargo test --no-run", root, timeout)
@@ -155,7 +156,11 @@ def _rust_check(root: Path, timeout: int) -> tuple[str, str, str]:
     return "Build/Test (rust)", (OK if proc.returncode == 0 else FAIL), detail
 
 
-def _android_check(root: Path, timeout: int) -> tuple[str, str, str]:
+def _android_check(root: Path, timeout: int, strict: bool = False) -> tuple[str, str, str]:
+    """Gradle-Unit-Tests. Scheitert der Lauf an der Umgebung (SDK/Java/Gradle-
+    Download), ist das per Default eine ⚠️-Warnung — den harten Android-Nachweis
+    führt der APK-Workflow (`.github/workflows/build-apk.yml`). Mit --strict wird
+    daraus ein ❌."""
     gradlew = next(
         (p for p in (root / "android" / "gradlew", root / "gradlew") if p.exists()), None
     )
@@ -165,11 +170,14 @@ def _android_check(root: Path, timeout: int) -> tuple[str, str, str]:
     if not sdk or not Path(sdk).is_dir():
         return ("Build/Test (android)", SKIP,
                 "Android SDK fehlt (ANDROID_HOME/ANDROID_SDK_ROOT) — `./gradlew testDebugUnitTest`")
+    if not has_cmd("java"):
+        return ("Build/Test (android)", SKIP,
+                "kein `java` im PATH (JDK 21 nötig) — `./gradlew testDebugUnitTest`")
     proc = run("./gradlew testDebugUnitTest --dry-run --no-daemon", gradlew.parent, timeout)
-    detail = "./gradlew testDebugUnitTest --dry-run" if proc.returncode == 0 else tail(
-        proc.stderr or proc.stdout
-    )
-    return "Build/Test (android)", (OK if proc.returncode == 0 else FAIL), detail
+    if proc.returncode == 0:
+        return "Build/Test (android)", OK, "./gradlew testDebugUnitTest --dry-run"
+    return ("Build/Test (android)", FAIL if strict else WARN,
+            "Gradle-Lauf fehlgeschlagen (Umgebung?) — " + tail(proc.stderr or proc.stdout, 3))
 
 
 _SYNTAX_SNIPPET = '''\
@@ -196,10 +204,30 @@ sys.exit(1 if bad else 0)
 '''
 
 
-def _python_check(root: Path, timeout: int) -> tuple[str, str, str]:
+def _python_check(root: Path, timeout: int, strict: bool = False) -> tuple[str, str, str]:
     if run("python3 -c 'import pytest'", root, 60).returncode == 0:
-        proc = run("python3 -m pytest --collect-only -q", root, timeout)
-        label = "python3 -m pytest --collect-only -q"
+        # --continue-on-collection-errors: erst sammeln, dann bewerten.
+        proc = run(
+            "python3 -m pytest --collect-only -q --continue-on-collection-errors", root, timeout
+        )
+        blob = f"{proc.stdout}\n{proc.stderr}"
+        collected = re.search(r"(\d+) tests? collected", blob)
+        label = "python3 -m pytest --collect-only"
+        if collected:
+            label += f" ({collected.group(1)} Tests eingesammelt)"
+        if proc.returncode != 0:
+            # Fehlende Fremdabhängigkeiten (z. B. fastapi) sind Umgebungs-, keine Codefehler.
+            missing = sorted({m for m in re.findall(r"No module named '([A-Za-z0-9_.]+)'", blob)})
+            if missing:
+                status = FAIL if strict else WARN
+                dep = ", ".join(sorted({m.split(".")[0] for m in missing}))
+                return (
+                    "Build/Test (python)",
+                    status,
+                    f"{label} — fehlende Abhängigkeit(en): {dep} "
+                    f"(Installationsbefehl in <projekt>/requirements.txt bzw. pyproject.toml)",
+                )
+            return "Build/Test (python)", FAIL, tail(proc.stdout or proc.stderr)
     else:
         # Kein pytest: Syntaxprüfung über ast.parse — schreibt bewusst *keine*
         # Bytecode-Caches (compileall würde __pycache__ anlegen).
@@ -217,7 +245,7 @@ def _python_check(root: Path, timeout: int) -> tuple[str, str, str]:
     return "Build/Test (python)", (OK if proc.returncode == 0 else FAIL), detail
 
 
-def _go_check(root: Path, timeout: int) -> tuple[str, str, str]:
+def _go_check(root: Path, timeout: int, strict: bool = False) -> tuple[str, str, str]:
     if not has_cmd("go"):
         return "Build/Test (go)", SKIP, "go fehlt — https://go.dev/dl/ installieren"
     proc = run("go test ./...", root, timeout)
@@ -225,8 +253,13 @@ def _go_check(root: Path, timeout: int) -> tuple[str, str, str]:
     return "Build/Test (go)", (OK if proc.returncode == 0 else FAIL), detail
 
 
-def test_build(stack: str, root: Path = DEFAULT_ROOT, timeout: int = 900) -> tuple[str, str, str]:
-    """Führt den Stack-Check aus und liefert (Name, Status, Detail)."""
+def test_build(
+    stack: str, root: Path = DEFAULT_ROOT, timeout: int = 900, strict: bool = False
+) -> tuple[str, str, str]:
+    """Führt den Stack-Check aus und liefert (Name, Status, Detail).
+
+    ``strict=True`` wertet umgebungsbedingte Warnungen (⚠️) als ❌.
+    """
     runners = {
         "node": _node_check,
         "rust": _rust_check,
@@ -237,7 +270,7 @@ def test_build(stack: str, root: Path = DEFAULT_ROOT, timeout: int = 900) -> tup
     runner = runners.get(stack)
     if runner is None:
         return f"Build/Test ({stack})", SKIP, "kein Testkommando für diesen Stack bekannt"
-    return runner(root, timeout)
+    return runner(root, timeout, strict)
 
 
 def test_build_artifact(
@@ -322,6 +355,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Offline-Ports als ❌ werten (sonst ⏭)")
     parser.add_argument("--ports", default=os.environ.get("UNIVERSE_HEALTH_PORTS", ""),
                         help="Ports für /health, z. B. '5000,8791' oder '8080-8085'")
+    parser.add_argument("--strict", action="store_true",
+                        help="umgebungsbedingte Warnungen (z. B. Gradle-Abbruch) als ❌ werten")
     parser.add_argument("--with-build", action="store_true",
                         help="zusätzlich das Build-Artefakt erzeugen (npm run build, cargo build …)")
     parser.add_argument("--timeout", type=int, default=900, help="Timeout je Kommando (s)")
@@ -353,7 +388,7 @@ def main(argv: list[str] | None = None) -> int:
     checks: list[dict] = []
     if not args.skip_build:
         for stack in stacks:
-            name, status, detail = test_build(stack, root, args.timeout)
+            name, status, detail = test_build(stack, root, args.timeout, args.strict)
             checks.append({"name": name, "status": status, "detail": detail})
             print(f"{status} {name}" + (f" — {detail}" if detail and status != OK else ""))
     if args.with_build:

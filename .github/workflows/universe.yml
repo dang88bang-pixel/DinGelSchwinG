@@ -55,8 +55,20 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Abhängigkeiten installieren
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Abhängigkeiten installieren (Node)
         run: npm ci --no-audit --no-fund
+
+      - name: Python-Abhängigkeiten installieren (fail-soft)
+        # Nur so weit wie möglich: fehlende Pakete meldet der Harness als ⚠️, nicht als ❌.
+        run: |
+          python3 -m pip install --quiet --upgrade pip
+          python3 -m pip install --quiet pytest || true
+          python3 -m pip install --quiet -r server/requirements.txt || true
+          python3 -m pip install --quiet -r genesis-orchestrator/fastapi-backend/requirements.txt || true
 
       - name: Test-Harness ausführen
         env:
@@ -64,6 +76,13 @@ jobs:
           UNIVERSE_HEALTH_PORTS: "5000,5173,8790,8791,8080-8085"
         # --with-build erzeugt zusätzlich das Frontend-Artefakt (dist/) — Schritt 5.
         run: python3 tests/universe_harness.py --with-build --json reports/harness.json
+
+      - name: Projekt-Testsuiten (Python)
+        # Die Suiten des Repos selbst — schnell (< 2 s) und ohne Zusatzdienste lauffähig.
+        run: |
+          python3 -m unittest discover -s server/tests
+          python3 mobile-server/tests/test_gateway.py
+          python3 desktop/tests/test_core.py
 
       - name: Ergebnis als Artefakt hochladen
         if: always()
