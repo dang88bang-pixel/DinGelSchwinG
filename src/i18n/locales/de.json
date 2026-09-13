@@ -185,8 +185,6 @@
       "noIdb": "IndexedDB gesperrt",
       "native": "nativ",
       "pwa": "PWA",
-      "demo": "Demo-Pack laden",
-      "demoHint": "Füllt das Feld mit dem Demo-Pack aus public/demo/packs/",
       "pageTitle": "Seite → Info + Software + Bibliothek",
       "pageHint": "Der Agent zieht die Seite über den Mobile-Server (SSRF-Filter, Katalog), prüft den Inhalt und legt alles intern ab: Seite als Asset, verlinkte Beats/Samples/Styles/Effekte/Filter und ein Bibliothekseintrag für die RAG-Suche. Im Chatfenster genügt es, die URL (oder eine Datei) herüberzuziehen.",
       "pagePlaceholder": "https://media.internal/handbuch/rampe-12",
@@ -201,7 +199,9 @@
       "chunks": "Abschnitt/Abschnitte",
       "nothingStored": "nichts abgelegt",
       "noTextShort": "kein Text",
-      "pageDemoHint": "Demo-Seite: /demo/seite/index.html"
+      "sampleHint": "Füllt das Feld mit dem Beispiel-Pack aus public/samples/packs/",
+      "pageSampleHint": "Beispiel-Seite: /samples/seite/index.html",
+      "sample": "Beispiel-Pack laden"
     },
     "deviceportview": {
       "title": "Geräte-Port-View · Live",

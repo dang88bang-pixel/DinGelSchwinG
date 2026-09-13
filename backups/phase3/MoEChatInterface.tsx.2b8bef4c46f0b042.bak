@@ -299,153 +299,6 @@ const AgentCard: React.FC<{ agent: MoEAgent; onEdit: (agent: MoEAgent) => void; 
   </div>
 );
 
-// ============ Persistenz (localStorage) ============
-
-const AGENTS_STORAGE_KEY = 'dgs.moeAgents.v1';
-
-/** Lädt angelegte Agenten; [] wenn noch keine existieren (kein Demo-Bestand). */
-function loadAgents(): MoEAgent[] {
-  try {
-    const raw = localStorage.getItem(AGENTS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as MoEAgent[];
-    return Array.isArray(parsed) ? parsed.filter((a) => a && typeof a.id === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveAgents(agents: MoEAgent[]): void {
-  try {
-    localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents));
-  } catch {
-    /* privater Modus / Speicher voll: Liste bleibt für die Sitzung gültig */
-  }
-}
-
-/** Formular zum Anlegen/Bearbeiten eines Agenten (ersetzt den leeren Demo-Dialog). */
-const AgentForm: React.FC<{
-  initial: MoEAgent | null;
-  onSave: (agent: MoEAgent) => void;
-  onCancel: () => void;
-}> = ({ initial, onSave, onCancel }) => {
-  const [name, setName] = useState(initial?.name ?? '');
-  const [description, setDescription] = useState(initial?.description ?? '');
-  const [model, setModel] = useState(initial?.model ?? 'skill-engine');
-  const [role, setRole] = useState<MoEAgent['role']>(initial?.role ?? 'executor');
-  const [enabled, setEnabled] = useState(initial?.enabled ?? true);
-  const [rules, setRules] = useState<PermissionRule[]>(
-    initial?.permissions ?? DEFAULT_PERMISSION_RULES.filter((r) => r.resource === 'network'),
-  );
-
-  const toggleRule = (id: string) => {
-    setRules((prev) =>
-      prev.some((r) => r.id === id) ? prev.filter((r) => r.id !== id) : [...prev, ...DEFAULT_PERMISSION_RULES.filter((r) => r.id === id)],
-    );
-  };
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onSave({
-      id: initial?.id ?? `agent-${Date.now()}`,
-      name: trimmed,
-      description: description.trim(),
-      model: model.trim() || 'skill-engine',
-      role,
-      permissions: rules,
-      maxTokens: initial?.maxTokens ?? 2000,
-      temperature: initial?.temperature ?? 0.5,
-      enabled,
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <form onSubmit={submit} className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[85vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-4">{initial ? 'Agent bearbeiten' : 'Neuen Agenten anlegen'}</h2>
-
-        <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="agent-name">Name</label>
-        <input
-          id="agent-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          placeholder="z. B. Netzwerk-Analyst"
-          className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-        />
-
-        <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="agent-desc">Beschreibung</label>
-        <textarea
-          id="agent-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          placeholder="Was soll der Agent tun?"
-          className="w-full mb-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-        />
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="agent-model">Modell</label>
-            <input
-              id="agent-model"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="agent-role">Rolle</label>
-            <select
-              id="agent-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value as MoEAgent['role'])}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-            >
-              {(['analyzer', 'executor', 'validator', 'critic'] as const).map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <fieldset className="mb-3">
-          <legend className="text-sm font-semibold text-gray-700 mb-1">Berechtigungen</legend>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
-            {DEFAULT_PERMISSION_RULES.map((rule) => (
-              <label key={rule.id} className="flex items-center gap-2 text-xs text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={rules.some((r) => r.id === rule.id)}
-                  onChange={() => toggleRule(rule.id)}
-                />
-                <span className="font-mono">{rule.id}</span>
-                {rule.requiresConfirm && <span className="text-amber-600">⚠︎</span>}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <label className="flex items-center gap-2 text-sm text-gray-700 mb-4">
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-          Agent aktiviert
-        </label>
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">
-            Abbrechen
-          </button>
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
-            Speichern
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-};
-
 // ============ Main Chat Interface ============
 
 export default function MoEChatInterface() {
@@ -458,10 +311,38 @@ export default function MoEChatInterface() {
     }
   ]);
 
-  // REAL-IMPLEMENTATION 2026-09-13 (Schritt 3): Die beiden festcodierten
-  // Demo-Agenten sind entfernt. Agenten werden vom Nutzer angelegt und in
-  // localStorage persistiert (überdauert Reloads, kein erfundener Bestand).
-  const [agents, setAgents] = useState<MoEAgent[]>(() => loadAgents());
+  const [agents, setAgents] = useState<MoEAgent[]>([
+    {
+      id: 'agent-1',
+      name: 'Network Analyzer',
+      description: 'Analyzes network traffic and device connectivity',
+      model: 'gpt-4-moe',
+      role: 'analyzer',
+      permissions: [
+        DEFAULT_PERMISSION_RULES[0], // network-read
+        DEFAULT_PERMISSION_RULES[1]  // network-write (requires confirm)
+      ],
+      maxTokens: 2000,
+      temperature: 0.5,
+      enabled: true
+    },
+    {
+      id: 'agent-2',
+      name: 'Device Controller',
+      description: 'Controls USB-C devices and peripherals',
+      model: 'gpt-4-moe',
+      role: 'executor',
+      permissions: [
+        DEFAULT_PERMISSION_RULES[4], // usb-read
+        DEFAULT_PERMISSION_RULES[5], // usb-write (requires confirm)
+        DEFAULT_PERMISSION_RULES[6]  // usb-dongle-flash (critical)
+      ],
+      maxTokens: 1500,
+      temperature: 0.3,
+      enabled: true
+    }
+  ]);
+
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([]);
   const [grantedPermissions, setGrantedPermissions] = useState<SystemPermission[]>([]);
   const [userInput, setUserInput] = useState('');
@@ -575,22 +456,9 @@ export default function MoEChatInterface() {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Ohne angelegten Agenten wird nichts erfunden, sondern ehrlich erklärt.
-    if (!agents.length) {
-      setMessages(prev => [...prev, {
-        id: `msg-${Date.now()}`,
-        role: 'system',
-        content: 'Kein Agent konfiguriert – im Tab „Agents" über „New Agent" einen Agenten anlegen.',
-        timestamp: Date.now()
-      }]);
-      setUserInput('');
-      return;
-    }
-
-    // Antwort des aktiven Agenten (inkl. Berechtigungs-Anfrage bei Risikoaktionen)
+    // Simulate agent response with permission request
     setTimeout(() => {
-      const pool = agents.filter(a => a.enabled);
-      const randomAgent = (pool.length ? pool : agents)[Math.floor(Math.random() * (pool.length ? pool.length : agents.length))];
+      const randomAgent = agents[Math.floor(Math.random() * agents.length)];
       const riskActions = ['flash dongle', 'send data', 'execute command', 'write to filesystem'];
       
       if (riskActions.some(action => userInput.toLowerCase().includes(action))) {
@@ -615,37 +483,7 @@ export default function MoEChatInterface() {
   // ============ Agent Management ============
 
   const handleDeleteAgent = (id: string) => {
-    setAgents(prev => {
-      const next = prev.filter(a => a.id !== id);
-      saveAgents(next);
-      return next;
-    });
-  };
-
-  const handleToggleAgent = (id: string) => {
-    setAgents(prev => {
-      const next = prev.map(a => (a.id === id ? { ...a, enabled: !a.enabled } : a));
-      saveAgents(next);
-      return next;
-    });
-  };
-
-  /** Legt einen Agenten an bzw. speichert Änderungen — echt, mit Persistenz. */
-  const handleSaveAgent = (draft: MoEAgent) => {
-    setAgents(prev => {
-      const exists = prev.some(a => a.id === draft.id);
-      const next = exists ? prev.map(a => (a.id === draft.id ? draft : a)) : [...prev, draft];
-      saveAgents(next);
-      return next;
-    });
-    setShowAgentForm(false);
-    setEditingAgent(null);
-    setMessages(prev => [...prev, {
-      id: `msg-${Date.now()}`,
-      role: 'system',
-      content: `Agent "${draft.name}" ${editingAgent ? 'aktualisiert' : 'angelegt'}.`,
-      timestamp: Date.now()
-    }]);
+    setAgents(prev => prev.filter(a => a.id !== id));
   };
 
   // ============ Render ============
@@ -746,12 +584,6 @@ export default function MoEChatInterface() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {agents.length === 0 && (
-                <p className="text-sm text-gray-600 col-span-full">
-                  Noch keine Agenten angelegt. Mit „New Agent" entsteht der erste Eintrag –
-                  er wird lokal gespeichert und überdauert einen Reload.
-                </p>
-              )}
               {agents.map(agent => (
                 <AgentCard
                   key={agent.id}
@@ -766,11 +598,18 @@ export default function MoEChatInterface() {
             </div>
 
             {showAgentForm && (
-              <AgentForm
-                initial={editingAgent}
-                onSave={handleSaveAgent}
-                onCancel={() => { setShowAgentForm(false); setEditingAgent(null); }}
-              />
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+                  <h2 className="text-2xl font-bold mb-4">{editingAgent ? 'Edit Agent' : 'Create New Agent'}</h2>
+                  <p className="text-sm text-gray-600 mb-4">Configure agent attributes, permissions, and behavior.</p>
+                  <button
+                    onClick={() => setShowAgentForm(false)}
+                    className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition"
+                  >
+                    Close (Demo Only)
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}

@@ -8,40 +8,48 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Manuell auditierte Sonderfaelle (Datei -> (Status, Begruendung))
 OVERRIDES = {
-    # Echte Mocks im Produktionspfad
-    "src/lib/agent/agentEngine.ts": ("MOCK",
-        "intentDevices/intentClients liefern hartcodierte MOCK_DEVICES/Clients; intentScan simuliert (setTimeout); summary() nutzt Mocks"),
-    "src/mocks/devices.mock.ts": ("MOCK",
-        "Hartcodierte Geraeteliste, von agentEngine.ts im Produktionspfad verwendet"),
-    # Tote Mocks (unreferenziert)
-    "src/mocks/pairing.mock.ts": ("DEAD", "Unreferenziert (kein Import im Repo)"),
-    "src/mocks/sensors.mock.ts": ("DEAD", "Unreferenziert (kein Import im Repo)"),
-    "src/mocks/bleWasm.mock.ts": ("DEAD", "Unreferenziert (kein Import im Repo); bleWasm.ts hat eigene JS_SIMULATION"),
-    # Platzhalter
-    "android/app/src/main/assets/devicecontrol/fastboot": ("PLACEHOLDER",
-        "542-Byte-Textdatei statt ARM64-Binary; CI holt echtes Binary (fetch-android-tools.sh)"),
-    "public/wasm/README.txt": ("PLACEHOLDER",
-        "Kein gebautes .wasm-Artefakt im Repo; bleWasm.ts nutzt JS-Fallback"),
-    # Platzhalter-Daten im Code
-    "genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeGraphViewModel.kt": ("PLACEHOLDER",
-        "Festcodierte Demo-Knoten ('in production driven by Neo4j graph sync'); WS-Anbindung real"),
-    "genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ble/ui/PolarConfigScreen.kt": ("TODO",
-        "Switch(checked=true, onCheckedChange={}) ohne State-Bindung (Zeile ~147)"),
-    # By-design-Stubs/Fallbacks (dokumentiert, kein Handlungsbedarf)
+    # ── REAL-IMPLEMENTATION 2026-09-13 (Schritt 3): Mocks vollständig entfernt ──
+    # Agent-Engine: festcodierte MOCK_DEVICES gelöscht; Geräte/Clients kommen aus
+    # Gateway-Tokens/-Sessions, nativem USB/ADB und PortView, sonst ehrlicher
+    # Leerzustand mit Quellen-Diagnose (`SourceReport`).
+    "src/lib/agent/agentEngine.ts": ("REAL",
+        "Keine MOCK_DEVICES mehr: refreshDevices() fragt Gateway/nativ/PortView real ab, "
+        "intentDevices() meldet ohne Quelle ehrlich 0 Geräte + Quellen-Status"),
+    # Enterprise-Knoten: einkompilierte .local-Planungsdaten ersetzt durch echten
+    # CSV-Parser/Loader; ohne gepflegte Datei bleibt die Registry leer.
+    "src/config/enterprise-nodes.ts": ("REAL",
+        "parseEnterpriseNodesCsv/loadEnterpriseNodes/setEnterpriseNodes; validateNodeEndpoint "
+        "prüft per fetch, keine Platzhalter-Endpunkte mehr"),
+    "config/enterprise-nodes.csv": ("REAL",
+        "Schema-Vorlage ohne Planungs-Endpunkte; echte Knoten kommen nach public/enterprise-nodes.csv"),
+    "public/enterprise-nodes.csv": ("REAL",
+        "Laufzeit-Datenquelle der Knotenliste (leer = keine Knoten, kein Raten)"),
+    # Netzwerk-Diagnose: Zufallszahlen und Blob-Selbstmessung ersetzt.
+    "src/components/diagnostics/NetworkDiagnostics.tsx": ("REAL",
+        "Ping -> GET /api/ping, Download -> /api/diag/payload, Durchsatz -> /api/diag/throughput"),
+    # genesis-orchestrator: Demo-Graph in Backend und App entfernt.
+    "genesis-orchestrator/fastapi-backend/app/main.py": ("REAL",
+        "_DEMO_GRAPH entfernt: /graph liefert live (Neo4j) oder leer + Grund (source=unavailable)"),
+    "genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/NodeGraphViewModel.kt": ("REAL",
+        "DEMO_NODES entfernt: Knoten live aus /graph oder aus dem Cache des letzten Live-Ladens"),
+    # Ehemals tote Mocks: in Phase 2 gelöscht (nur noch im Backup).
+    "src/mocks/devices.mock.ts": ("DEAD",
+        "Datei in Schritt 3 gelöscht (Backup: backups/phase2/src/mocks/devices.mock.ts.bak)"),
+    # By-design-Testdoubles hinter expliziten Schaltern (kein Produktionspfad).
     "src/lib/agent/onnxRuntimeNodeStub.ts": ("STUB",
         "By-design: Vite-Alias-Stub, verhindert Node-Bundling; wirft erklaerenden Fehler"),
-    "desktop/utils/model_backend.py": ("REAL",
-        "NotImplementedError nur in abstrakter Basisklasse; 3 reale Backends implementiert"),
-    "src/lib/bleWasm.ts": ("REAL",
-        "Laedt echtes WASM wenn vorhanden, sonst verifizierte mathematisch identische JS-Simulation (Fallback dokumentiert)"),
-    "desktop/utils/status_manager.py": ("REAL",
-        "Mock nur als dokumentierter Fallback wenn Backend offline; Live-Pfad real"),
     "mobile-server/ble_adapter.py": ("REAL",
-        "Mock nur ein Backend von drei (mock|bluetoothctl|gdbus); Auswahl dokumentiert"),
+        "Mock nur ein Backend von drei (mock|bluetoothctl|gdbus); Default ist auto, Mock nur per Flag"),
     "mobile-server/mobile_ble_server.py": ("REAL",
         "--mock ist dokumentierter Demo-Modus; TCP/HTTP/Krypto real und selbstgetestet"),
+    "src/lib/bleWasm.ts": ("REAL",
+        "Laedt echtes WASM wenn vorhanden, sonst verifizierte mathematisch identische JS-Simulation (Fallback dokumentiert)"),
     "wasm-ble/src/lib.rs": ("REAL",
         "Reale Pfadverlust-Mathematik; get_learned_n()=2.0 Default (stateless WASM, dokumentiert)"),
+    "desktop/utils/model_backend.py": ("REAL",
+        "NotImplementedError nur in abstrakter Basisklasse; 3 reale Backends implementiert"),
+    "desktop/utils/status_manager.py": ("REAL",
+        "Kein Mock-Pfad mehr: Status kommt live per WebSocket, sonst leerer Zustand"),
     "genesis-orchestrator/fastapi-backend/app/moe/parsers/vesc.py": ("REAL",
         "Minimale Beispiel-Implementierung, als solche dokumentiert ('minimal subset ... to demonstrate')"),
     "genesis-orchestrator/fastapi-backend/app/moe/parsers/ninebot.py": ("REAL",
@@ -49,8 +57,6 @@ OVERRIDES = {
     "mobile-server/data/whitelist.json": ("REAL",
         "Funktionale Token-Whitelist inkl. Demo-Eintraegen; Produktion: eigene Tokens einpflegen"),
     "mobile-server/keys.example.json": ("REAL", "Beispiel-Keyset, Platzhalterwerte, by-design"),
-    "config/enterprise-nodes.csv": ("TODO",
-        "Pruefen: Beispieldaten vs. echte Netz-Knoten (siehe GAP-Matrix)"),
 }
 
 BINARY_EXT = {".png", ".jar", ".wasm", ".ttf", ".woff", ".woff2", ".ico", ".mp3", ".wav"}

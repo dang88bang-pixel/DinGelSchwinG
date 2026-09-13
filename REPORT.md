@@ -150,6 +150,26 @@ N/A (dokumentiert): Audio-Loopback (keine Pipeline im Repo), USB-Disconnect/OOM
   (Python/TypeScript-Laufzeiten).
 - Live-Nachweis: echter NFC→Grant-Durchlauf schrieb `sessions.json` (granted, ohne Keys) ✅
 
+## Schritt 3 — Mocks vollständig entfernt (2026-09-13)
+
+Alle Attrappen im Produktivpfad sind durch echte Implementierungen ersetzt (Details:
+`reports/universe-2026-09-13-schritt3.md`, Backups in `backups/phase3/`):
+
+- **Agent-Engine:** keine `MOCK_DEVICES` mehr — Gateway-Tokens/-Sessions, nativ (USB/ADB) und
+  PortView liefern echte Geräte; ohne Quelle ehrliche Null-Meldung mit Quellen-Diagnose.
+- **Netzwerk-Diagnose:** Ping/Download/Durchsatz laufen gegen `/api/ping`,
+  `/api/diag/payload`, `/api/diag/throughput` statt gegen `Math.random()`.
+- **Genesis:** `_DEMO_GRAPH` (Backend) und `DEMO_NODES` (Android) entfernt; `/graph` liefert
+  live, sonst leer + Grund bzw. den Cache des letzten Live-Ladens.
+- **Enterprise-Knoten:** echter CSV-Parser/Loader; `validateNodeEndpoint` prüft wirklich
+  (vorher: fest verdrahtete `.local`-Endpunkte, `return true`).
+- **UI:** MoE-Agenten werden angelegt und persistiert (vorher zwei Demo-Agenten + leerer
+  Dialog „Demo Only"); `AdvancedResearchChat.tsx` (fabrizierte Abläufe, nicht eingebunden)
+  gelöscht; `public/demo/` → `public/samples/`; Label „Demo-Handshake" → „Handshake-Selbsttest".
+
+Nachweis: `MOCK: 0 · TODO: 0 · PLACEHOLDER: 0 · DEAD: 0` (scripts/audit_inventar.py),
+Universe-Audit 0 Kandidaten, 36/36 + 5/5 + 47/47 + 54/54 + 9/9 Tests grün.
+
 ## Verbleibende ⛔-Blocker
 
 1. CT45P-Xon+-Protokoll proprietär — GATT-UUIDs/Charakteristiken sind Annahmen; Feldabgleich

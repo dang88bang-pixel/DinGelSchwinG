@@ -1,7 +1,21 @@
 /**
- * Enterprise Node Database Configuration
- * Getunnelt erreichbare Abfrageknotenpunkte für MCP, API, Web-Hook, Notebook & KI-Inferenz
- * Basierend auf der Architektur des Cyber-Physical & Automotive OS (BOS)
+ * Enterprise Node Database — reale Ladelogik statt einkompilierter Planungsdaten.
+ *
+ * // REAL-IMPLEMENTATION 2026-09-13 (Schritt 3): Zuvor standen hier fünf fest
+ * verdrahtete `.local`-Endpunkte (mcp-bridge.qloud.local, api.qloud-gp.local …)
+ * mit `validateNodeEndpoint()`, das **immer `true`** zurückgab. Beides ist
+ * ersetzt:
+ *
+ *  - Knoten kommen aus einer echten CSV-Datei (`public/enterprise-nodes.csv`,
+ *    Vorlage: `config/enterprise-nodes.csv`), die zur Laufzeit geladen und
+ *    geparst wird ([loadEnterpriseNodes], [parseEnterpriseNodesCsv]).
+ *  - Ohne gepflegte Datei ist die Registry **leer** — es werden keine Endpunkte
+ *    erfunden ([getNodeConfig] liefert `null`).
+ *  - [validateNodeEndpoint] prüft den konfigurierten Endpunkt wirklich
+ *    (fetch mit Timeout) und meldet `false`, wenn nichts konfiguriert ist.
+ *
+ * Die Planungs-Endpunkte stehen weiterhin als Spezifikation in
+ * `docs/enterprise-node-database.md` — sie sind Dokumentation, keine Laufzeitdaten.
  */
 
 export type NodeCategory = 'MCP' | 'API' | 'Web-Hook' | 'Notebook' | 'KI-Inferenz';
@@ -39,142 +53,197 @@ export interface APINodeConfig extends EnterpriseNode {
 
 export interface WebHookNodeConfig extends EnterpriseNode {
   category: 'Web-Hook';
+  httpMethod: string;
   signatureAlgorithm: string;
-  supportedEvents: string[];
+  retryPolicy: string;
 }
 
 export interface NotebookNodeConfig extends EnterpriseNode {
   category: 'Notebook';
-  jupyterVersion: string;
-  proxyPort: number;
-  supportedLanguages: string[];
-  edgeProcessorType: string;
+  runtime: string;
+  websocketSupport: boolean;
 }
 
 export interface InferenceNodeConfig extends EnterpriseNode {
   category: 'KI-Inferenz';
   modelName: string;
-  modelSize: string;
   quantization: string;
-  vectorDbEngine: string;
+  vectorStore: string;
   ragVaultEnabled: boolean;
 }
 
-/**
- * Complete Enterprise Node Database
- */
-export const ENTERPRISE_NODES: Record<NodeCategory, EnterpriseNode> = {
-  'MCP': {
-    category: 'MCP',
-    nodeId: 'mcp.agent.orchestrator',
-    nodeName: 'MCP Agent Orchestrator',
-    tunnelProtocol: 'WSS / HTTPS (Cloudflare Tunnel / Ngrok)',
-    endpointUrl: 'wss://mcp-bridge.qloud.local/v1/tools',
-    authentication: 'Hardware-Token (Honeywell Akku-Token)',
-    securityLayer: 'TLS 1.3 + End-to-End Verschlüsselung',
-    primaryFunction: 'Bidirektionales Tool-Calling und Echtzeit-Steuerung der Hardware-Brücken (UHAL, CAN, BLE) durch das lokale LLM.',
-  } as MCPNodeConfig,
+/** Standardpfad der zur Laufzeit geladenen Knotenliste (Vite/public). */
+export const ENTERPRISE_NODES_URL = '/enterprise-nodes.csv';
 
-  'API': {
-    category: 'API',
-    nodeId: 'api.emobility.workspace',
-    nodeName: 'API eMobility Workspace',
-    tunnelProtocol: 'HTTPS (Reverse Proxy / WireGuard)',
-    endpointUrl: 'https://api.qloud-gp.local/v1/bms',
-    authentication: 'Bearer Token',
-    securityLayer: 'AES-256 / SIL-Level Prüfungen',
-    primaryFunction: 'RESTful-Schnittstellen für BMS-Diagnose, Fahrzeug-Telemetrie und OBD-II Datenabfragen.',
-    endpoints: [
-      {
-        path: '/v1/bms/status',
-        method: 'GET',
-        description: 'Ruft Echtzeit-Zellspannungen, SOH (State of Health) und Temperaturen ab.',
-      },
-      {
-        path: '/v1/diagnostic/reset',
-        method: 'POST',
-        description: 'Initiiert den Factory-Reset mit Audit-Logging.',
-      },
-    ],
-    encryptionAlgorithm: 'AES-256',
-    rbacEnabled: true,
-  } as APINodeConfig,
+/** Spaltenreihenfolge der CSV (siehe `config/enterprise-nodes.csv`). */
+const CSV_HEADER_KEYS = [
+  'category',
+  'nodeId',
+  'tunnelProtocol',
+  'endpointUrl',
+  'authentication',
+  'primaryFunction',
+] as const;
 
-  'Web-Hook': {
-    category: 'Web-Hook',
-    nodeId: 'webhook.trigger.engine',
-    nodeName: 'Webhook Trigger Engine',
-    tunnelProtocol: 'HTTPS POST (Public Gateway Tunnel)',
-    endpointUrl: 'https://hook.qloud-gp.local/trigger/v1/event',
-    authentication: 'HMAC-SHA256 Signatur-Header',
-    securityLayer: 'Cryptographic Signature Verification',
-    primaryFunction: 'Asynchrone Event-Trigger (z. B. Google Drive Push Notifications, Alarm-Meldungen bei Grenzwertüberschreitung).',
-    signatureAlgorithm: 'HMAC-SHA256',
-    supportedEvents: [
-      'google.drive.push',
-      'alarm.threshold_exceeded',
-      'sensor.anomaly_detected',
-      'system.heartbeat',
-    ],
-  } as WebHookNodeConfig,
+export const EMPTY_ENTERPRISE_NODES: readonly EnterpriseNode[] = Object.freeze([]);
 
-  'Notebook': {
-    category: 'Notebook',
-    nodeId: 'notebook.qloud_gp-cpu.exec',
-    nodeName: 'Notebook QLOUD GP-CPU Executor',
-    tunnelProtocol: 'HTTPS / Jupyter WebSocket Tunnel',
-    endpointUrl: 'https://notebook.qloud-gp.local/lab/proxy/8888',
-    authentication: 'Token-Auth + OAuth2',
-    securityLayer: 'Local Vault Key + TLS',
-    primaryFunction: 'Interaktive Jupyter-Notebook-Instanzen zur Ausführung von Python-Skripten auf der QLOUD GP-CPU.',
-    jupyterVersion: '4.x',
-    proxyPort: 8888,
-    supportedLanguages: ['python', 'bash', 'javascript'],
-    edgeProcessorType: 'QCS4290 / GP-CPU',
-  } as NotebookNodeConfig,
+/** Laufzeit-Registry — gefüllt über [setEnterpriseNodes] bzw. [loadEnterpriseNodes]. */
+let registry: EnterpriseNode[] = [];
 
-  'KI-Inferenz': {
-    category: 'KI-Inferenz',
-    nodeId: 'inference.edge.llm',
-    nodeName: 'KI Inference Edge LLM',
-    tunnelProtocol: 'gRPC / HTTP/2 Tunnel',
-    endpointUrl: 'https://inference.qloud-gp.local/v1/chat/completions',
-    authentication: 'Local GPG / Vault Auth',
-    securityLayer: 'Int8 Quantisierung + Vault Encryption',
-    primaryFunction: 'Inferenz-Ausführung des quantisierten Small Language Models (Llama-3.1-3B) und Vektor-Suche via sqlite-vec.',
-    modelName: 'Llama-3.1',
-    modelSize: '3B',
-    quantization: 'Q4_K_M / int8',
-    vectorDbEngine: 'sqlite-vec',
-    ragVaultEnabled: true,
-  } as InferenceNodeConfig,
-};
+function isCategory(value: string): value is NodeCategory {
+  return ['MCP', 'API', 'Web-Hook', 'Notebook', 'KI-Inferenz'].includes(value);
+}
 
-/**
- * Get node configuration by category
- */
-export function getNodeConfig(category: NodeCategory): EnterpriseNode {
-  return ENTERPRISE_NODES[category];
+/** Zerlegt eine CSV-Zeile inkl. Anführungszeichen und Kommas in Feldern. */
+function splitCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (quoted) {
+      if (char === '"' && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        current += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ',' || char === ';') {
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
 }
 
 /**
- * Get all node configurations
+ * Parst die Knotenliste aus CSV-Text.
+ *
+ * Erwartet die Kopfzeile `Kategorie,Knoten-ID / Name,Tunnel-Protokoll & Routing,
+ * Endpunkt / URL-Schema,Authentifizierung & Security,Primärer Einsatzzweck & Funktion`.
+ * Zeilen, die mit `#` beginnen, sind Kommentare; unbekannte Kategorien und
+ * Zeilen ohne Endpunkt werden übersprungen (nie geraten).
  */
+export function parseEnterpriseNodesCsv(csv: string): EnterpriseNode[] {
+  const rows = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+  const nodes: EnterpriseNode[] = [];
+  for (const [index, line] of rows.entries()) {
+    const cells = splitCsvLine(line);
+    if (index === 0 && /kategorie|category/i.test(cells[0] ?? '')) continue; // Kopfzeile
+    if (cells.length < CSV_HEADER_KEYS.length) continue;
+    const [rawCategory, nodeId, tunnelProtocol, endpointUrl, authentication, primaryFunction] = cells;
+    // Kategorie tolerieren: "1. MCP" oder "KI-Interferenz" (Doku-Schreibweise)
+    const normalized = rawCategory.replace(/^\d+\.\s*/, '').trim();
+    const category = isCategory(normalized)
+      ? normalized
+      : normalized === 'KI-Interferenz'
+        ? 'KI-Inferenz'
+        : null;
+    if (!category || !nodeId || !endpointUrl) continue;
+    nodes.push({
+      category,
+      nodeId,
+      nodeName: nodeId,
+      tunnelProtocol,
+      endpointUrl,
+      authentication,
+      securityLayer: authentication,
+      primaryFunction,
+    });
+  }
+  return nodes;
+}
+
+/** Setzt die Registry (z. B. nach einem Import oder Test). */
+export function setEnterpriseNodes(nodes: EnterpriseNode[]): void {
+  registry = [...nodes];
+}
+
+/** Alle konfigurierten Knoten (leer, wenn keine CSV gepflegt ist). */
 export function getAllNodeConfigs(): EnterpriseNode[] {
-  return Object.values(ENTERPRISE_NODES);
+  return [...registry];
+}
+
+/** Knoten einer Kategorie — `null`, wenn nicht konfiguriert (kein Platzhalter). */
+export function getNodeConfig(category: NodeCategory): EnterpriseNode | null {
+  return registry.find((n) => n.category === category) ?? null;
 }
 
 /**
- * Validate node endpoint connectivity (placeholder for actual implementation)
+ * Lädt die Knotenliste aus einer realen CSV-Quelle.
+ *
+ * @returns die geladenen Knoten; bei Fehler/leerer Datei eine leere Liste.
  */
-export async function validateNodeEndpoint(category: NodeCategory): Promise<boolean> {
-  const node = ENTERPRISE_NODES[category];
+export async function loadEnterpriseNodes(
+  url: string = ENTERPRISE_NODES_URL,
+  init: RequestInit = {},
+): Promise<EnterpriseNode[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
   try {
-    // Implementation depends on node type and protocol
-    console.log(`Validating endpoint for ${node.nodeId}: ${node.endpointUrl}`);
-    return true;
-  } catch (error) {
-    console.error(`Endpoint validation failed for ${node.nodeId}:`, error);
-    return false;
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    if (!res.ok) return [];
+    const nodes = parseEnterpriseNodesCsv(await res.text());
+    setEnterpriseNodes(nodes);
+    return nodes;
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+/**
+ * Prüft, ob der konfigurierte Endpunkt antwortet — echte Anfrage mit Timeout.
+ *
+ * `false`, wenn kein Knoten konfiguriert ist oder die Gegenstelle nicht
+ * antwortet. Es wird nie ein Erfolg angenommen.
+ */
+export async function validateNodeEndpoint(
+  category: NodeCategory,
+  timeoutMs = 4000,
+): Promise<boolean> {
+  const node = getNodeConfig(category);
+  if (!node) return false;
+  if (!/^https?:\/\//i.test(node.endpointUrl)) {
+    // ws://, wss:// und proprietäre Schemata lassen sich im Browser nicht per fetch prüfen.
+    return false;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(node.endpointUrl, { method: 'HEAD', signal: controller.signal });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Abwärtskompatibler Zugriff für ältere Aufrufer.
+ *
+ * Früher war das ein fest verdrahtetes Objekt mit Platzhalter-Endpunkten. Jetzt
+ * die reale Registry als kategorie-indizierte Sicht (leer, bis eine CSV geladen ist).
+ */
+export const ENTERPRISE_NODES: Record<string, EnterpriseNode | undefined> = new Proxy(
+  {} as Record<string, EnterpriseNode | undefined>,
+  {
+    get: (_target, prop: string) => getNodeConfig(prop as NodeCategory) ?? undefined,
+    has: (_target, prop: string) => getNodeConfig(prop as NodeCategory) !== null,
+    ownKeys: () => getAllNodeConfigs().map((n) => n.category),
+    getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+  },
+);

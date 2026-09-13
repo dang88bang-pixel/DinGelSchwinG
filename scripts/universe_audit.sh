@@ -32,7 +32,7 @@ INCLUDES=(
   --include='*.dart' --include='*.cs' --include='*.rb' --include='*.php'
 )
 # Werkzeuge, die die Suchmuster selbst enthalten, nicht als Fund melden.
-SELF_FILES='^(\./)?(scripts/universe_audit\.sh|tests/universe_harness\.py)'
+SELF_FILES='^(\./)?(scripts/universe_audit\.sh|scripts/audit_inventar\.py|tests/universe_harness\.py)'
 TOOL_DIRS='^(\./)?(scripts|tools)/'
 
 # Signal-Muster ───────────────────────────────────────────────────────────────
@@ -181,8 +181,22 @@ block "Attrappen-Bezeichner: MOCK_*/MockX/PLACEHOLDER_*/FAKE_*/DUMMY_* ($(printf
   echo "## Leere Rümpfe / Dead Code / Dummy-Returns"
   echo
 } >> "$REPORT"
-block "Explizit nicht implementiert ($(scan_count "$NOT_IMPLEMENTED") Treffer)" \
-      "$(scan "$NOT_IMPLEMENTED" | head -60)"
+# `raise NotImplementedError` in abstrakten Methoden ist korrekt (ABC-Muster)
+# und kein Attrappen-Signal — pro Datei die Zeilen davor prüfen.
+NOT_IMPL_RAW="$(scan "$NOT_IMPLEMENTED")"
+NOT_IMPL="$(printf '%s\n' "$NOT_IMPL_RAW" | while IFS= read -r hit; do
+  [ -z "$hit" ] && continue
+  file="${hit%%:*}"; rest="${hit#*:}"; line="${rest%%:*}"
+  if [ -f "$file" ]; then
+    start=$(( line > 3 ? line - 3 : 1 ))
+    if sed -n "${start},${line}p" "$file" | grep -qE '@abstractmethod|abstractmethod'; then
+      continue  # abstrakte Basisklasse: bewusst nicht implementiert
+    fi
+  fi
+  printf '%s\n' "$hit"
+done)"
+block "Explizit nicht implementiert ($(printf '%s\n' "$NOT_IMPL" | grep -c . || true) Treffer)" \
+      "$(printf '%s\n' "$NOT_IMPL" | head -60)"
 
 # Leere Python-Rümpfe: def-Zeile, deren Rumpf nur pass/.../return None ist
 EMPTY_BODIES="$(awk '
@@ -260,4 +274,4 @@ PY
 } >> "$REPORT"
 
 echo "✅ Bericht: $REPORT"
-echo "   Kandidaten: $(printf '%s\n' "$MARKER_HITS" | grep -c . || true) Marker · $(printf '%s\n' "$MOCK_HITS" | grep -c . || true) Mock-Bezeichner · $(scan_count "$NOT_IMPLEMENTED") nicht implementiert"
+echo "   Kandidaten: $(printf '%s\n' "$MARKER_HITS" | grep -c . || true) Marker · $(printf '%s\n' "$MOCK_HITS" | grep -c . || true) Mock-Bezeichner · $(printf '%s\n' "$NOT_IMPL" | grep -c . || true) nicht implementiert"

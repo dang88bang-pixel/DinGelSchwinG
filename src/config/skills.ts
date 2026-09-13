@@ -124,9 +124,9 @@ export const SKILLS: Skill[] = [
     example: 'token_auth token_id=CT45P-0001 uid=04:A2:B3:C1:D2:E3',
   },
   {
-    name: 'token_demo',
-    description: 'Startet den Demo-Handshake gegen den Token-Simulator (ohne Hardware).',
-    calls: ['"demo-handshake"', '"starte den test-durchlauf"'],
+    name: 'token_selftest',
+    description: 'Handshake-Selbsttest: echter AES-128-Challenge/Response gegen den Token-Simulator (ohne Hardware).',
+    calls: ['"demo-handshake"', '"starte den selbsttest"', '"starte den test-durchlauf"'],
     params: 'keine',
     example: '',
   },

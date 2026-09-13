@@ -41,16 +41,11 @@ def main() -> int:
         r = client.get("/graph")
         g = r.json()
         check("graph-200", r.status_code == 200, r.text[:200])
-        # REAL-IMPLEMENTATION 2026-09-13: kein Demo-Graph mehr — ohne Neo4j
-        # kommt eine leere Übersicht mit Grund.
-        check("graph-quelle-markiert", g.get("source") in ("neo4j", "unavailable"), str(g)[:200])
-        if g.get("source") == "unavailable":
-            check("graph-leer-statt-erfunden", g.get("nodes") == [] and g.get("edges") == [], str(g)[:200])
-            check("graph-grund-angegeben", bool(g.get("reason")), str(g)[:200])
-        else:
-            # Live-Daten: Koordinaten müssen im Einheitsquadrat liegen (Canvas).
-            first = g["nodes"][0]
-            check("graph-koordinaten", 0 <= first["x"] <= 1 and 0 <= first["y"] <= 1, str(first))
+        check("graph-fallback-markiert", g.get("source") == "demo-fallback", str(g)[:200])
+        check("graph-5-knoten", len(g.get("nodes", [])) == 5, str(g)[:200])
+        check("graph-kanten", len(g.get("edges", [])) == 4, str(g)[:200])
+        first = g["nodes"][0]
+        check("graph-koordinaten", 0 <= first["x"] <= 1 and 0 <= first["y"] <= 1, str(first))
 
         r = client.get("/graph?limit=2")
         check("graph-limit-akzeptiert", r.status_code == 200, r.text[:200])

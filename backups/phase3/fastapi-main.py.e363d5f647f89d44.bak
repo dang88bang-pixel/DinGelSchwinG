@@ -190,26 +190,38 @@ async def health() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # REAL-IMPLEMENTATION 2026-09-11 (Phase 2.6): same 5 nodes the app used to
 # hardcode, kept as an explicit fallback when Neo4j is unreachable.
+_DEMO_GRAPH: dict[str, Any] = {
+    "nodes": [
+        {"id": "switch-a", "label": "Switch A", "type": "switch", "status": "UNKNOWN", "x": 0.5, "y": 0.30},
+        {"id": "switch-b", "label": "Switch B", "type": "switch", "status": "UNKNOWN", "x": 0.25, "y": 0.60},
+        {"id": "switch-c", "label": "Switch C", "type": "switch", "status": "UNKNOWN", "x": 0.75, "y": 0.60},
+        {"id": "vesc-1", "label": "VESC 1", "type": "controller", "status": "UNKNOWN", "x": 0.15, "y": 0.85},
+        {"id": "ninebot-1", "label": "Ninebot", "type": "controller", "status": "UNKNOWN", "x": 0.55, "y": 0.90},
+    ],
+    "edges": [
+        {"from": "switch-a", "to": "switch-b", "type": "UPLINK"},
+        {"from": "switch-a", "to": "switch-c", "type": "UPLINK"},
+        {"from": "switch-b", "to": "vesc-1", "type": "UART"},
+        {"from": "switch-c", "to": "ninebot-1", "type": "BLE"},
+    ],
+}
+
+
 @app.get("/graph")
 async def graph(limit: int = 50) -> dict[str, Any]:
     """Return the node/edge overview for the Android canvas.
 
-    // REAL-IMPLEMENTATION 2026-09-13 (Schritt 3): Der festcodierte
-    ``_DEMO_GRAPH`` (Switch A/B/C, VESC 1, Ninebot) ist entfernt. Ohne Neo4j-
-    Daten antwortet der Endpunkt mit einer **leeren** Übersicht und dem Grund
-    (``source: "unavailable"``) — die App zeigt dann einen ehrlichen
-    Offline-Zustand statt erfundener Knoten.
+    Live data from Neo4j when reachable, otherwise the explicit
+    ``demo-fallback`` graph (never an error, never a guess without a label).
     """
     try:
         data = await app.state.neo4j.get_graph_overview(limit)
         if data.get("nodes"):
             return {"source": "neo4j", **data}
-        reason = "Neo4j lieferte keine Knoten"
-        logger.info("Neo4j graph is empty: %s", reason)
+        logger.info("Neo4j graph is empty — serving demo fallback")
     except Exception as exc:  # noqa: BLE001 - graceful degradation by design
-        reason = f"Neo4j nicht erreichbar: {exc}"
-        logger.warning("Neo4j graph overview failed: %s", exc)
-    return {"source": "unavailable", "nodes": [], "edges": [], "reason": reason}
+        logger.warning("Neo4j graph overview failed, using demo fallback: %s", exc)
+    return {"source": "demo-fallback", **_DEMO_GRAPH}
 
 
 @app.get("/drivers")

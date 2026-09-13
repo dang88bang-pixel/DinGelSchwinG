@@ -97,7 +97,7 @@ Parameter: token_id=<id> uid=<uid> [session_material=<hex>]
 Beispiel: token_auth token_id=CT45P-0001 uid=04:A2:B3:C1:D2:E3
 
 ## token_demo
-Beschreibung: Startet den Demo-Handshake gegen den Token-Simulator (ohne Hardware).
+Beschreibung: Handshake-Selbsttest — echter AES-128-Challenge/Response gegen den Token-Simulator (ohne Hardware).
 Aufruf: "demo-handshake" | "starte den test-durchlauf"
 Parameter: keine
 

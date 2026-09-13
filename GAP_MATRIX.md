@@ -12,10 +12,10 @@
 | 1.1 | Agent Console: Chat + 6 frei belegbare Aktionsbuttons (README) | `src/components/AgentConsole.tsx`, `src/lib/agent/agentEngine.ts` (1125 Z.) | ✅ |
 | 1.2 | Deterministische Skill-Engine offline (README) | `agentEngine.ts`, `src/config/skills.ts` (31 Skills) | ✅ |
 | 1.3 | Optionales eingebettetes Modell Qwen2.5-0.5B via transformers.js (README) | `src/lib/agent/transformersBackend.ts` + Lazy-Load | ✅ |
-| 1.4 | Geräteanzeige im Agent („📡 Gefundene Geräte") (README/agentEngine) | `intentDevices()` liefert **hartcodierte `MOCK_DEVICES`** | ⚠️ MOCK → Phase 2 |
-| 1.5 | Client-Liste („👥 Eingeloggte Clients") | `intentClients()` liefert **2 hartcodierte Clients** | ⚠️ MOCK → Phase 2 |
-| 1.6 | Netzwerk-Scan per Skript `network_scan.py` | `intentScan()` **simuliert** (setTimeout 8 s, kein echter Aufruf) | ⚠️ MOCK → Phase 2 |
-| 1.7 | Status-Bar Geräte/Clients/Workflows | `summary()` nutzt `MOCK_DEVICES` + festes „Clients: 2" | ⚠️ MOCK → Phase 2 |
+| 1.4 | Geräteanzeige im Agent („📡 Gefundene Geräte") (README/agentEngine) | `intentDevices()` liest Gateway-Tokens/-Sessions, nativ (USB/ADB) und PortView live; ohne Quelle ehrliche 0 + Quellen-Diagnose | ✅ (2026-09-13) |
+| 1.5 | Client-Liste („👥 Eingeloggte Clients") | `intentClients()`/`refreshClients()` aus Gateway-Sessions + echten Sitzungsrollen | ✅ (2026-09-13) |
+| 1.6 | Netzwerk-Scan per Skript `network_scan.py` | `intentScan()` startet `runLiveScan()` (PortView + Gateway-BLE + Token-Bestand) | ✅ (2026-09-13) |
+| 1.7 | Status-Bar Geräte/Clients/Workflows | `summary()` zählt real bestätigte Geräte (0 ohne Quelle) + Sitzungs-Clients + aktive Workflows | ✅ (2026-09-13) |
 | 1.8 | Agenten-/Persona-Galerie mit JSON-Import/-Export (docs/agent-gallery.md) | `src/config/agentGallery.ts`, `galleryStore.ts`, `AgentGalleryPanel.tsx` | ✅ |
 | 1.9 | Live-Statusleiste + Observability-Dashboard (docs/monitoring.md) | `liveMetrics.ts`, `LiveStatusStrip.tsx`, `LiveDashboardPanel.tsx` | ✅ |
 | 1.10 | RAG-Wissensdatenbank, Upload, BM25 (docs/agent-gallery.md) | `src/lib/rag.ts` (437 Z.), `KnowledgeBasePanel.tsx`, IndexedDB-Persistenz | ✅ |
@@ -25,10 +25,10 @@
 | 1.14 | Software-Grabber offline (docs/portview-import.md) | `src/lib/grabber.ts`, `assetStore.ts`, `packs.ts`, `AssetGrabberPanel.tsx` | ✅ |
 | 1.15 | Seiten-Ingest per Drag & Drop (docs/portview-import.md) | `src/lib/pageIngest.ts` (525 Z.), Drop-Support in `AgentConsole` | ✅ |
 | 1.16 | BLE-Distanz per WASM (`wasm-ble/`) | `src/lib/bleWasm.ts` lädt echtes WASM **falls vorhanden**, sonst verifizierte JS-Simulation; **kein `.wasm`-Artefakt im Repo, kein WASM-Schritt in CI** | ⚠️ Fallback aktiv → Phase 2 (Build) |
-| 1.17 | Sensor-Hook (DeviceOrientation/Motion) | `src/hooks/useSensors.ts` real; `src/mocks/sensors.mock.ts` unreferenziert | ✅ (+ DEAD-Datei) |
-| 1.18 | Pairing-Panel QR/BLE/NFC/WiFi | `PairingPanel.tsx` real (html5-qrcode); `src/mocks/pairing.mock.ts` unreferenziert | ✅ (+ DEAD-Datei) |
+| 1.17 | Sensor-Hook (DeviceOrientation/Motion) | `src/hooks/useSensors.ts` real; `src/mocks/sensors.mock.ts` gelöscht | ✅ |
+| 1.18 | Pairing-Panel QR/BLE/NFC/WiFi | `PairingPanel.tsx` real (html5-qrcode); `src/mocks/pairing.mock.ts` gelöscht | ✅ |
 | 1.19 | Rosetta-Konverter, 3D-Szene, Mesh-Control, Replay-Editor, Diagnose-Panels | `rosettaConverter.ts`, `Scene3D.tsx`, `MeshControl.tsx`, `ReplayEditor.tsx`, `diagnostics/` | ✅ |
-| 1.20 | Enterprise-Knoten-DB (docs/enterprise-node-database.md) | `config/enterprise-nodes.csv` (6 Zeilen, `.local`-Planungsdaten), `src/config/enterprise-nodes.ts` | ⚠️ TODO: kein Produktivbestand → verifizieren |
+| 1.20 | Enterprise-Knoten-DB (docs/enterprise-node-database.md) | `src/config/enterprise-nodes.ts` mit echtem CSV-Parser/Loader; `config/enterprise-nodes.csv` = Schema-Vorlage, Laufzeitdaten in `public/enterprise-nodes.csv`; `validateNodeEndpoint` prüft per fetch | ✅ (2026-09-13) |
 
 ## 2. MCP-Integration (docs/mcp-integration.md)
 
@@ -83,9 +83,9 @@
 | 6.2 | Neo4j-Kontext + Gemini-Erklärung | `neo4j_service.py`, `gemini_service.py` (mit Graceful-Fallback ohne Key) | ✅ |
 | 6.3 | MoE-Parser (VESC/Ninebot) + dynamischer Loader (GitHub/S3) | `moe/*` (Beispiel-Subset, dokumentiert) | ✅ |
 | 6.4 | Android-App: Node-Graph + Raycast + Detail-Popup + AI-Summary | `ui/*`, `websocket/WebSocketClient.kt` | ✅ |
-| 6.5 | Produktiver Graph statt Demo-Knoten | **Festcodierte Demo-Knoten** in `NodeGraphViewModel.kt` | ⚠️ PLACEHOLDER → Phase 2 (optional) |
+| 6.5 | Produktiver Graph statt Demo-Knoten | `NodeGraphViewModel.kt` ohne `DEMO_NODES`: live aus `/graph` oder Cache des letzten Live-Ladens; Backend `/graph` liefert leer + Grund statt `_DEMO_GRAPH` | ✅ (2026-09-13) |
 | 6.6 | Polar-BLE-Manager + Nordic-UART + ADB-Bridge | `ble/*`, `adb/AdbBridge.kt` (Timeouts + Error-Handling) | ✅ |
-| 6.7 | Polar-Config-Screen State-Bindung | `Switch(checked=true, onCheckedChange={})` ohne Bindung | ⚠️ TODO → Phase 2 |
+| 6.7 | Polar-Config-Screen State-Bindung | `Switch(checked = highRateAlert, onCheckedChange = …)` — ViewModel-State gebunden | ✅ |
 | 6.8 | Backend-Testsuite / CI-Backend-Build | **Keine Tests**; `build-backend.yml` vorhanden (hier nicht gelaufen) | ❌ → Phase 4 (teilweise) |
 
 ## 7. Phasen-Spec: Sonderpunkte
@@ -104,8 +104,8 @@
 ## Zusammenfassung
 
 - **Geprüfte Anforderungen: 46** — ✅ 32 · ⚠️ 11 · ❌ 5 · ⛔ 2 · N/A 3 (7.1/7.2-teilw./7.3)
-- **Echte Code-Lücken (funktional):** agentEngine-Mocks (1.4–1.7), WASM-Artefakt (1.16),
-  fastboot-Platzhalter (4.1), Demo-Knoten (6.5), Polar-Switch (6.7)
+- **Echte Code-Lücken (funktional):** ~~agentEngine-Mocks (1.4–1.7)~~ ✅ 2026-09-13,
+  ~~Demo-Knoten (6.5)~~ ✅ 2026-09-13, ~~Polar-Switch (6.7)~~ ✅; offen: WASM-Artefakt (1.16), fastboot-Platzhalter (4.1)
 - **Fehlende Infrastruktur:** Retry/Circuit-Breaker (2.4), Gateway-Session-Persistenz (3.10),
   `npm test` (7.4), Watchdog/Log-Rotation/Bug-Report (7.8), Genesis-Backend-Tests (6.8)
 - **⛔-Blocker:** CT45P-Protokoll proprietär (3.9), Android-SDK nur in CI (4.6)

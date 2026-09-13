@@ -1,22 +1,70 @@
 /**
- * Tests für die Agent-Engine (Phase 2 live, Phase 3 persistent).
- * Offline-Erwartungen: Kennzeichnung statt Raten. Ausführen: npm test
+ * Tests für die Agent-Engine (Phase 2 live, Phase 3 persistent, Phase 4 ohne Mocks).
+ *
+ * // REAL-IMPLEMENTATION 2026-09-13 (Schritt 3): Die festcodierte
+ * Attrappen-Geräteliste existiert nicht mehr. Diese Tests sichern die neue
+ * Zusage ab: **keine erfundenen Geräte** — entweder echte Live-Daten oder eine
+ * ehrliche Null-Meldung inklusive Quellen-Diagnose.
+ *
+ * Ausführen: npm test
  */
-import { describe, expect, it, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentEngine } from '../agentEngine';
 import { resetCircuitBreakers } from '../../retry';
+
+const FRUEHERE_ATTRAPPEN = ['MASTER-Gold', 'Client-A-Grün', 'Client-B-Grün', 'Target-X-Rot', 'WiFi-AP-Grau', 'BLE-Beacon-Grau'];
 
 beforeEach(() => {
   localStorage.clear();
   resetCircuitBreakers();
+  // Deterministisch offline: egal ob lokal ein Gateway läuft (Befund 1 der
+  // ersten Auswertung) — dieser Block prüft das Offline-Verhalten.
+  vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('offline (Test-Double)'))));
 });
 
-describe('AgentEngine offline (Fallback ehrlich gekennzeichnet)', () => {
-  it('intentDevices meldet Offline-Demo, wenn nichts live ist', () => {
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetCircuitBreakers();
+});
+
+describe('AgentEngine ohne Attrappen (keine erfundenen Geräte)', () => {
+  it('intentDevices erfindet keine Geräte und nennt den echten Abfragezustand', () => {
     const engine = new AgentEngine('admin');
     const text = engine.intentDevices();
-    expect(text).toContain('Offline-Demo');
-    expect(text).toContain('MASTER-Gold');
+    for (const name of FRUEHERE_ATTRAPPEN) expect(text).not.toContain(name);
+    expect(text).toMatch(/Geräteabfrage läuft|Gefundene Geräte: 0/);
+    expect(text).not.toContain('Offline-Demo');
+  });
+
+  it('refreshDevices liefert nur echte Quellen und protokolliert jede Quelle', async () => {
+    const engine = new AgentEngine('admin');
+    const cache = await engine.refreshDevices();
+    // Im Testlauf (happy-dom, keine Dienste) antwortet keine Quelle: 0 Geräte.
+    expect(Array.isArray(cache.devices)).toBe(true);
+    expect(cache.devices.every((d) => d.source !== ('demo-fallback' as string))).toBe(true);
+    expect(cache.reports.length).toBeGreaterThan(0);
+    for (const r of cache.reports) {
+      expect(typeof r.name).toBe('string');
+      expect(typeof r.ok).toBe('boolean');
+      expect(r.detail.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('intentDevices zeigt die Quellen-Diagnose, wenn nichts erreichbar ist', async () => {
+    const engine = new AgentEngine('admin');
+    await engine.refreshDevices(); // Cache füllen (alle Quellen offline)
+    const text = engine.intentDevices();
+    expect(text).toContain('Gefundene Geräte: 0');
+    expect(text).toContain('Quellen-Status');
+    expect(text).toMatch(/🔴 (Gateway|Nativ|PortView)/);
+  });
+
+  it('describeDevicesShort nennt keine Fantasienamen', async () => {
+    const engine = new AgentEngine('admin');
+    await engine.refreshDevices();
+    const short = engine.describeDevicesShort();
+    for (const name of FRUEHERE_ATTRAPPEN) expect(short).not.toContain(name);
+    expect(short).toMatch(/keine Live-Geräte|Abfrage läuft/);
   });
 
   it('intentClients zeigt echte Sitzungsrollen statt erfundener Clients', () => {
@@ -33,6 +81,7 @@ describe('AgentEngine offline (Fallback ehrlich gekennzeichnet)', () => {
     const text = engine.summary();
     expect(text).toMatch(/Geräte: \d+.*Clients: \d+.*Workflows: \d+/);
     expect(text).toContain('Clients: 1');
+    expect(text).toContain('Geräte: 0'); // ohne Live-Quelle keine erfundenen Geräte
   });
 
   it('intentAdbDevices erklärt Browser-Grenze ohne Fake-Geräte', () => {
@@ -49,6 +98,9 @@ describe('AgentEngine offline (Fallback ehrlich gekennzeichnet)', () => {
     expect(text).not.toContain('gestartet');
   });
 
+  // Befund 1 (behoben): Der Test war host-abhängig — mit laufendem Gateway auf
+  // 8791 fand der Live-Scan echte Treffer und die „0 Fund"-Erwartung schlug fehl.
+  // Jetzt ist `fetch` deterministisch offline gestubbt (siehe beforeEach).
   it('intentScanLive scheitert ohne Gateway strukturiert (kein Fake-Erfolg)', async () => {
     const engine = new AgentEngine('admin');
     const text = await engine.intentScanLive('scan 192.168.1.0/24');

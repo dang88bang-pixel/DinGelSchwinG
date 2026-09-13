@@ -2,6 +2,7 @@ package com.genesis.orchestrator.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -36,15 +37,42 @@ fun NodeGraphScreen(viewModel: NodeGraphViewModel = viewModel()) {
         ) {
             GraphCanvas(viewModel)
 
-            Text(
-                text = if (viewModel.connected) "Verbunden" else "Verbindung wird hergestellt…",
-                color = if (viewModel.connected) Color(0xFF4CAF50) else Color(0xFFFFA726),
-                style = MaterialTheme.typography.labelMedium,
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
                     .padding(top = 8.dp),
-            )
+            ) {
+                Text(
+                    text = if (viewModel.connected) "Verbunden" else "Verbindung wird hergestellt…",
+                    color = if (viewModel.connected) Color(0xFF4CAF50) else Color(0xFFFFA726),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                // Ehrliche Quellenangabe: live (Neo4j) · Cache · offline.
+                Text(
+                    text = when (viewModel.graphSource) {
+                        "neo4j" -> "Graph: live (Neo4j) – ${viewModel.nodes.size} Knoten"
+                        "cache" -> "Graph: Cache – ${viewModel.nodes.size} Knoten (Backend offline)"
+                        else -> "Graph: offline – kein Knoten geladen"
+                    },
+                    color = Color(0xFF90A4AE),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+
+            if (viewModel.nodes.isEmpty()) {
+                Text(
+                    text = viewModel.graphNote
+                        ?: "Keine Knoten geladen – /graph abfragen (Pull-to-Refresh).",
+                    color = Color(0xFF90A4AE),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp),
+                )
+            }
 
             if (viewModel.loading) {
                 CircularProgressIndicator(

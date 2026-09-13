@@ -206,7 +206,7 @@ Abschalten: `--no-import` (dann melden die Endpunkte `grabber_deaktiviert`).
 Relative `url`-Werte werden gegen die Manifest-URL aufgelöst. Überzählige Items
 (`> DGS_IMPORT_MAX_ITEMS`, Default 40) werden abgeschnitten und gemeldet; ein
 blockierter Eintrag landet in `skipped[]` und bricht den Rest **nicht** ab.
-Beispiel im Repo: [`public/demo/packs/dgs-demo-pack.json`](../public/demo/packs/dgs-demo-pack.json)
+Beispiel im Repo: [`public/samples/packs/dgs-demo-pack.json`](../public/samples/packs/dgs-demo-pack.json)
 (Panel-Button „Demo-Pack laden“ füllt die URL mit `location.origin` daraus).
 
 ### Antworten
@@ -305,7 +305,7 @@ Sätze), Gliederung, bereinigten Volltext und die Liste der verlinkten Dateien �
 Seite über „suche im wissen: …“ wieder auffindbar und im Chat kontextgebend.
 
 Demo zum Ausprobieren (liegt im Repo und wird vom Dev-Server ausgeliefert):
-`http://127.0.0.1:5173/demo/seite/index.html` → ziehen, „Prüfen & ablegen“, danach
+`http://127.0.0.1:5173/samples/seite/index.html` → ziehen, „Prüfen & ablegen“, danach
 `suche im wissen: türsensor abfrage`.
 
 **Neu am Gateway:** `POST /import` mit `persist:false` (und `GET /import/preview?url=`)
@@ -340,7 +340,7 @@ cd desktop && python3 -m unittest discover -s tests   # 50 Tests (PortView, Grab
 
 # Seiten-Ingest ohne UI durchspielen (Gateway + Demo-Seite müssen laufen):
 curl -s -X POST http://127.0.0.1:8791/import -H 'content-type: application/json' \
-     -d '{"url":"http://127.0.0.1:8123/demo/seite/index.html","persist":false}' | head -c 300
+     -d '{"url":"http://127.0.0.1:8123/samples/seite/index.html","persist":false}' | head -c 300
 
 # Live, mit laufendem Gateway (--mock):
 curl -s http://127.0.0.1:8791/status | python3 -m json.tool | head -6

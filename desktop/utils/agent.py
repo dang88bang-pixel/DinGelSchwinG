@@ -870,10 +870,10 @@ class Agent:
             res = _clients.gateway_command("demo_handshake")
             self._audit("gateway_demo", json.dumps(res, ensure_ascii=False)[:120])
             if not res.get("ok"):
-                return f"❌ Demo-Handshake: {json.dumps(res, ensure_ascii=False)[:400]}"
+                return f"❌ Handshake-Selbsttest: {json.dumps(res, ensure_ascii=False)[:400]}"
             verify = res.get("verify") or {}
             return (
-                f"🔐 Demo-Handshake: sid `{res.get('sid')}` · BLE-Write {'ok' if res.get('ble_write_ok') else 'fehlgeschlagen'}\n"
+                f"🔐 Handshake-Selbsttest: sid `{res.get('sid')}` · BLE-Write {'ok' if res.get('ble_write_ok') else 'fehlgeschlagen'}\n"
                 f"- Prüfung: {'✅ verifiziert' if verify.get('ok') else '❌ ' + str(verify.get('reason'))} · "
                 f"Batterie {verify.get('battery_mv', '—')} mV · Latenz {verify.get('latency_ms', '—')} ms\n"
                 "- Falscher Root-Key wurde mitgespielt und muss DENY ergeben."

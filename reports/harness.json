@@ -11,7 +11,7 @@
     "Container (Docker)",
     "Web/PWA"
   ],
-  "timestamp": "2026-09-13T00:47:15+0000",
+  "timestamp": "2026-09-13T01:07:59+0000",
   "checks": [
     {
       "name": "Build/Test (node)",
@@ -44,19 +44,14 @@
       "detail": "kein Build-Schritt definiert"
     },
     {
-      "name": "health:5000",
-      "status": "⏭",
-      "detail": "kein Listener auf 127.0.0.1"
-    },
-    {
       "name": "health:8765",
-      "status": "⏭",
-      "detail": "kein Listener auf 127.0.0.1"
+      "status": "⚠️",
+      "detail": "Port offen, aber kein HTTP /health"
     },
     {
       "name": "health:8791",
-      "status": "⏭",
-      "detail": "kein Listener auf 127.0.0.1"
+      "status": "✅",
+      "detail": "HTTP 200 auf /health"
     }
   ],
   "verdict": "PARTIAL"

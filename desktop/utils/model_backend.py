@@ -12,6 +12,8 @@ Download: python tools/download_model.py
 """
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+
 import glob
 import json
 import os
@@ -26,14 +28,21 @@ class BackendError(Exception):
     """Wird geworfen, wenn ein Backend nicht verfügbar ist oder fehlschlägt."""
 
 
-class ModelBackend:
-    """Basis-Klasse für alle Modell-Backends."""
+class ModelBackend(ABC):
+    """Basis-Klasse für alle Modell-Backends (abstrakt).
+
+    // REAL-IMPLEMENTATION 2026-09-13 (Schritt 3): `generate` ist jetzt formal
+    abstrakt (`@abstractmethod`) — die vier realen Backends
+    (Deterministic/LlamaCpp/Ollama/OpenAI-kompatibel) implementieren sie, die
+    Basisklasse kann nicht mehr versehentlich instanziiert werden.
+    """
 
     name = "none"
     is_llm = False
 
+    @abstractmethod
     def generate(self, system_prompt: str, user_message: str) -> str:
-        raise NotImplementedError
+        """Erzeugt eine Antwort; jede konkrete Backend-Klasse implementiert das."""
 
     def describe(self) -> str:
         return "deterministisch (kein LLM)"
@@ -43,8 +52,21 @@ class ModelBackend:
 # Deterministisches Backend (immer verfügbar, Grundlage der App)
 # --------------------------------------------------------------------------
 class DeterministicBackend(ModelBackend):
+    """Immer verfügbares Nicht-LLM: die Skill-Engine antwortet deterministisch.
+
+    `generate` ist hier bewusst definiert und meldet klar, dass dieses Backend
+    keine Sprache erzeugt — der Agent ruft es wegen `is_llm = False` gar nicht
+    erst auf (agent.py: `if self.backend.is_llm`).
+    """
+
     name = "none"
     is_llm = False
+
+    def generate(self, system_prompt: str, user_message: str) -> str:
+        raise BackendError(
+            "Deterministisches Backend erzeugt keine LLM-Antwort — "
+            "die Skill-Engine übernimmt (is_llm=False)."
+        )
 
     def describe(self) -> str:
         return "deterministische Skill-Engine (offline, immer verfügbar)"

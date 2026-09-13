@@ -135,7 +135,7 @@ export const GALLERY_AGENTS: GalleryAgent[] = [
     author: 'DinGelSchwinG',
     version: '1.0.0',
     builtIn: true,
-    prompts: ['nfc-uid 04:a2:b3:c1:d2:e3 – öffne tor nord wenn berechtigt', 'starte den demo-handshake'],
+    prompts: ['nfc-uid 04:a2:b3:c1:d2:e3 – öffne tor nord wenn berechtigt', 'starte den handshake-selbsttest'],
   },
   {
     id: 'network-rag',

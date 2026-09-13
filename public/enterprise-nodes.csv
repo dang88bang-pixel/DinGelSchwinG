@@ -1,0 +1,5 @@
+# Echte Enterprise-Knoten dieses Deployments (vom Betreiber gepflegt).
+# Ohne Einträge bleibt die Registry leer — es werden keine Endpunkte erfunden.
+# Schema: Kategorie,Knoten-ID,Tunnel-Protokoll,Endpunkt-URL,Authentifizierung,Zweck
+# Beispiel:
+# MCP,mcp.eigener-host.example,WSS/HTTPS,wss://mcp.eigener-host.example/v1/tools,Hardware-Token,Tool-Calling

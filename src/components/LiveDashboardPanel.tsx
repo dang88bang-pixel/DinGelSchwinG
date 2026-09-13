@@ -257,7 +257,7 @@ python3 mobile-server/mobile_ble_server.py --ble-backend bluetoothctl   # realer
                   Werbung (Re-)Aktivieren
                 </button>
                 <button type="button" onClick={() => void gwCmd('demo_handshake')} className="text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-white hover:brightness-110">
-                  🔐 Demo-Handshake
+                  🔐 Handshake-Selbsttest
                 </button>
               </div>
               {note && <div className="mt-2 text-[10.5px] font-mono text-emerald-200 bg-emerald-950/30 border border-emerald-800/30 rounded-lg p-2 break-all">{note}</div>}
@@ -284,7 +284,7 @@ python3 mobile-server/mobile_ble_server.py --ble-backend bluetoothctl   # realer
 
           <PanelSection title="Ereignisse (SSE-live)" className="mt-4" right={<Pill tone="info">{events.length}</Pill>}>
             {events.length === 0 ? (
-              <p className="text-[11px] text-slate-500">Warte auf Ereignisse — z. B. Demo-Handshake oder Token-Lesung.</p>
+              <p className="text-[11px] text-slate-500">Warte auf Ereignisse — z. B. Handshake-Selbsttest oder Token-Lesung.</p>
             ) : (
               <ul className="space-y-1">
                 {events.map((e, i) => (

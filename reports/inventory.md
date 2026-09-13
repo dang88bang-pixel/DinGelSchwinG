@@ -1,6 +1,6 @@
-# Universe Inventory — 2026-09-13 00:46:35 UTC
+# Universe Inventory — 2026-09-13 01:04:14 UTC
 
-Repo: `DinGelSchwinG` @ `785fcc4`
+Repo: `DinGelSchwinG` @ `97ecd8a`
 Erzeugt von: `scripts/universe_audit.sh` (Schritt 1 der Auftragsbeschreibung)
 
 Status-Legende: `REAL` = produktive Implementierung · `MOCK` = Attrappe im Produktionspfad ·
@@ -46,10 +46,10 @@ gradle : fehlt
 
 ### Umfang
 ```
-Versionierte Dateien      : 392
+Versionierte Dateien      : 402
 Quellcode (scanbar)       : 210
-Testdateien               : 12
-Dokumentation (Markdown)  : 28
+Testdateien               : 15
+Dokumentation (Markdown)  : 29
 ```
 
 ## Mocks / TODOs / Stubs
@@ -61,27 +61,17 @@ Zwei Signalklassen: Kommentar-Marker und Attrappen-Bezeichner.
 (keine Treffer)
 ```
 
-### Attrappen-Bezeichner: MOCK_*/MockX/PLACEHOLDER_*/FAKE_*/DUMMY_* (10 Treffer)
+### Attrappen-Bezeichner: MOCK_*/MockX/PLACEHOLDER_*/FAKE_*/DUMMY_* (3 Treffer)
 ```
-scripts/audit_inventar.py:13:        "intentDevices/intentClients liefern hartcodierte MOCK_DEVICES/Clients; intentScan simuliert (setTimeout); summary() nutzt Mocks"),
 src/lib/__tests__/retry.test.ts:72:    const spy = vi.fn().mockResolvedValue(resp);
 src/lib/__tests__/retry.test.ts:80:    const spy = vi.fn().mockRejectedValue(new TypeError('failed'));
 src/lib/__tests__/retry.test.ts:90:    const spy = vi.fn().mockResolvedValue(resp);
-src/lib/agent/agentEngine.ts:26:import { MOCK_DEVICES, type MockDevice } from '../../mocks/devices.mock';
-src/lib/agent/agentEngine.ts:607:    return MOCK_DEVICES.map((d: MockDevice): LiveDevice => ({
-src/lib/agent/agentEngine.ts:1544:      : MOCK_DEVICES.filter((d) => d.bound).length;
-src/mocks/devices.mock.ts:15:export interface MockDevice {
-src/mocks/devices.mock.ts:31:export const MOCK_DEVICES: MockDevice[] = [
-src/mocks/devices.mock.ts:40:export const getMockByType = (t: MockDevice['type']) => MOCK_DEVICES.filter(d => d.type === t);
 ```
 
 ### Kandidaten je Datei (automatisch vorsortiert)
 
 | Datei | Kandidaten-Status | Signale |
 |---|---|---|
-| `desktop/utils/model_backend.py` | STUB | nicht implementiert |
-| `src/lib/agent/agentEngine.ts` | MOCK | Mock-Bezeichner |
-| `src/mocks/devices.mock.ts` | MOCK | Mock-Bezeichner |
 
 Nicht gelistet: Dateien ohne Attrappen-Signal (vorläufig `REAL`) sowie Werkzeugdateien,
 die die Suchmuster selbst enthalten (`scripts/`, `tools/`, `tests/universe_harness.py`).
@@ -89,10 +79,9 @@ Dummy-Returns/`pass` allein machen noch keinen Kandidaten — siehe Dichte-Tabel
 
 ## Leere Rümpfe / Dead Code / Dummy-Returns
 
-### Explizit nicht implementiert (2 Treffer)
+### Explizit nicht implementiert (0 Treffer)
 ```
-desktop/utils/model_backend.py:36:        raise NotImplementedError
-scripts/audit_inventar.py:34:        "NotImplementedError nur in abstrakter Basisklasse; 3 reale Backends implementiert"),
+(keine Treffer)
 ```
 
 ### Python-Rümpfe mit nur pass/... (1 Treffer)
@@ -124,19 +113,22 @@ Bewertet wird im Kontext: Fehlerpfad, Fallback oder Platzhalter?
 
 ## Testdateien
 
-Versionierte Testdateien: **12**.
+Versionierte Testdateien: **15**.
 Prüfen: echte Assertions? Ausführendes Kommando vorhanden?
 
 ### Dateiliste
 ```
 android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java
+backups/phase3/agentEngine.test.ts.cbee3072f5c4c220.bak
 desktop/tests/test_core.py
 genesis-orchestrator/fastapi-backend/tests/test_api.py
 mobile-server/tests/test_gateway.py
 server/tests/test_discovery.py
+src/config/__tests__/enterprise-nodes.test.ts
 src/lib/__tests__/bugReport.test.ts
 src/lib/__tests__/retry.test.ts
 src/lib/agent/__tests__/agentEngine.test.ts
+src/lib/agent/__tests__/agentEngineLive.test.ts
 tests/chain.py
 tests/stress.py
 tests/suite.py
@@ -185,4 +177,4 @@ python3 -m pytest genesis-orchestrator/fastapi-backend   (bzw. python3 genesis-o
 
 ---
 
-_Erzeugt: 2026-09-13 00:46:37 UTC · Werkzeuge: bash, git, grep, awk (keine externen Abhängigkeiten)_
+_Erzeugt: 2026-09-13 01:04:15 UTC · Werkzeuge: bash, git, grep, awk (keine externen Abhängigkeiten)_

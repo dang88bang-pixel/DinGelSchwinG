@@ -50,7 +50,7 @@ Unter **🔌 MCP & Server → Konfiguration** liegt der kopierfertige `mcp.json`
 Der Agent versteht zusätzlich frei formulierte Kommandos, die als Skills in `src/config/skills.ts`
 dokumentiert sind (31 Skills, exakter Spiegel von `desktop/data/skillz.md`): `mcp_connect` · `mcp_list` ·
 `mcp_call` · `gateway_status` · `gateway_tokens` · `gateway_sessions` · `gateway_selftest` ·
-`gateway_grant` · `token_auth` · `token_demo` · `gallery_list` · `gallery_install` ·
+`gateway_grant` · `token_auth` · `token_selftest` · `gallery_list` · `gallery_install` ·
 `knowledge_add` · `knowledge_search` · `show_metrics` · `portview_scan` · `grabber_import_url` ·
 `page_ingest` · `content_review`
 (z. B. *„mcp tools gateway“*, *„demo-handshake“*, *„installiere agent ble-security“*,

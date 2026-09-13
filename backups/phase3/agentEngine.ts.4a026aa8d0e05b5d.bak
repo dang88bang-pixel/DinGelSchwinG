@@ -10,7 +10,7 @@
  * // REAL-IMPLEMENTATION 2026-09-11 (Phase 2.1):
  * Geräte/Clients/Scans kommen aus Live-Quellen (Gateway-Tokens/-Sessions,
  * BLE-Scan, PortView, natives DeviceControl); die Mock-Daten aus
- * Die frühere Attrappen-Datei `src/mocks/devices.mock.ts` ist gelöscht (Schritt 3).
+ * `src/mocks/devices.mock.ts` sind nur noch gekennzeichneter Offline-Fallback.
  * Alle bestehenden öffentlichen Methoden behalten ihre Signatur.
  */
 import { apiUrl, describeEndpoint, getEndpoint } from '../endpoint';
@@ -23,6 +23,7 @@ import {
   ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, CHAT_SYSTEM_INSTRUCTION,
   MODE_LABELS,
 } from '../../config/systemInstructions';
+import { MOCK_DEVICES, type MockDevice } from '../../mocks/devices.mock';
 import { TransformersBackend } from './transformersBackend';
 import { gallery } from '../../lib/galleryStore';
 import { liveMetrics, formatMs, formatTokens, formatCost, MetricsSnapshot } from '../../lib/liveMetrics';
@@ -60,28 +61,14 @@ export interface AuditEntry {
   detail: string;
 }
 
-/**
- * Ein Gerät aus einer real abgefragten Quelle.
- *
- * // REAL-IMPLEMENTATION 2026-09-13: Es gibt keinen `demo-fallback` mehr.
- * Geräte stammen ausschließlich aus Gateway-Tokens/-Sessions, nativem
- * USB/ADB (Capacitor) oder dem PortView-Lauf. Ist keine Quelle erreichbar,
- * ist die Liste leer und [SourceReport] sagt, *warum*.
- */
+/** Ein Gerät aus einer Live-Quelle (Gateway/Nativ/PortView) oder dem Demo-Fallback. */
 export interface LiveDevice {
   id: string;
   name: string;
   rssi: number | null;
   bound: boolean;
-  source: 'gateway-token' | 'gateway-session' | 'native-usb' | 'native-adb' | 'portview';
+  source: 'gateway-token' | 'gateway-session' | 'native-usb' | 'native-adb' | 'demo-fallback';
   detail?: string;
-}
-
-/** Ergebnis einer einzelnen Live-Quelle (für ehrliche Offline-Diagnose). */
-export interface SourceReport {
-  name: string;
-  ok: boolean;
-  detail: string;
 }
 
 export interface LiveClient {
@@ -95,15 +82,12 @@ interface DeviceCache {
   at: number;
   devices: LiveDevice[];
   sources: string[];
-  /** Je Quelle: erreichbar? mit welchem Ergebnis? (leer = noch nicht abgefragt) */
-  reports: SourceReport[];
 }
 
 interface ClientCache {
   at: number;
   clients: LiveClient[];
   sources: string[];
-  reports: SourceReport[];
 }
 
 /** Wie lange Live-Caches als „frisch" gelten (danach: erneute Abfrage). */
@@ -131,12 +115,6 @@ function now(): string {
   return new Date().toLocaleTimeString('de-DE');
 }
 
-/** Kurze, ehrliche Fehlerbeschreibung für die Quellen-Diagnose. */
-function shortErr(e: unknown): string {
-  const msg = String((e as Error)?.message ?? e ?? 'unbekannter Fehler');
-  return msg.length > 90 ? `${msg.slice(0, 87)}…` : msg;
-}
-
 export class AgentEngine {
   role: string;
   mode: AgentMode = 'chat';
@@ -148,7 +126,7 @@ export class AgentEngine {
   backend: TransformersBackend = new TransformersBackend();
   pendingPlan: { kind: string; plan: string } | null = null;
   private nextMsgId = 1;
-  /** Live-Caches: frische Gateway-/Nativ-Daten; sonst ehrlicher Leerzustand. */
+  /** Live-Caches (Phase 2.1): frische Gateway-/Nativ-Daten, sonst Demo-Fallback. */
   private deviceCache: DeviceCache | null = null;
   private clientCache: ClientCache | null = null;
   private adbCache: { at: number; text: string } | null = null;
@@ -580,44 +558,19 @@ export class AgentEngine {
     return `✅ Netzwerk-Scan für ${subnet} gestartet (PortView + Gateway-BLE, live).\n▶️ Status im Status-Panel: network_scan läuft (seit ${started}).`;
   }
 
-  /**
-   * Geräteliste aus realen Quellen.
-   *
-   * // REAL-IMPLEMENTATION 2026-09-13 (Schritt 3): Die festcodierte
-   * Die frühere festcodierte Attrappen-Liste ist entfernt. Ohne erreichbare Quelle wird **kein**
-   * Gerät erfunden: Es gibt eine ehrliche Null-Meldung mit dem Zustand jeder
-   * Quelle (Gateway-Token/-Sessions, nativ, PortView).
-   */
   intentDevices(): string {
     const live = this.freshDeviceCache();
     if (live) {
-      this.audit('show_devices', `${live.devices.length} geräte (live: ${live.sources.join('+') || 'keine quelle'})`);
-      const header = `📡 Gefundene Geräte: ${live.devices.length} (live, ${live.sources.join(' + ') || 'keine Quelle erreichbar'})`;
-      return this.renderDevices(live.devices, header) + this.renderSourceReports(live.reports, live.devices.length);
+      this.audit('show_devices', `${live.devices.length} geräte (live: ${live.sources.join('+')})`);
+      return this.renderDevices(live.devices, `📡 Gefundene Geräte: ${live.devices.length} (live, ${live.sources.join(' + ')})`);
     }
-    // Noch kein Cache: echte Abfrage anstoßen (Ergebnis beim nächsten Aufruf).
-    const started = this.refreshDevices().catch(() => null);
-    void started;
-    this.audit('show_devices', 'abfrage gestartet (kein cache)');
-    liveMetrics.noteTool('devices:refresh');
+    // Offline-Fallback: gekennzeichnete Demo-Daten (kein Raten, kein Verschweigen)
+    const demo = this.demoDevices();
+    this.audit('show_devices', `${demo.length} geräte (demo-fallback, offline)`);
     return (
-      '📡 Geräteabfrage läuft (Gateway-Tokens/-Sessions, nativ, PortView).\n' +
-      'Noch keine Daten im Cache — in ein bis zwei Sekunden erneut fragen.\n' +
-      'ℹ️ Ohne erreichbare Quelle bleibt die Liste leer; es werden keine Geräte simuliert.'
+      this.renderDevices(demo, `📡 Gefundene Geräte: ${demo.length} (Offline-Demo – Gateway offline)`) +
+      '\nℹ️ Live-Abfrage: Gateway starten (`npm run mcp:gateway`) und erneut fragen.'
     );
-  }
-
-  /** Ehrliche Quellen-Diagnose: welche Quelle antwortete, welche nicht (und warum). */
-  private renderSourceReports(reports: SourceReport[], deviceCount: number): string {
-    if (!reports.length) return '';
-    const failed = reports.filter((r) => !r.ok);
-    if (!failed.length) return '';
-    const lines = ['', 'ℹ️ Quellen-Status:'];
-    for (const r of reports) {
-      lines.push(`- ${r.ok ? '🟢' : '🔴'} ${r.name}: ${r.detail}`);
-    }
-    if (!deviceCount) lines.push('▶️ Gateway starten (`npm run mcp:gateway`) oder Gerät per USB verbinden, dann erneut fragen.');
-    return '\n' + lines.join('\n');
   }
 
   intentClients(): string {
@@ -650,21 +603,27 @@ export class AgentEngine {
     return null;
   }
 
-  /** Synchroner Kurztext für LLM-Kontext + Status-Bar (nur echte Daten). */
+  private demoDevices(): LiveDevice[] {
+    return MOCK_DEVICES.map((d: MockDevice): LiveDevice => ({
+      id: d.id,
+      name: d.name,
+      rssi: d.rssi,
+      bound: d.bound,
+      source: 'demo-fallback',
+    }));
+  }
+
+  /** Synchroner Kurztext für LLM-Kontext + Status-Bar (Cache oder Demo). */
   describeDevicesShort(): string {
     const live = this.freshDeviceCache();
-    if (!live) {
-      void this.refreshDevices().catch(() => null);
-      return '(Abfrage läuft …)';
-    }
-    if (!live.devices.length) return '(keine Live-Geräte – keine Quelle erreichbar)';
-    return live.devices.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ');
+    const list = live ? live.devices : this.demoDevices();
+    return list.map((d) => `${d.name} (${d.id})`).slice(0, 6).join(', ');
   }
 
   private renderDevices(devices: LiveDevice[], header: string): string {
     const lines = [header];
     for (const d of devices) {
-      const icon = d.bound ? '🟢' : '🟡';
+      const icon = d.source === 'demo-fallback' ? '🟡' : d.bound ? '🟢' : '🟡';
       const rssi = typeof d.rssi === 'number' ? `, RSSI ${d.rssi} dBm` : '';
       const extra = d.detail ? ` – ${d.detail}` : '';
       lines.push(`- ${icon} ${d.name} (${d.id}${rssi})${extra}`);
@@ -698,7 +657,6 @@ export class AgentEngine {
   async refreshDevices(): Promise<DeviceCache> {
     const devices: LiveDevice[] = [];
     const sources: string[] = [];
-    const reports: SourceReport[] = [];
     // 1) Gateway-Whitelist (Token-Bestand)
     try {
       const res = await gatewayTokens();
@@ -714,16 +672,9 @@ export class AgentEngine {
           });
         }
         sources.push('gateway-tokens');
-        reports.push({ name: 'Gateway-Tokens', ok: true, detail: `${res.tokens.length} Token in der Whitelist` });
-      } else {
-        reports.push({
-          name: 'Gateway-Tokens',
-          ok: false,
-          detail: res.ok ? 'Whitelist leer' : `Antwort ohne ok: ${String((res as Record<string, unknown>).reason ?? 'unbekannt')}`,
-        });
       }
-    } catch (e) {
-      reports.push({ name: 'Gateway-Tokens', ok: false, detail: shortErr(e) });
+    } catch {
+      /* Quelle offline – nächste versuchen */
     }
     // 2) Gateway-Sessions (zuletzt gesehene Token)
     try {
@@ -744,12 +695,9 @@ export class AgentEngine {
           });
         }
         sources.push('gateway-sessions');
-        reports.push({ name: 'Gateway-Sessions', ok: true, detail: `${res.sessions.length} Sitzung(en)` });
-      } else {
-        reports.push({ name: 'Gateway-Sessions', ok: false, detail: 'keine Sitzungen gemeldet' });
       }
-    } catch (e) {
-      reports.push({ name: 'Gateway-Sessions', ok: false, detail: shortErr(e) });
+    } catch {
+      /* Quelle offline – nächste versuchen */
     }
     // 3) Natives DeviceControl (nur installierte App: USB-Port-View + adb)
     if (deviceControl.isNative()) {
@@ -766,9 +714,8 @@ export class AgentEngine {
           });
         }
         if ((pv.devices ?? []).length) sources.push('native-usb');
-        reports.push({ name: 'Nativ (USB-PortView)', ok: true, detail: `${(pv.devices ?? []).length} Port(s)` });
-      } catch (e) {
-        reports.push({ name: 'Nativ (USB-PortView)', ok: false, detail: shortErr(e) });
+      } catch {
+        /* nativ nicht verfügbar */
       }
       try {
         const adb = await deviceControl.adbDevices();
@@ -785,44 +732,11 @@ export class AgentEngine {
           });
         }
         if ((adb.devices ?? []).length) sources.push('native-adb');
-        reports.push({ name: 'Nativ (ADB)', ok: true, detail: `${(adb.devices ?? []).length} Gerät(e)` });
-      } catch (e) {
-        reports.push({ name: 'Nativ (ADB)', ok: false, detail: shortErr(e) });
+      } catch {
+        /* nativ nicht verfügbar */
       }
-    } else {
-      reports.push({
-        name: 'Nativ (USB/ADB)',
-        ok: false,
-        detail: 'nur in der installierten App verfügbar (Browser hat keinen USB-Zugriff)',
-      });
     }
-    // PortView als reale Netzquelle (im Browser über den Dev-/Bridge-Proxy)
-    try {
-      const pv = await runPortView({});
-      const known = new Set(devices.map((d) => d.id));
-      for (const c of pv.candidates) {
-        const id = `${c.kind}@${c.host}:${c.port}`;
-        if (known.has(id)) continue;
-        known.add(id);
-        devices.push({
-          id,
-          name: `${c.kind} ${c.host}:${c.port}`,
-          rssi: null,
-          bound: true,
-          source: 'portview',
-          detail: `${c.latencyMs} ms`,
-        });
-      }
-      if (pv.candidates.length) sources.push('portview');
-      reports.push({
-        name: 'PortView',
-        ok: pv.candidates.length > 0,
-        detail: `${pv.candidates.length} Kandidat(en), Modus ${pv.mode}`,
-      });
-    } catch (e) {
-      reports.push({ name: 'PortView', ok: false, detail: shortErr(e) });
-    }
-    this.deviceCache = { at: Date.now(), devices, sources, reports };
+    this.deviceCache = { at: Date.now(), devices, sources };
     return this.deviceCache;
   }
 
@@ -830,7 +744,6 @@ export class AgentEngine {
   async refreshClients(): Promise<ClientCache> {
     const clients: LiveClient[] = [];
     const sources: string[] = [];
-    const reports: SourceReport[] = [];
     try {
       const res = await gatewaySessions(25);
       if (res.ok && res.sessions?.length) {
@@ -849,15 +762,8 @@ export class AgentEngine {
     }
     const g = await gatewayStatus().catch(() => null);
     if (g?.ok && (g.connected_agents ?? 0) > 0) sources.push(`${g.connected_agents} agent(en)`);
-    reports.push({
-      name: 'Gateway-Status',
-      ok: Boolean(g?.ok),
-      detail: g?.ok ? `${g.connected_agents ?? 0} verbundene Agent(en)` : 'Gateway nicht erreichbar',
-    });
-    if (!clients.length) {
-      return { at: Date.now(), clients: this.sessionClients(), sources: ['sitzung'], reports };
-    }
-    this.clientCache = { at: Date.now(), clients, sources, reports };
+    if (!clients.length) return { at: Date.now(), clients: this.sessionClients(), sources: ['sitzung'] };
+    this.clientCache = { at: Date.now(), clients, sources };
     return this.clientCache;
   }
 
@@ -1359,10 +1265,10 @@ export class AgentEngine {
   async intentGatewayDemo(): Promise<string> {
     const res = await gatewayCommand('demo_handshake');
     this.audit('gateway_demo', res.ok ? 'ok' : JSON.stringify(res).slice(0, 120));
-    if (!res.ok) return `❌ Handshake-Selbsttest: ${JSON.stringify(res)}`;
+    if (!res.ok) return `❌ Demo-Handshake: ${JSON.stringify(res)}`;
     const verify = (res.verify ?? {}) as Record<string, unknown>;
     return [
-      '🔐 Handshake-Selbsttest durchlaufen (echtes AES-128-CBC, Challenge/Response):',
+      '🔐 Demo-Handshake durchlaufen (AES-128-CBC, Challenge/Response):',
       `- sid \`${res.sid}\` · BLE-Write ${res.ble_write_ok ? 'ok' : 'fehlgeschlagen'}`,
       `- Prüfung: ${verify.ok ? '✅ verifiziert' : `❌ ${verify.reason}`} · Batterie ${verify.battery_mv ?? '—'} mV · Latenz ${verify.latency_ms ?? '—'} ms`,
       '- Der Angreifer-Fall (falscher Root-Key) wurde mitgespielt und muss DENY ergeben.',
@@ -1633,9 +1539,9 @@ export class AgentEngine {
     // sonst ehrliche Sitzungs-/Fallback-Werte (Format unverändert).
     const liveDevices = this.freshDeviceCache();
     const liveClients = this.freshClientCache();
-    // Nur real bestätigte Geräte zählen; ohne Cache startet eine echte Abfrage.
-    if (!liveDevices) void this.refreshDevices().catch(() => null);
-    const devices = liveDevices ? liveDevices.devices.filter((d) => d.bound).length : 0;
+    const devices = liveDevices
+      ? liveDevices.devices.filter((d) => d.bound).length
+      : MOCK_DEVICES.filter((d) => d.bound).length;
     const clients = liveClients ? liveClients.clients.length : this.sessionClients().length;
     const wf = this.activeWorkflows().length;
     const state = wf > 0 ? 'BUSY' : 'IDLE';
