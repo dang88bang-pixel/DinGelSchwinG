@@ -521,18 +521,22 @@ class Agent:
         return _clients.format_preflight(report)
 
     def _intent_adb_devices(self) -> str:
-        self._audit("adb_devices", "Geräteliste abgefragt")
         if _clients is not None:
             live = _clients.format_devices(_clients.adb_devices())
             if not live.startswith("⚠️"):
+                self._audit("adb_devices", "Geräteliste abgefragt")
                 return live + "\n\nHinweis: `adb devices -l` liefert Details (Modell, Transport); " \
                     "das Gateway löst USB-IDs über data/usb_vendors.json auf (docs/usb-hersteller.md)."
-        return ("📱 ADB-Geräte (USB/WiFi):\n"
-                "- `device`  R58M123ABC – Pixel 7 (USB, autorisiert)\n"
-                "- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert)\n"
-                "- `offline` R22X987DEF – Gerät reaktivieren\n"
-                "- `unauthorized` – RSA-Fingerprint am Gerät bestätigen\n\n"
-                "Hinweis: `adb devices -l` liefert Details (Modell, Transport).")
+        # Kein ADB-Träger erreichbar: Beispielausgabe, klar als solche gekennzeichnet
+        # (A-12). Vorher sah die Liste aus wie ein echtes `adb devices`.
+        self._audit("adb_devices", "demo – kein ADB-Träger erreichbar")
+        return ("📱 ADB-Geräte — ⚠️ **Beispiel** (keine echte Abfrage: kein ADB-Träger erreichbar)\n"
+                "- `device`  R58M123ABC – Pixel 7 (USB, autorisiert) ← Beispiel\n"
+                "- `device`  192.168.1.42:5555 – Galaxy S21 (WiFi, autorisiert) ← Beispiel\n"
+                "- `offline` R22X987DEF – Gerät reaktivieren ← Beispiel\n"
+                "- `unauthorized` – RSA-Fingerprint am Gerät bestätigen ← Beispiel\n\n"
+                "Hinweis: `adb devices -l` liefert Details (Modell, Transport). "
+                "Sobald ein Gerät am Host hängt, listet dieser Befehl die echten Einträge.")
 
     def _generate_adb(self, kind: str) -> str:
         """Erzeugt nach Freigabe ein vollständiges, ausführbares ADB-Skript."""

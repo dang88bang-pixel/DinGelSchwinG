@@ -24,8 +24,8 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 | [A-7](#a-7-ingest--grabber-offline-pfad) | Ingest/Grabber ohne Gateway (Offline-Pfad) | offen | P1 | M |
 | [A-6](#a-6-freie-button-aktionen-taskcustom) | Freie Button-Aktionen (`task:custom`) | teilfertig | P1 | S |
 | [A-5](#a-5-adb-ausführung-aus-dem-web) | ADB-Ausführung aus dem Web (nur Plan/Skript) | n/a im Browser | P1 | M |
-| [A-12](#a-12-demo-geräteliste-im-desktop-kennzeichnen) | Demo-Geräteliste im Desktop kennzeichnen | offen | P1 | S |
-| [G-5](#g-5--a-9-default-port-8765-entflechten) | Default-Port 8765 entflechten (= A-9) | offen | P1 | S |
+| [A-12](#a-12-demo-geräteliste-im-desktop-kennzeichnen) | Demo-Geräteliste im Desktop kennzeichnen | **erledigt ✅ 2026-09-13** | P1 | S |
+| [G-5](#g-5--a-9-default-port-8765-entflechten) | Default-Port 8765 entflechten (= A-9) | **erledigt ✅ 2026-09-13** | P1 | S |
 | [G-9](#g-9-bundle-splitting) | Bundle-Splitting (Chunk > 500 kB) | offen | P1 | M |
 | [A-8](#a-8--g-4-3d-raycast-entscheiden) | 3D-Raycast: implementieren **oder** entfernen (= G-4) | teilfertig | P1 | S–L |
 | [G-1](#g-1-enterprise-knoten-produktivbestand) | Enterprise-Knoten: Produktivbestand einpflegen | offen | P2 | S |
@@ -142,7 +142,11 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 - **Fertig wenn:** Ohne Träger weiterhin Plan/Skript (Test), mit Träger ein echter Exit-Code im Audit steht.
 
 ### A-12 Demo-Geräteliste im Desktop kennzeichnen
-- **Status:** offen (neu gefunden am 2026-09-13) · **Quelle:** GAP-Matrix A-12 (§ 14.3)
+- **Status:** ✅ **erledigt 2026-09-13** (neu gefunden und sofort geschlossen, § 14.4) ·
+  **Nachweis:** `TestAdbDevicesFallback` (2 Zweige) in `desktop/tests/test_skill_chain.py` — 62/62;
+  Ausgabe trägt jetzt `⚠️ **Beispiel** (keine echte Abfrage: kein ADB-Träger erreichbar)`,
+  Audit `demo – kein ADB-Träger erreichbar`; Negativkontrolle ohne Kennzeichnung → FAILED
+- **Quelle:** GAP-Matrix A-12 (§ 14.3 / § 14.4)
 - **Betroffen:** `desktop/utils/agent.py` (`_intent_adb_devices`)
 - **Ist:** Ohne `_clients` bzw. wenn die Live-Abfrage mit `⚠️` antwortet, liefert der Desktop eine
   **feste Beispielliste** (`R58M123ABC – Pixel 7`, `192.168.1.42:5555 – Galaxy S21`) ohne
@@ -157,7 +161,14 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
   das Wort „Beispiel" enthält.
 
 ### G-5 / A-9 Default-Port 8765 entflechten
-- **Status:** offen · **Quelle:** GAP-Matrix G-5 / A-9 / 10.2
+- **Status:** ✅ **erledigt 2026-09-13** (`PTY_PORT`-Default 8765 → **8768**, Gateway bleibt 8765) ·
+  **Nachweis:** `TestPortDefaults` (3 Tests, liest die Defaults aus dem echten Modulcode) — 18/18;
+  live liefen `python3 -m server.pty_bridge` und `npm run mcp:gateway` gleichzeitig
+  (`0.0.0.0:8768` + `0.0.0.0:8765` offen, WS-Handshake `101`). Nachgezogen: `start.sh`,
+  `vite.config.ts`, `docker-compose.yml`, `deploy/nginx.conf`, `Dockerfile`,
+  `deploy/.env.example`, promtail-Kommentar, README (5), `api-websockets.md` (3),
+  `hardware-setup.md` (2) — GAP-Matrix § 14.4
+- **Quelle:** GAP-Matrix G-5 / A-9 / 10.2
 - **Betroffen:** `server/pty_bridge.py` (`PTY_PORT`, Default 8765), `mobile-server/gw_config.py` (`DGS_TCP_PORT`, Default 8765), `README.md`, `docs/api-websockets.md`, `deploy/*`, `docker-compose.yml`
 - **Ist:** Beide Dienste belegen standardmäßig 8765 → parallel nur mit Env-Override
   (im Test `PTY_PORT=8770` genutzt).
@@ -331,6 +342,7 @@ Pairing-Spec-Pfade + `/api/devices-status` (Phantom-Spec) · `openapi.yaml` 20 �
 `gateway_grant`-`None` · Skill-Duplikate (`skills.ts`, `skillz.md`) ·
 Fake-`success` in `workflow:<name>`, `POST /api/workflows`, `POST /api/scripts/run` ·
 Desktop-Test-Isolation + `DGS_API_URL` · Frontend-Test-Isolation · `npm test` (36/36) ·
+**A-12** Demo-Geräteliste gekennzeichnet · **G-5/A-9** Port 8765 entflechtet (Terminal 8768) ·
 Watchdog/Log-Rotation/Bug-Reports · Gateway-Session-Persistenz · Genesis-`/graph` + Polar-Switch.
 
 ## Pflege dieser Liste

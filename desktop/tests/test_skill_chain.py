@@ -11,9 +11,11 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import agent as agent_module  # noqa: E402
 from utils import api_client  # noqa: E402
 from utils.agent import Agent  # noqa: E402
 from utils.skill_loader import load_skills  # noqa: E402
@@ -77,6 +79,36 @@ class TestSkillChainCoverage(unittest.TestCase):
         for idx in range(6):
             reply = self.agent.execute_action(idx)
             self.assertNotIn("Unbekannte Aktion", reply, f"Button {idx + 1} nicht bedient")
+
+class _WarnClients:
+    """ADB-Träger, der keine Geräteliste liefern kann (⚠️-Antwort)."""
+
+    def adb_devices(self) -> list:
+        return []
+
+    def format_devices(self, _devices: list) -> str:
+        return "⚠️ adb nicht verfügbar"
+
+
+class TestAdbDevicesFallback(unittest.TestCase):
+    """A-12: Die Beispielliste darf nicht wie ein echtes `adb devices` aussehen."""
+
+    def _fallback(self, clients) -> tuple:
+        agent = Agent(role="admin", config={"engine": "none"})
+        with mock.patch.object(agent_module, "_clients", clients):
+            reply = agent._execute_tool_line("TOOL: adb_devices")
+        entries = [e for e in agent.audit_log if e.get("action") == "adb_devices"]
+        return reply, entries
+
+    def test_ohne_traeger_gekennzeichnet(self) -> None:
+        for clients in (None, _WarnClients()):
+            with self.subTest(clients=type(clients).__name__):
+                reply, entries = self._fallback(clients)
+                self.assertIn("Beispiel", reply)
+                self.assertIn("keine echte Abfrage", reply)
+                self.assertTrue(entries, "kein Audit-Eintrag für adb_devices")
+                self.assertIn("demo", entries[-1]["detail"])
+
 
 
 if __name__ == "__main__":

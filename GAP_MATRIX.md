@@ -145,7 +145,7 @@ Zeilennummer + Textstelle; Doku-/Datendateien und Test-Dateien werden als solche
 | 7.2 | Login/JWT, Rollen, RBAC | `auth.py` (PBKDF2-SHA256 + HMAC-JWT), `rbac.py` (6 Rollen, 13 Aktionen), `rate_limiter.py`; `tests/chain.py` **20/20** (JWT-Claims sub/role/iat/exp) | ✅ |
 | 7.3 | WebAuthn (FIDO2) für kritische Aktionen | `/api/webauthn/challenge` + `/assert` (einmaliges Grant-Token); `tests/suite.py` prüft `challenge → 200` | ✅ |
 | 7.4 | Persistenz SQLite | `store.py` (Tabellen users/devices/clients/pairings/**audit**), `server/data/data.db` (gitignored); Audit **nicht** in-memory (README-Zeile korrigiert) | ✅ |
-| 7.5 | Terminal-Bridge (PTY/Serial/SSH) | `server/pty_bridge.py` (`PTY_PORT`, default 8765); **live** auf `PTY_PORT=8770`: WS-Handshake `101 Switching Protocols`, `Sec-WebSocket-Accept` korrekt, ohne Token `UNAUTHORIZED` | ✅ |
+| 7.5 | Terminal-Bridge (PTY/Serial/SSH) | `server/pty_bridge.py` (`PTY_PORT`, **default 8768** seit 2026-09-13, vorher 8765 → Konflikt mit Gateway-TCP); **live** auf dem Default: WS-Handshake `101 Switching Protocols` auf `ws://0.0.0.0:8768`, `Sec-WebSocket-Accept` korrekt (früherer Nachweis mit `PTY_PORT=8770`: ohne Token `UNAUTHORIZED`) | ✅ |
 | 7.6 | Discovery-Service | `server/scanner_service.py` (`SCAN_PORT`, default 8766); **live** auf 8771: Handshake 101, ohne Rechte `RBAC_DENIED` | ✅ |
 | 7.7 | Live-Status-Board (Präsenz, Heartbeat, TTL) | `server/status_board.py` (`STATUS_PORT`, default 8767); **live** mit JWT: `{"type":"client.online","client":{"id":"admin","role":"emergency","online":true}}` | ✅ |
 | 7.8 | Operations-Center: Endpoint-Health + Aktionen | `OperationsCenter.tsx`. **Repariert (live nachgewiesen):** `POST /api/scan` war **404** → jetzt 200 (Alias, Subnetz aus Body: `subnet=127.0.0.0/24, scanned=24`); `POST /api/scripts/run` war **500** (`AttributeError: 'str' object has no attribute 'get'`, im Log belegt) → akzeptiert jetzt `{name, args:"--subnet …"}` **und** `{script, args:{subnet}}` → 200; `GET /api/diagnostics/iperf` war **404** → 200 (`throughputMbps`, `target: local-mesh`) | ✅ |
@@ -159,7 +159,7 @@ Zeilennummer + Textstelle; Doku-/Datendateien und Test-Dateien werden als solche
 | # | Gefordert | Vorhanden (Beweis) | Status |
 |---|---|---|---|
 | 8.1 | Container-Stack | `Dockerfile`, `docker-compose.yml` (Services `api`, `terminal`, `discovery`, `status`, `web` + Volume `nexus-data`); **kein Docker-Daemon in der Sandbox** → nicht ausgeführt | ⛔ nicht ausführbar (Konfiguration geprüft) |
-| 8.2 | Reverse Proxy | `deploy/nginx.conf` (WS-Upgrade für `:8765`, `/api/` → `:5000`, `/` → `:4173`); `nginx` in Sandbox nicht installiert → Syntax nicht geprüft | ⛔ nicht ausführbar |
+| 8.2 | Reverse Proxy | `deploy/nginx.conf` (WS-Upgrade: Terminal `:8768`, Discovery `:8766`, Status `:8767`; `/api/` → `:5000`, `/` → `:4173`); `nginx` in Sandbox nicht installiert → Syntax nicht geprüft | ⛔ nicht ausführbar |
 | 8.3 | Monitoring-Stack | `deploy/monitoring/`: Prometheus (+ Alert-Rules), Grafana (Dashboard + Provisioning), Loki, Promtail, Alertmanager; Targets `:5000`, `:8790`, `:8791` — alle drei liefern **live** `/metrics` 200 | ✅ |
 | 8.4 | Start/Stop/Reset reproduzierbar | `start.sh` (PID-/Log-Dateien, `--docker`), `Makefile` mit **neuen** Zielen `test-py`, `test-gw`, `test-genesis`, `test-web`, `smoke`, `test-all`, `inventar` — `make test` und `make test-all` **exit 0** | ✅ |
 | 8.5 | APK-Release-Pfad | CI: Debug+Release APK, Artefakt-Upload, Release on tag; Keystore-Secrets optional (Debug-Signierung sonst) | ✅ |
@@ -169,7 +169,7 @@ Zeilennummer + Textstelle; Doku-/Datendateien und Test-Dateien werden als solche
 
 | # | Gefordert | Vorhanden (Beweis) | Status |
 |---|---|---|---|
-| 9.1 | Einheitliche Test-Matrix | `make test-all` (2026-09-13, **exit 0**): server **15** + desktop **61** + gateway 47 + selftest 24 + genesis 10 + web **36** = **193 Checks**, dazu Smoke 13 + 20 + Lasttest | ✅ |
+| 9.1 | Einheitliche Test-Matrix | `make test-all` (2026-09-13, **exit 0**): server **18** + desktop **62** + gateway 47 + selftest 24 + genesis 10 + web **36** = **197 Checks**, dazu Smoke 13 + 20 + Lasttest | ✅ |
 | 9.2 | `npm test` | Vitest 0.34 + happy-dom: **36/36** (retry 8, bugReport 3, agentEngine 10, enterprise-nodes 9, **Aktionsketten-Deckung 6**) | ✅ |
 | 9.3 | Typen/Lint/Build | `tsc --noEmit` clean, `eslint --max-warnings 0` clean, `vite build` Erfolg (35 s; Chunk-Warnung > 500 kB bleibt Tech-Debt) | ✅ |
 | 9.4 | Test-Isolation gegen Ambient-Dienste | **Neu:** Desktop-Tests pinnen `api_client.BASE_URL` auf `127.0.0.1:1`; Agent-Engine-Tests stubben `fetch` (vorher schlug `intentScanLive` fehl, sobald Gateway/Bridge liefen — im Voll-Lauf reproduziert und behoben) | ✅ |
@@ -181,8 +181,8 @@ Zeilennummer + Textstelle; Doku-/Datendateien und Test-Dateien werden als solche
 
 | # | Gefordert (Phasen-Spec) | Vorhanden | Status |
 |---|---|---|---|
-| 10.1 | IPC 8080–8085 (Sockets/Protobuf/FlatBuffers) | Existieren nicht — reale Ports: REST 5000, Terminal-WS 8765, Discovery-WS 8766, Status-WS 8767, Bridge 8790, Gateway HTTP 8791 + TCP 8765, Discovery-UDP 18791; **alle live als echte Sockets verifiziert** | N/A (Spec-Abweichung, dokumentiert) |
-| 10.2 | Port-Konflikte | Default **8765** wird sowohl von `pty_bridge` als auch vom BLE-Gateway-TCP benutzt → beide per Env trennbar (`PTY_PORT`, `DGS_TCP_PORT`); im Live-Test wurde `PTY_PORT=8770` verwendet. **Empfehlung:** Defaults entflechten (s. § 12, G-5) | ⚠️ |
+| 10.1 | IPC 8080–8085 (Sockets/Protobuf/FlatBuffers) | Existieren nicht — reale Ports: REST 5000, Terminal-WS 8768, Discovery-WS 8766, Status-WS 8767, Bridge 8790, Gateway HTTP 8791 + TCP 8765, Discovery-UDP 18791; **alle live als echte Sockets verifiziert** | N/A (Spec-Abweichung, dokumentiert) |
+| 10.2 | Port-Konflikte | **Entflechtet (2026-09-13):** Terminal-Bridge `PTY_PORT` default **8768**, Gateway-TCP bleibt **8765**; beide Dienste liefen parallel (Ports offen, WS-Handshake `101`). Nachgezogen: `start.sh`, `vite.config.ts`, `docker-compose.yml`, `deploy/nginx.conf`, `Dockerfile`, `deploy/.env.example`, promtail-Kommentar, README, `api-websockets.md`, `hardware-setup.md`; Test `TestPortDefaults` (3) | ✅ |
 | 10.3 | JNI/USB/BT/Audio-Callback mit Error-Handling + Timeout | USB/BT-Pfade mit Timeouts + Handling (Kotlin/Python); **kein JNI, kein Audio-Callback** im Repo | Teil-N/A |
 | 10.4 | Audio-Loopback SHA256-Abgleich (Phase 4.4) | Keine Audio-Pipeline im Repo | N/A (dokumentiert) |
 | 10.5 | `npm test` grün | **30/30** (war in Fassung 1.0 noch ❌) | ✅ |
@@ -216,6 +216,7 @@ Alles selbst ausgeführt (Sandbox: Node v22.22.3, Python 3.11.2, `npm ci` → 52
 | i18n | Schlüssel-Vergleich de/en | 222/222, **0** Abweichungen |
 | Secrets | grep über alle Quell-/Config-Dateien | **0 Treffer** |
 | Inventar | `python3 scripts/audit_inventar.py` | **390 Dateien**, 5 Nicht-REAL (+9 Backups) |
+| Port-Entflechtung (G-5/A-9) | `python3 -m server.pty_bridge` + `npm run mcp:gateway` gleichzeitig | `0.0.0.0:8768` (Log `terminal WebSocket auf ws://0.0.0.0:8768`) **und** `0.0.0.0:8765` (Log `tcp=8765`) offen; WS-Handshake auf 8768 → `101 Switching Protocols` |
 | TODO-Konsistenz | `python3 server/tests/test_todo_consistency.py` | **5/5** — jede `G-*`/`A-*`-ID hat einen Abschnitt mit „Fertig wenn"; Negativkontrolle (ID umbenannt) schlägt mit `['G-9']` fehl |
 | CI | `gh run list --workflow=build-apk.yml` | letzter `main`-Run **success** (34718200773) |
 | Nicht ausführbar | Docker, NGINX, Gradle/Kotlin, Rust/crates.io, `dl.google.com` | in der Sandbox blockiert/abwesend (⛔-Zeilen 4.6, 6.10, 8.1, 8.2, 1.16) |
@@ -228,7 +229,7 @@ Alles selbst ausgeführt (Sandbox: Node v22.22.3, Python 3.11.2, `npm ci` → 52
 | **G-2** | `src/config/enterprise-nodes.ts` hat **keinen UI-Consumer** | Kein Panel importiert die Konfiguration (grep: 0 Importe) | Panel/Agent-Skill an `probeNodeEndpoint()` anbinden |
 | **G-3** | `fastboot` = 542-B-Platzhalter | Kein vertrauenswürdiges ARM64-Prebuilt erreichbar (Sandbox-Netz: nur GitHub/PyPI/npm; `dl.google.com`/Termux blockiert) | `scripts/fetch-android-tools.sh` (CI) mit `ADB_URL`/`FASTBOOT_URL` + SHA-256 laufen lassen |
 | **G-4** | `RaycastUtil.perform3DRaycast()` = Dummy, ohne Aufrufer | Filament-3D-Overlay existiert noch nicht; 2D-`HitTest` ist der reale Pfad | Entweder Filament-Renderer + inverse View-Projection anbinden oder Datei entfernen |
-| **G-5** | Default-Port **8765** doppelt belegt (Terminal-Bridge / Gateway-TCP) | Historisch gewachsen, per Env trennbar | Einen Default verschieben (z. B. `PTY_PORT=8768`) und README/`api-websockets.md` nachziehen |
+| **G-5** | ~~Default-Port **8765** doppelt belegt~~ → **geschlossen 2026-09-13** | `PTY_PORT`-Default jetzt **8768**, Gateway-TCP bleibt 8765; Doku/Deploy-Konfigs nachgezogen, Test `TestPortDefaults` | erledigt — beide Dienste parallel live verifiziert (§ 11, § 14.4) |
 | **G-6** | Kein `.wasm`-Artefakt im Repo | Kein Rust/crates.io in der Sandbox | `wasm-pack build` lokal/CI (Schritt „Build BLE WASM" ist vorbereitet, fail-soft) |
 | **G-7** | CT45P-Xon+-GATT: UUIDs sind Annahmen | Proprietäres Protokoll, keine Hardware | Feldabgleich mit echtem Scanner; bis dahin `mock`/`bluetoothctl`/`gdbus` |
 | **G-8** | Android-/Genesis-App nicht lokal gebaut | Kein SDK/Gradle/Kotlin in der Sandbox | CI (`build-apk.yml`) bzw. lokales Android Studio |
@@ -315,10 +316,10 @@ erfand nach 6 s `success`, `POST /api/workflows` markierte **jeden** Namen nach 
 | **A-6** | `assign_button` → `task:custom` | Platzhalter-Aktion (erklärt sich selbst, führt nichts aus) | Freie Aktionen auf echte Skills/Endpoints abbilden |
 | **A-7** | Ingest-/Grabber-Kette offline | `page_ingest`, `content_review`, `grabber_import_url` brauchen Gateway/Bridge; offline strukturierte Fehlermeldung (kein Fake), aber kein Offline-Pfad | Lokaler Ingest ohne Gateway (RAG + Asset-Store direkt) |
 | **A-8** | Genesis-3D-Kette | `RaycastUtil.perform3DRaycast()` Dummy ohne Aufrufer; real ist `HitTest.kt` (2D) — siehe G-4 | Filament-Renderer + inverse View-Projection, sonst Datei entfernen |
-| **A-9** | Terminal- + Gateway-Kette gleichzeitig | Default-Port **8765** doppelt belegt (G-5); nur mit `PTY_PORT`/`DGS_TCP_PORT` parallel | Einen Default verschieben + Doku nachziehen |
+| **A-9** | ~~Terminal- + Gateway-Kette gleichzeitig~~ → **geschlossen 2026-09-13** | Defaults entflechtet (8768 / 8765); `python3 -m server.pty_bridge` + `npm run mcp:gateway` laufen gleichzeitig, beide Ports offen | erledigt (§ 14.4) |
 | **A-10** | Enterprise-Knoten-Kette | `probeNodeEndpoint()` funktioniert (9 Tests), aber **keine UI** ruft sie auf (G-2); `GET /api/nodes/validate` prüft nur das eigene Backend | Panel/Skill anbinden; `/api/nodes/validate` auf echte Knoten erweitern |
 | **A-11** | Audio-/JNI-Kette | Nicht vorhanden (Spec-Abweichung 10.3/10.4) | Nur bei neuer Anforderung |
-| **A-12** | `adb_devices` in der Desktop-Konsole | `_intent_adb_devices()` liefert ohne `_clients` bzw. bei Live-Fehler eine **nicht gekennzeichnete Demo-Liste** (`R58M123ABC – Pixel 7`, `192.168.1.42:5555`); Audit vermerkt „Geräteliste abgefragt". Die Web-Variante (`intentAdbDevices`, `agentEngine.ts:521`) gibt stattdessen einen ehrlichen Hinweis | Demo-Fallback als „Beispiel" kennzeichnen oder entfernen, Audit auf `demo` setzen |
+| **A-12** | ~~`adb_devices` in der Desktop-Konsole~~ → **geschlossen 2026-09-13** (Fallback als „Beispiel" gekennzeichnet, Audit `demo`, Test `TestAdbDevicesFallback`) | ursprünglich: `_intent_adb_devices()` liefert ohne `_clients` bzw. bei Live-Fehler eine **nicht gekennzeichnete Demo-Liste** (`R58M123ABC – Pixel 7`, `192.168.1.42:5555`); Audit vermerkt „Geräteliste abgefragt". Die Web-Variante (`intentAdbDevices`, `agentEngine.ts:521`) gibt stattdessen einen ehrlichen Hinweis | Demo-Fallback als „Beispiel" kennzeichnen oder entfernen, Audit auf `demo` setzen |
 
 **Außerhalb der Aktionsketten offen:** G-1 (Knoten-Planungsdaten), G-3 (`fastboot`-Platzhalter),
 G-6 (kein `.wasm`), G-7 (CT45P proprietär), G-8 (kein Android-SDK lokal), G-9 (Bundle > 500 kB),
@@ -338,16 +339,25 @@ G-10 (Upstream-Paket) — Details in § 12.
 16. Neuer Abschnitt **§ 14** mit gemessener Deckung und der vollständigen Liste offener
     Kettenteile **A-1…A-12**.
 
+### 14.4 Nachtrag zweite Runde (2026-09-13): A-12 und G-5/A-9 geschlossen
+
+| # | Punkt | Vorher | Nachher | Nachweis |
+|---|---|---|---|---|
+| 12 | A-12: `adb_devices`-Fallback im Desktop | Feste Beispielliste ohne Kennzeichnung, Audit „Geräteliste abgefragt" | Ausgabe trägt `⚠️ **Beispiel** (keine echte Abfrage: kein ADB-Träger erreichbar)` plus `← Beispiel` je Zeile; Audit `demo – kein ADB-Träger erreichbar`; echter Abfragepfad unverändert | `desktop/tests/test_skill_chain.py::TestAdbDevicesFallback` (beide Zweige: `_clients=None` und ⚠️-Antwort) — 62/62; Negativkontrolle: ohne Kennzeichnung FAILED |
+| 13 | G-5/A-9: Default-Port 8765 doppelt belegt | `pty_bridge` und Gateway-TCP beide 8765 | `PTY_PORT` default **8768**, Gateway bleibt 8765; `start.sh`, `vite.config.ts` (2 Proxys), `docker-compose.yml`, `deploy/nginx.conf`, `Dockerfile`, `deploy/.env.example`, promtail, README (5 Stellen), `api-websockets.md` (3), `hardware-setup.md` (2) nachgezogen | `server/tests/test_discovery.py::TestPortDefaults` (3 — liest die Defaults per Subprozess aus dem echten Modulcode und gleicht Deploy-Konfigs ab) — 18/18; live: beide Dienste parallel, `0.0.0.0:8768` + `0.0.0.0:8765` offen, WS-Handshake `101` |
+
 ## Zusammenfassung
 
 - **Erfasste Anforderungen: 93 Zeilen** in 10 Kapiteln (§1 21 · §2 5 · §3 12 · §4 7 · §5 5 ·
-  §6 10 · §7 12 · §8 6 · §9 7 · §10 8) — **✅ 80 · ⚠️ 5 · ⛔ 5 · N/A 2 · Teil-N/A 1**
-- **Teststand 2026-09-13 (nach Tiefenprüfung): 193/193 Checks grün** (server 15, desktop 61,
+  §6 10 · §7 12 · §8 6 · §9 7 · §10 8) — **✅ 81 · ⚠️ 4 · ⛔ 5 · N/A 2 · Teil-N/A 1**
+  (Zeile 10.2 „Port-Konflikte" ist am 2026-09-13 von ⚠️ auf ✅ gewandert — § 14.4)
+- **Teststand 2026-09-13 (nach Tiefenprüfung): 197/197 Checks grün** (server 18, desktop 62,
   gateway 47, selftest 24, genesis 10, web 36) **+ 33 Smoke-Checks** + tsc/eslint/vite-build
   grün; `make test-all` exit 0.
 - **Aktionsketten (§ 14):** Web 30/30 Skills + 6/6 Buttons, Desktop 37/37 Skills + 6/6 Buttons —
-  offen bleiben **A-1…A-12** (u. a. Skript-Runner, Workflow-Registry, LLM-Multi-Turn,
-  ADB-Ausführung, 3D-Raycast, Port 8765).
+  offen bleiben **A-1…A-8, A-10, A-11** (u. a. Skript-Runner, Workflow-Registry,
+  LLM-Multi-Turn, ADB-Ausführung, 3D-Raycast). **A-9** (Port-Konflikt) und **A-12**
+  (ADB-Demo-Liste) sind seit der zweiten Runde geschlossen — § 14.4.
 - **Echte Code-Lücken:** keine funktionalen mehr in Web/Gateway/Desktop/Backend —
   verbleibend: G-1/G-2 (Datenbestand + UI-Anbindung), G-4 (ungenutzter 3D-Stub), G-9 (Chunk-Größe).
 - **Infrastruktur-Lücken:** G-3 (fastboot-Binary), G-6 (WASM-Artefakt), G-8 (Android-SDK) —
