@@ -13,7 +13,7 @@
  * Pure Funktionen (extractReadable/findAssetLinks/reviewContent/maskSecrets) sind
  * bewusst ohne DOM/Netz gearbeitet – identisch in desktop/utils/page_ingest.py.
  */
-import { grabFromUrl, prefetchOffline, textOfAsset } from './grabber';
+import { grabFromFile, grabFromUrl, prefetchOffline, textOfAsset } from './grabber';
 import { detectCategory, filenameFromUrl, formatBytes, shortHash, type ImportedAsset, type PackCategory } from './packs';
 import { rag } from './rag';
 
@@ -48,7 +48,8 @@ export interface PageReview {
   url: string;
   bytes: number;
   mime: string;
-  via: 'gateway' | 'browser' | 'datei';
+  /** 'lokal' = Datei/Eingabe ohne Gateway und ohne Netz (Aktionskette A-7). */
+  via: 'gateway' | 'browser' | 'lokal';
   verdict: 'ok' | 'attention' | 'blockiert';
   checks: ReviewCheck[];
   asset?: ImportedAsset;
@@ -191,8 +192,22 @@ export function extractReadable(raw: string): PageExtract {
     .replace(/<li[^>]*>/gi, '\n- ')
     .replace(/<[^>]+>/g, ' ');
 
+  // Markdown ohne HTML: ATX-Überschriften (#, ##, ###) als Titel/Gliederung.
+  // Wichtig für den Offline-Weg (A-7), denn gezogene Dateien sind meist .md/.txt.
+  if (!titleMatch && !headings.length) {
+    const mdRe = /^\s{0,3}(#{1,3})\s+(.{1,160})$/gm;
+    let mm: RegExpExecArray | null;
+    while ((mm = mdRe.exec(source)) !== null) {
+      const mdText = cleanText(mm[2]);
+      if (mdText.length > 1) headings.push({ level: mm[1].length, text: mdText.slice(0, 160) });
+      if (headings.length > 40) break;
+    }
+  }
+
   const text = cleanText(decodeEntities(body));
-  const title = cleanText(decodeEntities(titleMatch?.[1] ?? '')) || 'Ohne Titel';
+  const title = cleanText(decodeEntities(titleMatch?.[1] ?? ''))
+    || (headings.length ? headings[0].text : '')
+    || 'Ohne Titel';
   const words = text ? text.split(/\s+/).filter((w) => w.length > 1).length : 0;
   const summary = (metaDesc ? cleanText(decodeEntities(metaDesc)) : '') || firstSentences(text, 480);
 
@@ -356,7 +371,7 @@ export async function ingestPage(input: { url?: string; file?: File; text?: stri
   let pageAsset: ImportedAsset | undefined;
   let grabbedRef: { deduped?: boolean } | undefined;
   let mime = input.text ? 'text/plain' : '';
-  let via: PageReview['via'] = 'datei';
+  let via: PageReview['via'] = 'lokal';
   let bytes = new TextEncoder().encode(raw).length;
 
   if (!raw && input.url) {
@@ -404,17 +419,36 @@ export async function ingestPage(input: { url?: string; file?: File; text?: stri
       result.hint = result.review.hint;
       return result;
     }
-  } else if (input.file && !input.text) {
-    try {
-      raw = await input.file.text();
-      bytes = input.file.size || raw.length;
-      mime = input.file.type || 'text/plain';
-      via = 'datei';
-    } catch (e) {
-      result.error = 'datei_lesefehler';
-      result.hint = String((e as Error)?.message ?? e);
-      return result;
+  } else if (input.file) {
+    // A-7: Datei-Drop ist ein eigener, rein lokaler Weg — RAG + Asset-Store
+    // (IndexedDB) statt Gateway-Katalog. `input.text` darf der Aufrufer bereits
+    // mitliefern (z. B. PDF-Textschicht aus readFileAsText), dann bleibt er maßgeblich.
+    const grabbed = await grabFromFile(input.file, {
+      tags,
+      persist: !opts.reviewOnly,
+      filename: input.name || undefined,
+    });
+    if (grabbed.ok && grabbed.imported.length) {
+      pageAsset = grabbed.imported[0];
+      bytes = pageAsset.bytes || bytes;
+      mime = pageAsset.mime ?? mime;
+      if (grabbed.detail) result.notes.push(grabbed.detail);
+    } else if (grabbed.error) {
+      result.notes.push(`Asset-Ablage übersprungen: ${grabbed.error}` +
+        `${grabbed.detail ? ` – ${grabbed.detail}` : ''}`);
     }
+    if (!raw) {
+      try {
+        raw = await input.file.text();
+      } catch (e) {
+        result.error = 'datei_lesefehler';
+        result.hint = String((e as Error)?.message ?? e);
+        return result;
+      }
+    }
+    bytes = bytes || input.file.size || raw.length;
+    mime = mime || input.file.type || 'text/plain';
+    via = 'lokal';
   }
 
   // 2) prüfen
@@ -429,7 +463,10 @@ export async function ingestPage(input: { url?: string; file?: File; text?: stri
   };
   result.ok = true;
   result.review = review;
-  if (pageAsset) result.notes.push(`Seite abgelegt: \`${pageAsset.id}\` · ${pageAsset.category} · ${formatBytes(pageAsset.bytes)}`);
+  if (pageAsset) {
+    result.notes.push(`${via === 'lokal' ? 'Datei lokal abgelegt' : 'Seite abgelegt'}: ` +
+      `\`${pageAsset.id}\` · ${pageAsset.category} · ${formatBytes(pageAsset.bytes)}`);
+  }
   else if (opts.reviewOnly) result.notes.push('Nur geprüft – nichts im Katalog abgelegt.');
 
   // 3) Software von der Seite holen
@@ -466,8 +503,9 @@ export async function ingestPage(input: { url?: string; file?: File; text?: stri
       : `Bibliothek übersprungen: nur ${extract.words} Wörter lesbar (Schwelle 20).`);
   }
 
-  // 5) Offline-Kopie der Seite auf dem Gerät
-  if (opts.toDeviceCache !== false && pageAsset) {
+  // 5) Offline-Kopie der Seite auf dem Gerät — bei `via: 'lokal'` liegen die
+  // Bytes schon in IndexedDB (Datei-Drop), ein Nachholen wäre eine Netzschleife.
+  if (opts.toDeviceCache !== false && pageAsset && via !== 'lokal') {
     const cached = await prefetchOffline(pageAsset);
     if (cached.ok) result.notes.push(`💾 ${formatBytes(cached.bytes ?? pageAsset.bytes)} offline im Gerätespeicher.`);
   }

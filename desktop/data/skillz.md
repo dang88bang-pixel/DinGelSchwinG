@@ -155,10 +155,10 @@ Parameter: <url> [als <kategorie>]  ·  ENV: DGS_IMPORT_MAX_MB, DGS_IMPORT_TIMEO
 Beispiel: curl -X POST http://127.0.0.1:8791/import -d '{"url":"http://127.0.0.1:5173/demo/packs/dgs-demo-pack.json","tags":["werk"]}'
 
 ## page_ingest
-Beschreibung: Seiten-Ingest – der Agent zieht eine Seite (URL aus dem Chat-Fenster-Drop oder Befehl), prüft den Inhalt und legt intern ab: Seite als Asset im Katalog, verlinkte Beats/Samples/UI-Styles/Effekte/Filter, Kurzinfo im Chat und ein Dokument in data/knowledge/ (Skripte entfernt, Secret-Muster maskiert).
-Aufruf: "importiere http://media.internal/handbuch in die bibliothek" | "nimm die seite in die wissensbasis" | "URL ins Chatfenster ziehen"
-Parameter: <url>  ·  „ohne software“/„nur seite“ überspringt die Link-Importe
-Beispiel: python3 -c "import sys;sys.path.insert(0,'desktop');from utils import page_ingest as P;print(P.format_ingest_report(P.ingest_url('http://127.0.0.1:8123/demo/seite/index.html')))"
+Beschreibung: Seiten-Ingest – der Agent zieht eine Seite (URL aus dem Chat-Fenster-Drop oder Befehl), prüft den Inhalt und legt intern ab: Seite als Asset im Katalog, verlinkte Beats/Samples/UI-Styles/Effekte/Filter, Kurzinfo im Chat und ein Dokument in data/knowledge/ (Skripte entfernt, Secret-Muster maskiert). Ohne Gateway läuft dieselbe Kette über eine lokale Datei (ingest_file): lesen, prüfen, maskieren, in data/knowledge/ ablegen – Quelle „lokal“, kein Netz.
+Aufruf: "importiere http://media.internal/handbuch in die bibliothek" | "nimm die seite in die wissensbasis" | "URL ins Chatfenster ziehen" | "importiere datei /pfad/rampe-12.md in die bibliothek" | "prüf den inhalt der datei /pfad/rampe-12.md"
+Parameter: <url> oder <pfad>  ·  „ohne software“/„nur seite“ überspringt die Link-Importe  ·  „nur prüfen“ schreibt nichts
+Beispiel: python3 -c "import sys;sys.path.insert(0,'desktop');from utils import page_ingest as P;print(P.format_ingest_report(P.ingest_file('README.md')))"
 
 ## content_review
 Beschreibung: Gutachten über den Inhalt einer URL, ohne etwas abzulegen – Prüfpunkte: Quelle, Größe, lesbarer Text, Gliederung, Skript-/Style-Anteil, Schutzbedarf (Secret-Muster), verlinkte Software, Duplikat.

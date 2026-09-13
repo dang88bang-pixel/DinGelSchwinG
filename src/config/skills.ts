@@ -193,20 +193,21 @@ export const SKILLS: Skill[] = [
   {
     name: 'page_ingest',
     description:
-      'Seiten-Ingest: URL (oder gezogene Datei) aus dem Chatfenster – Inhalt ziehen, prüfen und intern ablegen: Seite als Asset, verlinkte Software, Info-Satz und Bibliothekseintrag (RAG, maskiert).',
+      'Seiten-Ingest: URL (oder gezogene Datei) aus dem Chatfenster – Inhalt ziehen, prüfen und intern ablegen: Seite als Asset, verlinkte Software, Info-Satz und Bibliothekseintrag (RAG, maskiert). Ohne Gateway läuft dieselbe Kette rein lokal: Datei ziehen → Asset-Store (IndexedDB) + Bibliothek, Quelle „lokal“.',
     calls: [
       '"importiere https://media.internal/handbuch in die bibliothek"',
       '"nimm die seite in die wissensbasis"',
       '"URL ins Chatfenster ziehen"',
+      '"Datei ins Chatfenster ziehen (ohne Gateway)"',
     ],
-    params: '<url> [ohne software] – Links folgen an, außer „nur seite“',
-    example: 'src/lib/pageIngest.ts → ingestPage({ url }, { toLibrary: true })  ·  Desktop: utils/page_ingest.py',
+    params: '<url> [ohne software] – Links folgen an, außer „nur seite“ · Datei-Drop braucht keine Parameter',
+    example: 'src/lib/pageIngest.ts → ingestPage({ url }) / ingestPage({ file })  ·  Offline: grabFromFile()  ·  Desktop: utils/page_ingest.py → ingest_file()',
   },
   {
     name: 'content_review',
     description:
-      'Inhalts-Gutachten vor dem Ablegen: lesbarer Text, Gliederung, Skript-Anteil, Secret-Muster, Duplikat, verlinkte Software – blockierte Quellen werden gemeldet statt gespeichert.',
-    calls: ['"prüf den inhalt von https://…"', '"check die seite https://…"'],
+      'Inhalts-Gutachten vor dem Ablegen: lesbarer Text, Gliederung, Skript-Anteil, Secret-Muster, Duplikat, verlinkte Software – blockierte Quellen werden gemeldet statt gespeichert. Funktioniert für URLs und für gezogene Dateien (offline, ohne Gateway).',
+    calls: ['"prüf den inhalt von https://…"', '"check die seite https://…"', '"prüf die gezogene Datei"'],
     params: '<url> – schreibt nichts in die Bibliothek',
     example: 'src/lib/pageIngest.ts → reviewContent(extractReadable(html), …)',
   },

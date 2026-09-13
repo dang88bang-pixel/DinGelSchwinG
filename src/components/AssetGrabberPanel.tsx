@@ -8,6 +8,7 @@ import {
   clearLocalCache,
   contextBlock,
   deleteAsset,
+  grabFromFile,
   grabFromUrl,
   importBackendInfo,
   listCatalogue,
@@ -50,6 +51,7 @@ function AssetGrabberPanel({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [imports, setImports] = useState<ImportResponse[]>([]);
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [cache, setCache] = useState({ count: 0, bytes: 0, available: true });
   const [style, setStyle] = useState<{ id: string; title?: string } | null>(null);
   const [pageUrl, setPageUrl] = useState('');
@@ -111,6 +113,32 @@ function AssetGrabberPanel({ onClose }: { onClose: () => void }) {
     setBusy(false);
     await reload();
   }, [urls, category, tags, reload, t]);
+
+  /** A-7: Datei-Drop ohne Gateway — rein lokal in den IndexedDB-Asset-Store. */
+  const runFileImport = useCallback(
+    async (files: FileList | File[] | null) => {
+      const list = Array.from(files ?? []).slice(0, 8);
+      if (!list.length) return;
+      setBusy(true);
+      const results: ImportResponse[] = [];
+      for (const file of list) {
+        results.push(
+          await grabFromFile(file, {
+            category,
+            tags: tags
+              .split(/[,\s]+/)
+              .map((x) => x.trim())
+              .filter(Boolean)
+              .slice(0, 8),
+          }),
+        );
+      }
+      setImports(results);
+      setBusy(false);
+      await reload();
+    },
+    [category, tags, reload],
+  );
 
   const runPage = useCallback(
     async (reviewOnly: boolean) => {
@@ -229,6 +257,41 @@ function AssetGrabberPanel({ onClose }: { onClose: () => void }) {
               ? t('panels.grabber.viaGateway', 'Import läuft über den Mobile-Server (64 MiB, interne Dateiserver erlaubt, SHA-256-Dedupe).')
               : t('panels.grabber.viaBrowser', 'Kein Gateway gefunden: Browser-Import (CORS-Limits, max 32 MiB). PortView im PortView-Panel starten oder Mobile-Server laufen lassen.')}
           </p>
+
+          {/* A-7: Offline-Weg — Datei ziehen, ganz ohne Gateway/Netz */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              void runFileImport(e.dataTransfer?.files ?? null);
+            }}
+            className={`mt-3 rounded-xl border border-dashed px-3 py-3 transition ${dragging ? 'border-emerald-400/70 bg-emerald-950/30' : 'border-white/12 bg-[#020617]/60'}`}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-black text-slate-200">
+                {t('panels.grabber.dropTitle', 'Datei-Drop (ohne Gateway)')}
+              </span>
+              <label className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-[11px] font-bold text-slate-200 border border-white/10 cursor-pointer transition">
+                {busy ? t('panels.grabber.importing', 'importiere…') : t('panels.grabber.chooseFile', 'Datei wählen')}
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  disabled={busy}
+                  onChange={(e) => {
+                    void runFileImport(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <Pill tone="ok">{t('panels.grabber.localPill', 'Quelle: lokal')}</Pill>
+            </div>
+            <p className="mt-1.5 text-[10px] font-mono text-slate-500">
+              {t('panels.grabber.dropHint', 'Datei hierher ziehen: SHA-256, Kategorie und Ablage im IndexedDB-Asset-Store — ohne Mobile-Server und ohne Netz. Pack-Manifeste werden abgelegt, ihre Items brauchen aber eine URL (erscheinen als übersprungen).')}
+            </p>
+          </div>
         </PanelSection>
 
         <PanelSection

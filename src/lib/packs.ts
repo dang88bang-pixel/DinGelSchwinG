@@ -49,7 +49,8 @@ export interface ImportedAsset {
   textPreview?: string;
   /** gesetzt, wenn das Asset nur im Browser/WebView liegt (kein Gateway-Katalog) */
   localOnly?: boolean;
-  via?: 'gateway' | 'browser';
+  /** 'lokal' = Datei-Drop/Eingabe ohne Gateway und ohne Netz (Aktionskette A-7). */
+  via?: 'gateway' | 'browser' | 'lokal';
 }
 
 export interface PackManifestItem {

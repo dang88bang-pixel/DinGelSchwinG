@@ -431,6 +431,11 @@ class Agent:
             return self._intent_grabber(grab_url.group(0), t)
         if grab_url and re.search(r"(pr(ü|ue)f|check|analysier|auswerten).*(inhalt|seite|url)|inhalt.*(pr(ü|ue)f|check)", t):
             return self._intent_page_ingest(grab_url.group(0), t, review_only=True)
+        # A-7: lokale Datei → Bibliothek/Gutachten, ganz ohne Gateway und Netz
+        file_match = re.search(r"(?:datei|file|pfad)\s+([^\s\"']+/[^\s\"']+|[^\s\"']+\.[A-Za-z0-9]{1,8})", text)
+        if file_match and re.search(r"ingest|importier|bibliothek|wissensbasis|wissen\b|doku|indexier|pr(ü|ue)f|check|les", t):
+            review_only = bool(re.search(r"nur\s+(pr(ü|ue)fen|check|gutachten)|ohne\s+ablegen", t))
+            return self._intent_file_ingest(file_match.group(1).strip("\"'"), review_only=review_only)
         if re.search(r"^\s*(lern(?:e)?|indexiere|importiere)\b", t):
             return self._intent_knowledge_add(t)
         if re.search(r"\bgateway\b|\bct45p\b|\bhoneywell\b|\btoken\b|handshake|\bgrant\b|\bfreigabe\b|\bsid\b", t):
@@ -890,6 +895,25 @@ class Agent:
         report = _page_ingest.format_ingest_report(res)
         if review_only:
             report += "\n\nℹ️ Nur Prüfung – nichts in die Bibliothek geschrieben. Mit „importiere " + url + " in die bibliothek“ lege ich alles ab."
+        return report
+
+    def _intent_file_ingest(self, path: str, review_only: bool = False) -> str:
+        """Lokale Datei prüfen/ablegen — Offline-Weg ohne Gateway (Aktionskette A-7)."""
+        if _page_ingest is None:
+            return "⚠️ utils/page_ingest.py fehlt – Seiten-Ingest nicht verfügbar."
+        res = _page_ingest.ingest_file(
+            path,
+            knowledge=None if review_only else self.knowledge,
+            to_library=not review_only,
+            tags=["desktop-datei"],
+        )
+        self._audit("page_ingest_file", json.dumps(
+            {"path": path[:120], "verdict": res.get("verdict"), "via": res.get("via"),
+             "library": bool(res.get("library")), "error": res.get("error")},
+            ensure_ascii=False)[:200])
+        report = _page_ingest.format_ingest_report(res)
+        if review_only:
+            report += "\n\nℹ️ Nur geprüft – nichts in die Bibliothek geschrieben."
         return report
 
     def _intent_grabber(self, url: str, t: str) -> str:

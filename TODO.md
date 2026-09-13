@@ -1,7 +1,7 @@
 # TODO — offene & teilfertige Punkte
 
 **Stand: 2026-09-13 · Quelle: [`GAP_MATRIX.md`](GAP_MATRIX.md) Fassung 2.0 (§ 12 Rest-Gaps `G-*`,
-§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (405 Dateien, 4 Nicht-REAL)**
+§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (407 Dateien, 4 Nicht-REAL)**
 
 Diese Liste ist die **Arbeitsliste** des Projekts. Jeder Eintrag nennt Ist-Zustand, Ziel,
 konkrete Schritte und — wichtig — den **Nachweis**, mit dem der Punkt als erledigt gilt.
@@ -21,7 +21,7 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 | [A-1](#a-1-skript-runner-im-backend) | Skript-Runner im Backend (nur `network_scan.py`) | **erledigt ✅ 2026-09-13** | P1 | M |
 | [A-10](#a-10--g-2-enterprise-knoten-an-ui-anbinden) | Enterprise-Knoten an UI anbinden | **erledigt ✅ 2026-09-13** | P1 | S |
 | [A-3](#a-3-llm-kette-multi-turn) | LLM-Kette: Multi-Turn statt 1 Durchgang / max. 5 Tools | **erledigt ✅ 2026-09-13** | P1 | M |
-| [A-7](#a-7-ingest--grabber-offline-pfad) | Ingest/Grabber ohne Gateway (Offline-Pfad) | offen | P1 | M |
+| [A-7](#a-7-ingest--grabber-offline-pfad) | Ingest/Grabber ohne Gateway (Offline-Pfad) | **erledigt ✅ 2026-09-13** | P1 | M |
 | [A-6](#a-6-freie-button-aktionen-taskcustom) | Freie Button-Aktionen (`task:custom`) | **erledigt ✅ 2026-09-13** | P1 | S |
 | [A-5](#a-5-adb-ausführung-aus-dem-web) | ADB-Ausführung aus dem Web (nur Plan/Skript) | n/a im Browser | P1 | M |
 | [A-12](#a-12-demo-geräteliste-im-desktop-kennzeichnen) | Demo-Geräteliste im Desktop kennzeichnen | **erledigt ✅ 2026-09-13** | P1 | S |
@@ -163,16 +163,42 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
   `python3 -m unittest discover -s desktop/tests` **82/82**, `make test-py` grün.
 
 ### A-7 Ingest-/Grabber-Offline-Pfad
-- **Status:** offen · **Quelle:** GAP-Matrix A-7
-- **Betroffen:** `src/lib/pageIngest.ts`, `src/lib/grabber.ts`, `mobile-server/importer.py`
-- **Ist:** Ohne Gateway/Bridge antworten beide Ketten strukturiert mit Fehler (kein Fake) —
-  aber es gibt keinen lokalen Weg.
+- **Status:** ✅ **erledigt 2026-09-13** · **Quelle:** GAP-Matrix A-7
+- **Betroffen:** `src/lib/pageIngest.ts`, `src/lib/grabber.ts` (`grabFromFile`),
+  `src/lib/assetStore.ts`, `src/lib/packs.ts`, `src/components/AssetGrabberPanel.tsx`,
+  `src/lib/agent/agentEngine.ts` (`ingestDroppedFile`), `desktop/utils/page_ingest.py`
+  (`ingest_file`), `desktop/utils/agent.py`, Skill-Doku (`skills.ts`, `skillz.md`)
+- **Ist (vorher):** Ohne Gateway/Bridge antworteten beide Ketten strukturiert mit Fehler
+  (kein Fake) — aber es gab keinen lokalen Weg.
 - **Ziel:** Ingest/Katalog ohne Gateway.
-- **Schritte:**
-  - [ ] `ingestPage` ohne Gateway: nur RAG + Asset-Store (IndexedDB), klar gekennzeichnet
-  - [ ] Grabber: Datei-Drop als Alternative zu `POST /gateway/import`
-  - [ ] Tests für beide Offline-Pfade (Vitest, `fetch` gestubbt)
+- **Umgesetzt:**
+  - [x] `ingestPage({ file })` / `ingestPage({ text })` arbeiten rein lokal: Asset-Store
+        (IndexedDB) + RAG-Bibliothek, Quelle **`via: 'lokal'`** in Gutachten, Prüfpunkten
+        (`Quelle abrufbar: lokal · <mime>`) und Chat-Report (`… · via lokal`)
+  - [x] Grabber: `grabFromFile(file)` als Alternative zu `POST /gateway/import` — SHA-256,
+        Kategorie-Erkennung, MIME aus der Endung, 32-MiB-Grenze, Pack-Manifeste werden abgelegt
+        und ihre Items ehrlich als `skipped` (brauchen Netz) gemeldet; ohne IndexedDB sagt die
+        Antwort, dass das Asset nur für diese Sitzung bleibt
+  - [x] UI: Drop-Zone „Datei-Drop (ohne Gateway)“ + `Pill` „Quelle: lokal“ im 📥-Panel;
+        Drag & Drop im Chatfenster übergibt jetzt die Datei selbst (`ingestPage({ file, text })`),
+        damit sie zusätzlich im Asset-Store landet
+  - [x] Fehlerpfad bleibt ehrlich und nennt den lokalen Weg: `grabFromUrl` offline →
+        Hinweis „Datei ziehen statt URL (rein lokale Ablage)“
+  - [x] Markdown-Tauglichkeit (beide Spiegel): `extractReadable()`/`extract_readable()` erkennen
+        ATX-Überschriften, wenn kein HTML-Titel vorhanden ist — gezogene `.md`/`.txt`-Dateien
+        heißen nicht mehr „Ohne Titel“ und bekommen eine Gliederung
+  - [x] Desktop gespiegelt: `page_ingest.ingest_file(pfad)` + Chat-Intent
+        („importiere datei <pfad> in die bibliothek“, „nur prüfen: datei <pfad>“), Audit
+        `page_ingest_file`, Skill-Doku in `desktop/data/skillz.md`
+  - [x] Tests: `src/lib/__tests__/offlineIngest.test.ts` (13, `fetch` offline gestubbt) und
+        `desktop/tests/test_offline_ingest.py` (11)
+- **Grenze (bleibt):** `mobile-server/importer.py` ist der Online-Weg (SSRF-Filter, 64 MiB,
+  Katalog) und braucht weiterhin Netz/Werksnetz; verlinkte Dateien aus einem lokalen Dokument
+  werden deshalb nur **genannt**, nicht nachgeladen.
 - **Fertig wenn:** `npm test` einen Ingest **ohne** Gateway-Antwort als `ok` mit Quelle `lokal` ausweist.
+- **Nachweis:** `offlineIngest.test.ts` prüft genau das (Ingest per Text und per Datei: `ok`,
+  `review.via === 'lokal'`, Bibliothekseintrag auffindbar) — `npm test` **86/86**;
+  `python3 -m unittest discover -s desktop/tests` **93/93**.
 
 ### A-6 Freie Button-Aktionen (`task:custom`)
 - **Status:** ✅ **erledigt 2026-09-13** · **Quelle:** GAP-Matrix A-6
@@ -266,8 +292,8 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
   - [x] Budget-Wächter `scripts/check-bundle.mjs` (läuft nach `npm run build`): initial ≤ 500 kB,
         Einzel-Chunk ≤ 520 kB, gesamt ≤ 700 kB — sonst Build-Fehler
 - **Fertig wenn:** `npm run build` keine Chunk-Warnung mehr ausgibt (Zahl im Commit nennen).
-- **Nachweis:** `npm run build` ohne Chunk-Warnung; Erstladung **647,56 kB** (gzip **199,70 kB**)
-  — 626,90 kB direkt nach dem Split, +20 kB durch das A-10-Knotenpanel im Dashboard.
+- **Nachweis:** `npm run build` ohne Chunk-Warnung; Erstladung **653,01 kB** (gzip **201,26 kB**)
+  — 626,90 kB direkt nach dem Split, +26 kB durch A-10-Knotenpanel und A-7-Drop-Zone.
   Vorher: 1 940 kB. Größter Einzel-Chunk `three` ≈ 390 kB (nur 2 Module, nicht weiter teilbar),
   `vendor-transformers` 497 kB als Lazy-Chunk. `node scripts/check-bundle.mjs` grün.
 
@@ -400,7 +426,7 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 
 ## Anhang — Nicht-REAL-Befunde aus `INVENTAR.csv`
 
-`python3 scripts/audit_inventar.py` meldet 405 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
+`python3 scripts/audit_inventar.py` meldet 407 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
 hier einen Eintrag — damit kein Marker unbemerkt liegen bleibt:
 
 | Befund | Datei | TODO-ID | Bewertung |
@@ -427,14 +453,16 @@ Fake-`success` in `workflow:<name>`, `POST /api/workflows`, `POST /api/scripts/r
 Desktop-Test-Isolation + `DGS_API_URL` · Frontend-Test-Isolation ·
 **A-12** Demo-Geräteliste gekennzeichnet · **G-5/A-9** Port 8765 entflechtet (Terminal 8768) ·
 **A-8/G-4** toter 3D-Raycast entfernt (`RaycastUtil.kt`, `[STUB]`-Befund weg) ·
-**G-9** Bundle gesplittet (Erstladung 1 940 kB → **647,56 kB**, Budget-Wächter `scripts/check-bundle.mjs`) ·
+**G-9** Bundle gesplittet (Erstladung 1 940 kB → **653,01 kB**, Budget-Wächter `scripts/check-bundle.mjs`) ·
 **A-1** Skript-Whitelist im Backend (SHA-256-Pins, `server/script_runner.py`) ·
 **A-2** Workflow-Registry (`config/workflows.json`, `server/workflows.py`, `steps[]` mit Exit-Codes) ·
 **A-6** freie Button-Aktionen `skill:<name>` (Web + Desktop) ·
 **A-10/G-2** Enterprise-Knoten an UI, Agent und `GET /api/nodes/validate?node=` angebunden ·
 **A-3** Modell-Loop mit Werkzeug-Rückkopplung (max. 3 Turns, Token-Budget, Audit `llm_turns`) ·
 `tokenize()`-Backtracking in `src/lib/rag.ts` (84 s → 66 ms bei 400 000 Zeichen) ·
-Teststände: `npm test` 36/36 → **73/73** · `server/tests` 18 → **58** · `desktop/tests` 62 → **82** ·
+**A-7** Ingest/Grabber ohne Gateway: `grabFromFile()`, `ingest_file()`, Quelle `lokal`,
+Drop-Zone im 📥-Panel, Markdown-Titel/Gliederung in beiden Spiegeln ·
+Teststände: `npm test` 36/36 → **86/86** · `server/tests` 18 → **58** · `desktop/tests` 62 → **93** ·
 `tests/suite.py` **failed: 0** · Watchdog/Log-Rotation/Bug-Reports · Gateway-Session-Persistenz ·
 Genesis-`/graph` + Polar-Switch.
 

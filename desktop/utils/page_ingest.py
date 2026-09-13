@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import mimetypes
 import os
 import re
 import time
@@ -50,6 +51,7 @@ _LINK_ATTR_RE = re.compile(r"(?:href|src|data-src|data-url)\s*=\s*[\"']([^\"']{3
 _META_DESC_RE = re.compile(r"<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']{10,400})[\"']", re.I)
 _BLOCK_BREAK_RE = re.compile(r"<(?:br|/p|/div|/li|/h[1-6]|/tr|/section)[^>]*>", re.I)
 _LI_RE = re.compile(r"<li[^>]*>", re.I)
+_MD_HEADING_RE = re.compile(r"^\s{0,3}(#{1,3})\s+(.{1,160})$", re.M)
 
 
 def _clean(value: str) -> str:
@@ -89,6 +91,15 @@ def extract_readable(raw: str) -> dict[str, Any]:
 
     title_match = _TITLE_RE.search(source) or _H1_RE.search(source)
     title = _clean(_html.unescape(_TAG_RE.sub("", title_match.group(1)))) if title_match else ""
+    # Markdown ohne HTML: ATX-Überschriften (#, ##, ###) als Titel/Gliederung —
+    # wichtig für den Offline-Weg (A-7), gezogene Dateien sind meist .md/.txt.
+    if not title_match and not headings:
+        for hashes, inner in _MD_HEADING_RE.findall(source)[:40]:
+            md_text = _clean(inner)
+            if len(md_text) > 1:
+                headings.append({"level": len(hashes), "text": md_text[:160]})
+    if not title and headings:
+        title = headings[0]["text"]
     meta = _META_DESC_RE.search(source)
     summary = _clean(_html.unescape(meta.group(1))) if meta else _first_sentences(text, 480)
     words = len([w for w in text.split() if len(w) > 1]) if text else 0
@@ -371,6 +382,94 @@ def ingest_url(
     return {"ok": verdict != "blockiert", "url": url, "verdict": verdict, "checks": checks, "extract": extract,
             "links": links, "asset": asset or None, "software": software, "software_failed": failed,
             "library": library or None, "notes": notes, "via": page.get("via")}
+
+
+def ingest_file(
+    path: str,
+    *,
+    knowledge: Any | None = None,
+    to_library: bool = True,
+    max_links: int = 12,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """Lokale Datei prüfen und ablegen – ohne Gateway und ohne Netz (Aktionskette A-7).
+
+    Spiegel von ``ingestPage({ file })`` in der Web-App: Datei lesen, lesbaren
+    Extract bauen, Prüfpunkte bewerten, Secrets maskieren und (optional) in die
+    Wissensbasis schreiben. Die Quelle heißt hier ``via="lokal"``.
+
+    Es wird nichts kopiert und nichts behauptet: Verlinkte Dateien inside dem
+    Dokument brauchen für den Import weiterhin Netz/Gateway und werden deshalb
+    nur genannt. Fehlt die Datei oder ist sie leer, kommt ein klarer Fehler.
+    """
+    source = str(path).strip().strip("\"'")
+    if not source:
+        return {"ok": False, "url": source, "verdict": "blockiert", "checks": [], "software": [],
+                "software_failed": [], "notes": [], "error": "pfad_fehlt",
+                "hint": "Bitte einen Pfad zu einer lokalen Datei angeben."}
+    if not os.path.isfile(source):
+        return {"ok": False, "url": source, "verdict": "blockiert", "checks": [], "software": [],
+                "software_failed": [], "notes": [], "error": "datei_nicht_gefunden",
+                "hint": "Pfad prüfen – gelesen wird nur eine vorhandene lokale Datei."}
+    try:
+        with open(source, "rb") as fh:
+            raw = fh.read()
+    except OSError as exc:
+        return {"ok": False, "url": source, "verdict": "blockiert", "checks": [], "software": [],
+                "software_failed": [], "notes": [], "error": "datei_lesefehler",
+                "hint": str(exc)[:200]}
+    if not raw:
+        return {"ok": False, "url": source, "verdict": "blockiert", "checks": [], "software": [],
+                "software_failed": [], "notes": [], "error": "datei_leer",
+                "hint": "Die Datei hat 0 Byte – nichts abzulegen."}
+
+    text = raw.decode("utf-8", errors="replace")
+    mime = mimetypes.guess_type(source)[0] or "application/octet-stream"
+    extract = extract_readable(text)
+    links = find_asset_links(text, "file://" + os.path.abspath(source), max_links)
+    checks = review_content(extract, {"bytes": len(raw), "mime": mime, "via": "lokal",
+                                      "duplicate": False}, links)
+    verdict = verdict_of(checks)
+    notes = [f"Lokal gelesen: {_fmt_bytes(len(raw))} · via lokal (kein Gateway, kein Netz beteiligt)"]
+
+    library: dict[str, Any] = {}
+    if to_library and not extract["binary"] and extract["words"] >= 20 and knowledge is not None:
+        masked, hits = mask_secrets(extract["text"])
+        parts = [
+            f"# {extract['title']}",
+            f"Quelle: {os.path.abspath(source)}",
+            f"Ablage: {time.strftime('%Y-%m-%d %H:%M:%S')} · {_fmt_bytes(len(raw))} · via lokal",
+            f"Maskiert: {', '.join(hits)}" if hits else "",
+            f"Schlagwörter: {', '.join(tags)}" if tags else "",
+            "",
+            f"## Kurzinfo\n{extract['summary']}" if extract["summary"] else "",
+            "## Gliederung\n" + "\n".join("#" * h["level"] + " " + h["text"] for h in extract["headings"]) if extract["headings"] else "",
+            "",
+            "## Volltext (bereinigt)",
+            masked[:200000],
+            "## Verlinkte Dateien\n" + "\n".join(f"- {l['category']}: {l['url']}" for l in links) if links else "",
+        ]
+        doc_title = (extract["title"][:80] or os.path.basename(source)[:60])
+        stored = knowledge.add(doc_title, "\n".join(p for p in parts if p))
+        library = {"name": doc_title, "path": str(stored), "masked": bool(hits)}
+        try:
+            stats = knowledge.stats()
+            notes.append(f"Bibliothek jetzt: {stats.get('documents')} dokumente / {stats.get('chunks')} abschnitte")
+        except Exception:  # noqa: BLE001 - Stats sind nur Deko
+            pass
+    elif to_library:
+        if knowledge is None:
+            notes.append("Bibliothek übersprungen: keine Wissensbasis übergeben (to_library ohne knowledge).")
+        else:
+            notes.append("Bibliothek übersprungen: " + ("Binärinhalt" if extract["binary"]
+                                                        else f"nur {extract['words']} Wörter lesbar"))
+    if links:
+        notes.append(f"{len(links)} Verweis(e) im Dokument gefunden – deren Import braucht "
+                     "Netz/Gateway (ingest_url), hier wurde nichts nachgeladen.")
+
+    return {"ok": verdict != "blockiert", "url": source, "verdict": verdict, "checks": checks,
+            "extract": extract, "links": links, "asset": None, "software": [], "software_failed": [],
+            "library": library or None, "notes": notes, "via": "lokal"}
 
 
 def format_ingest_report(res: dict[str, Any] | None) -> str:

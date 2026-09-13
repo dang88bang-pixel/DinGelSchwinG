@@ -170,9 +170,16 @@ export async function cacheFromGateway(asset: ImportedAsset, url: string): Promi
   }
 }
 
-/** Browser-only-Import (ohne Gateway): Blob direkt ablegen. */
-export async function saveLocal(meta: ImportedAsset, blob?: Blob): Promise<void> {
-  await putRow({ id: meta.id, meta: { ...meta, localOnly: true, via: 'browser' }, blob, cachedAt: Date.now(), source: 'local' });
+/**
+ * Import ohne Gateway: Blob direkt im Gerät ablegen.
+ * `via` unterscheidet Browser-Fetch ('browser') von Datei-Drop ('lokal', A-7).
+ */
+export async function saveLocal(
+  meta: ImportedAsset,
+  blob?: Blob,
+  via: NonNullable<ImportedAsset['via']> = 'browser',
+): Promise<void> {
+  await putRow({ id: meta.id, meta: { ...meta, localOnly: true, via }, blob, cachedAt: Date.now(), source: 'local' });
 }
 
 /** SHA-256 über crypto.subtle – mit Fallback, wenn WebView/HTTP-Kontext keins hat. */

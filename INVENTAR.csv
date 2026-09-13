@@ -6,11 +6,11 @@ Datei,Zeilen,Status,Begruendung
 BUILD_INSTRUCTIONS.md,330,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 Dockerfile,14,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 GAP_MATRIX.md,366,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
-INVENTAR.csv,403,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+INVENTAR.csv,406,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 Makefile,66,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 README.md,649,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 REPORT.md,180,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
-TODO.md,450,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+TODO.md,478,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/.gitignore,101,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/app/.gitignore,2,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/app/build.gradle,101,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
@@ -139,16 +139,17 @@ desktop/main.py,249,REAL,"Automatisch geprueft (scripts/audit_inventar.py): kein
 desktop/requirements.txt,14,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 desktop/tests/test_core.py,688,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 desktop/tests/test_llm_loop.py,162,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+desktop/tests/test_offline_ingest.py,152,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 desktop/tests/test_skill_chain.py,190,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 desktop/tools/download_model.py,95,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-desktop/utils/agent.py,1662,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/agent.py,1686,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/agentGallery.py,435,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/api_client.py,93,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/clients.py,469,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/config.py,54,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/model_backend.py,226,REAL,NotImplementedError nur in abstrakter Basisklasse; 3 reale Backends implementiert
 desktop/utils/nodes.py,116,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-desktop/utils/page_ingest.py,459,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+desktop/utils/page_ingest.py,558,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/retry.py,104,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/script_executor.py,129,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/utils/skill_loader.py,124,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
@@ -315,7 +316,7 @@ src/components/AdvancedResearchChat.tsx,1095,REAL,"Automatisch geprueft (scripts
 src/components/AgentConsole.tsx,524,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/components/AgentGalleryPanel.tsx,355,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/components/AppChrome.tsx,52,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-src/components/AssetGrabberPanel.tsx,514,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/components/AssetGrabberPanel.tsx,577,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/components/DevicePortViewPanel.tsx,257,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/components/EnterpriseNodesPanel.tsx,182,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/components/FlashCenterPanel.tsx,418,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
@@ -344,7 +345,7 @@ src/config/__tests__/enterpriseNodes.test.ts,225,REAL,"Test-Datei: Mocks/Fixture
 src/config/agentGallery.ts,332,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/config/ai-models.ts,35,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/config/enterprise-nodes.ts,350,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-src/config/skills.ts,250,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/config/skills.ts,251,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/config/systemInstructions.ts,258,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/hooks/useDiscovery.ts,71,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/hooks/useSensors.ts,78,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
@@ -355,16 +356,17 @@ src/i18n/locales/de.json,254,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu 
 src/i18n/locales/en.json,254,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 src/index.css,60,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/__tests__/bugReport.test.ts,56,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+src/lib/__tests__/offlineIngest.test.ts,193,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 src/lib/__tests__/ragTokenize.test.ts,58,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 src/lib/__tests__/retry.test.ts,96,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 src/lib/agent/__tests__/actionChainCoverage.test.ts,242,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 src/lib/agent/__tests__/agentEngine.test.ts,124,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 src/lib/agent/__tests__/llmLoop.test.ts,215,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
-src/lib/agent/agentEngine.ts,1866,REAL,"Live-Quellen zuerst (Gateway-Tokens/-Sessions, BLE-Scan, PortView, nativ); MOCK_DEVICES nur als gekennzeichneter 'demo-fallback' wenn keine Quelle antwortet"
+src/lib/agent/agentEngine.ts,1871,REAL,"Live-Quellen zuerst (Gateway-Tokens/-Sessions, BLE-Scan, PortView, nativ); MOCK_DEVICES nur als gekennzeichneter 'demo-fallback' wenn keine Quelle antwortet"
 src/lib/agent/onnxRuntimeNodeStub.ts,16,STUB,"By-design: Vite-Alias-Stub, verhindert Node-Bundling; wirft erklaerenden Fehler"
 src/lib/agent/transformersBackend.ts,75,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/api/client.ts,262,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-src/lib/assetStore.ts,201,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/assetStore.ts,208,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/bleWasm.ts,91,REAL,"Laedt echtes WASM wenn vorhanden, sonst verifizierte mathematisch identische JS-Simulation (Fallback dokumentiert + getestet)"
 src/lib/bugReport.ts,141,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/deviceControl.ts,394,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
@@ -374,12 +376,12 @@ src/lib/discovery.ts,29,REAL,"Automatisch geprueft (scripts/audit_inventar.py): 
 src/lib/endpoint.ts,202,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/errors.ts,33,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/galleryStore.ts,230,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-src/lib/grabber.ts,372,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/grabber.ts,481,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/liveMetrics.ts,269,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/mcpClient.ts,260,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/nfc.ts,39,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-src/lib/packs.ts,146,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-src/lib/pageIngest.ts,525,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/packs.ts,147,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
+src/lib/pageIngest.ts,563,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/portview.ts,353,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/pwa.ts,15,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/lib/rag.ts,452,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"

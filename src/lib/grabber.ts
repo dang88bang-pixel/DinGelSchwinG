@@ -16,6 +16,7 @@ import {
   allRows,
   cacheFromGateway,
   clearAll,
+  isAvailable,
   localAssets,
   localStats,
   localText,
@@ -38,7 +39,8 @@ export interface ImportOptions {
 export interface ImportResponse {
   ok: boolean;
   kind?: 'single' | 'pack' | 'preview';
-  via: 'gateway' | 'browser';
+  /** 'lokal' = Datei-Drop ohne Gateway und ohne Netz (Aktionskette A-7). */
+  via: 'gateway' | 'browser' | 'lokal';
   imported: ImportedAsset[];
   skipped?: { url: string; reason?: string }[];
   pack?: { name: string; version?: string; category?: string; items?: unknown[] };
@@ -96,8 +98,10 @@ export async function grabFromUrl(url: string, opts: ImportOptions = {}): Promis
       detail: browser.detail ?? (gateway as ImportResponse)?.detail,
       hint:
         (gateway as ImportResponse)?.error === 'gateway_nicht_erreichbar'
-          ? 'Ohne Gateway gilt der Browser: Ziel muss CORS erlauben und https sein (bei https-Seite). Sonst Mobile-Server starten oder PortView laufen lassen.'
-          : browser.hint ?? (gateway as ImportResponse)?.hint,
+          ? 'Ohne Gateway gilt der Browser: Ziel muss CORS erlauben und https sein (bei https-Seite). ' +
+            'Sonst Mobile-Server starten, PortView laufen lassen — oder die Datei direkt ziehen ' +
+            '(„Datei-Drop (ohne Gateway)“ / Datei ins Chatfenster ziehen): das arbeitet rein lokal.'
+          : `${browser.hint ?? (gateway as ImportResponse)?.hint ?? ''} Ohne Netz bleibt der Datei-Drop: Datei ziehen statt URL (rein lokale Ablage).`,
     };
   }
   return browser;
@@ -150,6 +154,111 @@ async function grabViaGateway(url: string, opts: ImportOptions): Promise<ImportR
     for (const asset of imported) void prefetchOffline(asset);
   }
   return result;
+}
+
+/** MIME-Type aus der Endung, wenn die Datei keinen mitbringt (Drop aus dem Dateimanager). */
+const FILE_MIME: Record<string, string> = {
+  txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown', json: 'application/json',
+  csv: 'text/csv', html: 'text/html', htm: 'text/html', css: 'text/css', scss: 'text/scss',
+  js: 'text/javascript', xml: 'application/xml', pdf: 'application/pdf',
+  wav: 'audio/wav', aiff: 'audio/aiff', flac: 'audio/flac', ogg: 'audio/ogg', mp3: 'audio/mpeg',
+  m4a: 'audio/mp4', opus: 'audio/ogg', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  webp: 'image/webp', gif: 'image/gif', zip: 'application/zip', glsl: 'text/plain',
+};
+
+function mimeOf(file: File): string {
+  const declared = (file.type || '').split(';')[0].trim();
+  if (declared) return declared;
+  const ext = (file.name.split('.').pop() ?? '').toLowerCase();
+  return FILE_MIME[ext] ?? 'application/octet-stream';
+}
+
+/**
+ * Datei-Drop statt `POST /gateway/import` (Aktionskette A-7).
+ *
+ * Rein lokaler Weg: Datei lesen → SHA-256 → Kategorie erkennen → IndexedDB
+ * (`assetStore`). Kein Gateway, kein Netz, keine erfundene Katalog-Ablage:
+ * Ist IndexedDB nicht verfügbar (Privacy-Modus, SSR-Tests), sagt die Antwort das
+ * ausdrücklich und das Asset bleibt nur für diese Sitzung sichtbar.
+ *
+ * Ein gezogenes Pack-Manifest wird ebenfalls abgelegt, seine Items brauchen aber
+ * Netz — sie erscheinen ehrlich als `skipped`, statt still unter den Tisch zu fallen.
+ */
+export async function grabFromFile(file: File, opts: ImportOptions = {}): Promise<ImportResponse> {
+  if (!file) {
+    return { ok: false, via: 'lokal', imported: [], error: 'datei_fehlt', hint: 'Bitte eine Datei ziehen oder über „Datei wählen“ übergeben.' };
+  }
+  const name = opts.filename || file.name || 'datei.bin';
+  if (file.size === 0) {
+    return { ok: false, via: 'lokal', imported: [], error: 'datei_leer', hint: 'Die Datei hat 0 Byte – nichts abzulegen.' };
+  }
+  if (file.size > BROWSER_LIMIT) {
+    return {
+      ok: false, via: 'lokal', imported: [], error: 'zu_gross',
+      detail: `${file.size} byte > ${BROWSER_LIMIT} byte`,
+      hint: 'Für große Dateien den Gateway-Grabber nutzen (64 MiB): python3 mobile-server/mobile_ble_server.py',
+    };
+  }
+  try {
+    const mime = mimeOf(file);
+    const hash = await sha256Hex(file);
+    const guess = detectCategory(name, mime, '');
+    const category = (opts.category || guess.category) as PackCategory;
+    const stored = await isAvailable();
+    const base = {
+      id: hash.slice(0, 16),
+      sha256: hash,
+      name,
+      title: opts.title || name,
+      category,
+      categoryKnown: guess.known,
+      mime,
+      bytes: file.size,
+      tags: opts.tags ?? [],
+      importedAt: Date.now(),
+      localOnly: true,
+      via: 'lokal' as const,
+    };
+    const storageNote = stored
+      ? 'Lokal in IndexedDB abgelegt – ohne Gateway und ohne Netz.'
+      : 'IndexedDB nicht verfügbar (Privacy-Modus/SSR): Asset bleibt nur in dieser Sitzung, die Bibliothek bekommt den Text trotzdem.';
+
+    // Pack-Manifest: Datei selbst ablegen, Items ehrlich als offline überspringen.
+    if (mime.includes('json') || name.toLowerCase().endsWith('.json')) {
+      try {
+        const json = JSON.parse(await file.text()) as unknown;
+        if (isPackManifest(json)) {
+          const asset: ImportedAsset = { ...base, pack: json.name };
+          if (opts.persist !== false) await saveLocal(asset, file, 'lokal');
+          return {
+            ok: true, kind: 'pack', via: 'lokal', imported: [asset], bytes: file.size,
+            pack: { name: json.name, version: json.version, category: json.category },
+            skipped: json.items.slice(0, 40).map((item) => ({
+              url: item.url, reason: 'Datei-Drop ist offline – Items brauchen grabFromUrl (Gateway/Browser)',
+            })),
+            detail: `Pack-Manifest lokal abgelegt, ${json.items.length} Item(s) nicht nachgeladen. ${storageNote}`,
+          };
+        }
+      } catch {
+        /* kein Manifest – als normale Datei behandeln */
+      }
+    }
+
+    const asset: ImportedAsset = { ...base };
+    if (opts.persist !== false) await saveLocal(asset, file, 'lokal');
+    return {
+      ok: true,
+      kind: opts.persist === false ? 'preview' : 'single',
+      via: 'lokal',
+      imported: [asset],
+      bytes: file.size,
+      detail: storageNote,
+      deduped: stored && (await allRows()).some((row) => row.meta.sha256 === hash && row.id !== asset.id),
+    };
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e);
+    return { ok: false, via: 'lokal', imported: [], error: 'datei_lesefehler', detail: msg.slice(0, 160), hint: 'Datei konnte nicht gelesen werden – erneut ziehen oder als .txt/.md exportieren.' };
+  }
 }
 
 /** Direkt im Browser laden (kein Gateway). Nutzt die Browser-Cookies/-CORS-Regeln. */
@@ -247,7 +356,7 @@ export async function prefetchOffline(asset: ImportedAsset): Promise<{ ok: boole
 
 export async function deleteAsset(asset: ImportedAsset): Promise<{ ok: boolean; removedLocal: boolean; removedGateway: boolean }> {
   await removeRow(asset.id);
-  if (asset.via === 'browser' || asset.localOnly) return { ok: true, removedLocal: true, removedGateway: false };
+  if (asset.via === 'browser' || asset.via === 'lokal' || asset.localOnly) return { ok: true, removedLocal: true, removedGateway: false };
   try {
     const res = await fetch(gatewayUrl('/import/delete'), {
       method: 'POST',

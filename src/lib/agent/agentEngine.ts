@@ -1192,7 +1192,9 @@ export class AgentEngine {
     try {
       const { readFileAsText } = await import('../rag');
       const { text } = await readFileAsText(file);
-      const result = await ingestPage({ text, name: file.name }, {
+      // A-7: Datei **und** Textschicht übergeben — die Datei landet ohne Gateway
+      // im lokalen Asset-Store, der extrahierte Text in der RAG-Bibliothek.
+      const result = await ingestPage({ file, text, name: file.name }, {
         toLibrary: opts.toLibrary !== false && !opts.reviewOnly,
         importSoftware: false,
         toDeviceCache: false,
@@ -1236,7 +1238,9 @@ export class AgentEngine {
         .join('\n');
     }
     const lines = [
-      `📥 Import (${result.kind ?? 'single'}) über ${result.via === 'gateway' ? 'Mobile-Server' : 'Browser – ohne Gateway-Katalog'}: ${result.imported.length} Asset(s), ${result.bytes ?? 0} B`,
+      `📥 Import (${result.kind ?? 'single'}) über ${
+        result.via === 'gateway' ? 'Mobile-Server' : result.via === 'lokal' ? 'Datei-Drop – rein lokal' : 'Browser – ohne Gateway-Katalog'
+      }: ${result.imported.length} Asset(s), ${result.bytes ?? 0} B`,
     ];
     for (const asset of result.imported.slice(0, 8)) {
       lines.push(
@@ -1247,6 +1251,7 @@ export class AgentEngine {
     if (result.pack?.name) lines.push(`Pack: „${result.pack.name}“${result.pack.version ? ` v${result.pack.version}` : ''}`);
     if (result.skipped?.length) lines.push(`⚠️ übersprungen: ${result.skipped.map((x) => x.reason ?? 'blockiert').join(', ')}`);
     if (result.via === 'gateway') lines.push('💾 Im Geräte-Katalog: 📥-Panel zeigt die Assets (Offline-Holen, Vorschau, „als UI-Style anwenden“).');
+    if (result.via === 'lokal') lines.push('💾 Rein lokal im Gerätespeicher (IndexedDB) — kein Gateway beteiligt, Katalog-Eintrag fehlt dort bewusst.');
     this.audit('grabber_import', `${result.imported.length} assets via ${result.via}`);
     return lines.join('\n');
   }
