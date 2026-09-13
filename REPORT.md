@@ -1,5 +1,13 @@
 # AUDIT REPORT — 2026-09-11
 
+> **Update 2026-09-13:** Die GAP-Matrix liegt als **Fassung 2.0** vor (`GAP_MATRIX.md`):
+> 93 Zeilen in 10 Kapiteln (inkl. der in diesem Bericht noch fehlenden Bereiche
+> `server/`, `tests/`, `deploy/`), `INVENTAR.csv` auf 386 Dateien erneuert,
+> Teststand **176/176 + 33 Smoke-Checks** (`make test-all` exit 0) und 11 reparierte
+> Befunde (u. a. `POST /api/scan` 404, `POST /api/scripts/run` 500,
+> `GET /api/diagnostics/iperf` 404, Phantom-Spec-Pfade, `validateNodeEndpoint`-Stub).
+> Die Zahlen unten sind der Stand vom 2026-09-11.
+
 Repo: `dang88bang-pixel/DinGelSchwinG` · Branch: `arena/01a0914b-dingelschwing`
 Basis: `caf308f` (main) · Modus: 5-Phasen-Zyklus (Audit → Ersetzung → Integration → Funktionstest → Fehlerresistenz)
 

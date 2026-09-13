@@ -164,17 +164,105 @@ export function getAllNodeConfigs(): EnterpriseNode[] {
   return Object.values(ENTERPRISE_NODES);
 }
 
+// ---------------------------------------------------------------------------
+// Endpunkt-Prüfung (real, kein Platzhalter mehr)
+// ---------------------------------------------------------------------------
+
+/** Warum eine Probe succeeded/failed ist — ehrliche Begründung statt `true`. */
+export type NodeProbeReason =
+  | 'http-ok'
+  | 'http-error'
+  | 'network-error'
+  | 'timeout'
+  | 'unsupported-scheme';
+
+export interface NodeProbeResult {
+  category: NodeCategory;
+  nodeId: string;
+  endpointUrl: string;
+  /** Tatsächlich angefragte URL (Tunnel-Schema auf http/https gemappt) oder null. */
+  probeUrl: string | null;
+  ok: boolean;
+  latencyMs: number;
+  status?: number;
+  reason: NodeProbeReason;
+  error?: string;
+}
+
+export const NODE_PROBE_TIMEOUT_MS = 4000;
+
 /**
- * Validate node endpoint connectivity (placeholder for actual implementation)
+ * Tunnel-Schemata auf eine HTTP(S)-Probe abbilden: `wss→https`, `ws→http`.
+ * Schemata ohne HTTP-Äquivalent (z. B. gRPC/HTTP2, ssh) liefern `null` — die
+ * Probe meldet dann `unsupported-scheme`, statt einen Treffer vorzutäuschen.
+ */
+export function probeUrlFor(endpointUrl: string): string | null {
+  const url = endpointUrl.trim();
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(url)?.[1]?.toLowerCase();
+  const mapped = scheme ? { https: 'https', http: 'http', wss: 'https', ws: 'http' }[scheme] : undefined;
+  if (!mapped) return null;
+  return url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, `${mapped}://`);
+}
+
+/**
+ * Prüft die Erreichbarkeit eines Enterprise-Knotens per HTTP(S)-Probe
+ * (HEAD, bei 405/501 GET-Fallback) mit hartem Timeout. Liefert immer ein
+ * Ergebnis — nie einen erfundenen Erfolg.
+ */
+export async function probeNodeEndpoint(
+  category: NodeCategory,
+  timeoutMs: number = NODE_PROBE_TIMEOUT_MS,
+): Promise<NodeProbeResult> {
+  const node = ENTERPRISE_NODES[category];
+  const probeUrl = probeUrlFor(node.endpointUrl);
+  const base: NodeProbeResult = {
+    category,
+    nodeId: node.nodeId,
+    endpointUrl: node.endpointUrl,
+    probeUrl,
+    ok: false,
+    latencyMs: 0,
+    reason: 'unsupported-scheme',
+  };
+  if (!probeUrl) return base;
+
+  const started = performance.now();
+  const request = (method: 'HEAD' | 'GET'): Promise<Response> =>
+    fetch(probeUrl, {
+      method,
+      mode: 'cors',
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+  try {
+    let res = await request('HEAD');
+    if (res.status === 405 || res.status === 501) res = await request('GET');
+    return {
+      ...base,
+      ok: res.ok,
+      status: res.status,
+      latencyMs: Math.round(performance.now() - started),
+      reason: res.ok ? 'http-ok' : 'http-error',
+    };
+  } catch (e) {
+    const err = e as { name?: string; message?: string };
+    const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
+    return {
+      ...base,
+      latencyMs: Math.round(performance.now() - started),
+      reason: timedOut ? 'timeout' : 'network-error',
+      error: String(err?.message ?? e),
+    };
+  }
+}
+
+/**
+ * Validate node endpoint connectivity — booleanische Kurzform von
+ * {@link probeNodeEndpoint} (API-kompatibel zur vorherigen Signatur).
  */
 export async function validateNodeEndpoint(category: NodeCategory): Promise<boolean> {
-  const node = ENTERPRISE_NODES[category];
-  try {
-    // Implementation depends on node type and protocol
-    console.log(`Validating endpoint for ${node.nodeId}: ${node.endpointUrl}`);
-    return true;
-  } catch (error) {
-    console.error(`Endpoint validation failed for ${node.nodeId}:`, error);
-    return false;
-  }
+  return (await probeNodeEndpoint(category)).ok;
 }

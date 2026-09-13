@@ -4,13 +4,16 @@ Ausführen:  python -m unittest discover -s tests -v
 """
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import api_client  # noqa: E402
 from utils.agent import Agent  # noqa: E402
 from utils.config import load_config  # noqa: E402
 from utils.model_backend import (  # noqa: E402
@@ -67,7 +70,39 @@ class TestScriptExecutor(unittest.TestCase):
         self.assertFalse(result.ok)
 
 
+#: Adresse, die garantiert sofort „connection refused" liefert (kein Timeout,
+#: kein zufällig laufendes Backend auf :5000) — für deterministische Offline-Tests.
+UNREACHABLE_API = "http://127.0.0.1:1"
+
+
+class TestApiClientBase(unittest.TestCase):
+    def test_base_url_env_override(self) -> None:
+        """DGS_API_URL überschreibt die Backend-Basis (Deployment/Tests)."""
+        try:
+            with mock.patch.dict(os.environ, {"DGS_API_URL": UNREACHABLE_API + "/"}):
+                importlib.reload(api_client)
+                self.assertEqual(api_client.BASE_URL, UNREACHABLE_API)
+                self.assertFalse(api_client.APIClient.backend_online())
+                self.assertEqual(api_client.APIClient.get_devices(), [])
+        finally:
+            # Umgebung wiederherstellen und Modul neu laden (Default-Pfad).
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("DGS_API_URL", None)
+                importlib.reload(api_client)
+        expected = os.environ.get("DGS_API_URL", "http://localhost:5000").rstrip("/")
+        self.assertEqual(api_client.BASE_URL, expected)
+
+
 class TestStatusManager(unittest.TestCase):
+    """Offline-Pfad deterministisch: nie ein reales Backend auf :5000 ansprechen."""
+
+    def setUp(self) -> None:
+        self._base_url = api_client.BASE_URL
+        api_client.BASE_URL = UNREACHABLE_API
+
+    def tearDown(self) -> None:
+        api_client.BASE_URL = self._base_url
+
     def test_offline_returns_empty_live_data(self) -> None:
         manager = StatusManager(poll_interval=0.5)
         manager.refresh()

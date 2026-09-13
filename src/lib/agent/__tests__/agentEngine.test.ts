@@ -2,14 +2,27 @@
  * Tests für die Agent-Engine (Phase 2 live, Phase 3 persistent).
  * Offline-Erwartungen: Kennzeichnung statt Raten. Ausführen: npm test
  */
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { AgentEngine } from '../agentEngine';
 import { resetCircuitBreakers } from '../../retry';
 
 beforeEach(() => {
   localStorage.clear();
   resetCircuitBreakers();
+  vi.unstubAllGlobals();
 });
+
+afterEach(() => {
+  // Keine Test-Isolation in andere Suites lecken lassen.
+  vi.unstubAllGlobals();
+});
+
+/** Offline deterministisch erzwingen: kein laufendes Gateway/Bridge darf zählen. */
+function stubOffline(): void {
+  vi.stubGlobal('fetch', vi.fn(async () => {
+    throw new TypeError('offline (test-isoliert)');
+  }));
+}
 
 describe('AgentEngine offline (Fallback ehrlich gekennzeichnet)', () => {
   it('intentDevices meldet Offline-Demo, wenn nichts live ist', () => {
@@ -50,11 +63,32 @@ describe('AgentEngine offline (Fallback ehrlich gekennzeichnet)', () => {
   });
 
   it('intentScanLive scheitert ohne Gateway strukturiert (kein Fake-Erfolg)', async () => {
+    stubOffline();
     const engine = new AgentEngine('admin');
     const text = await engine.intentScanLive('scan 192.168.1.0/24');
     // Entweder ehrliche Null-Funde oder strukturierte Fehlermeldung.
     expect(text).toMatch(/abgeschlossen|fehlgeschlagen/);
     if (text.includes('abgeschlossen')) expect(text).toContain('0 Fund');
+  }, 20000);
+
+  it('intentScanLive meldet echte Funde, wenn das Gateway antwortet', async () => {
+    // Live-Pfad deterministisch nachbilden (unabhängig von real laufenden Diensten).
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = String(init?.body ?? '');
+      if (body.includes('10.9.8.0/24') || String(_url).includes('/scan')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ devices: [{ id: 'a', name: 'Node A' }, { id: 'b', name: 'Node B' }], scanned: 2, subnet: '10.9.8.0/24' }),
+          text: async () => '{"scanned":2}',
+        } as unknown as Response;
+      }
+      throw new TypeError('offline (test-isoliert)');
+    }));
+    const engine = new AgentEngine('admin');
+    const text = await engine.intentScanLive('scan 10.9.8.0/24');
+    expect(text).toContain('abgeschlossen');
+    expect(text).not.toContain('Offline-Demo');
   }, 20000);
 });
 

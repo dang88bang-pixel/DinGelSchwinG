@@ -1,3 +1,8 @@
-# NEXUS Manager Backend – nur Standardbibliothek + optionales Flask.
-# Start ohne pip:  python3 server/app.py
-# Optional (identische API):  pip install flask && NEXUS_USE_FLASK=1 python3 server/app.py
+# NEXUS Manager Backend – reine Standardbibliothek, keine pip-Pakete nötig.
+# Start:  python3 server/app.py            (REST :5000)
+#         bash start.sh --backend-only     (REST + Terminal/Discovery/Status-WS)
+#
+# Hinweis: Eine Flask-Variante (NEXUS_USE_FLASK) ist NICHT implementiert –
+# der Server läuft ausschließlich über http.server/ThreadingHTTPServer.
+# Für die funktionalen Checks in tests/ (suite.py, chain.py, stress.py)
+# muss dieser Prozess laufen; sie nutzen ebenfalls nur die Standardbibliothek.

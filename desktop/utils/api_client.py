@@ -7,11 +7,14 @@ Datenprovider; die UI zeigt dadurch klar, dass kein Backend verbunden ist.
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from typing import Any
 
-BASE_URL = "http://localhost:5000"
+# Backend-Basis: Standard `http://localhost:5000`, per Umgebungsvariable
+# `DGS_API_URL` übersteuerbar (Deployment, Reverse Proxy, Test-Isolation).
+BASE_URL = os.environ.get("DGS_API_URL", "http://localhost:5000").rstrip("/")
 TIMEOUT = 3.0
 
 

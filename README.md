@@ -477,11 +477,17 @@ server {
 | Bridge | Netzwerkgerät | SSH (paramiko) | SSH | Remote-Shell |
 | Scanner | Netzwerk/WiFi | UDP 5353/1900 | mDNS/SSDP | Geräte-Erkennung |
 | Scanner | BLE-Dongle | bluetoothctl | BLE | BLE-Token-Erkennung |
-| Auth | Audit-Log | — | in-memory | trace_id-Ketten |
+| Auth | Audit-Log | — | SQLite (`server/data/data.db`, Tabelle `audit`) | trace_id-Ketten |
 
-**Abhängigkeiten (geprüft & konsistent):**
-- **JS:** react, react-dom, xterm, xterm-addon-fit, xterm-addon-web-links
-- **Python:** Flask 3.0.3, PyJWT 2.9.0, websockets 13.0, pyserial 3.5, paramiko 3.5.0
+**Abhängigkeiten (Stand 2026-09-13, gegen `package.json` / `server/requirements.txt` geprüft):**
+- **JS:** react 19.2.8, react-dom 19.2.8, @capacitor/* 8.x, i18next, three/@react-three —
+  das Terminal ist eine Eigenimplementierung (`src/hooks/useTerminal.ts`), **kein** xterm.
+- **Python (Backend `server/`):** reine Standardbibliothek (`http.server`, `socket`,
+  `sqlite3`, `hashlib/pbkdf2`, `hmac`) — kein Flask/PyJWT/pyserial/paramiko im Produktionspfad.
+  Die Flask-Alternative in `server/requirements.txt` ist **nicht implementiert**
+  (kein `NEXUS_USE_FLASK`-Code-Pfad; Vermerk dort korrigiert).
+- **Python (Gateway `mobile-server/`):** Standardbibliothek; optionale Extras in
+  `mobile-server/requirements.txt` (NFC) und `requirements-nfc.txt`.
 
 **Reproduzierbarer Start:** installiert Abhängigkeiten (falls fehlend), baut und startet alle 5 Dienste mit PID-/Log-Dateien; `./start.sh --docker` nutzt docker compose.
 

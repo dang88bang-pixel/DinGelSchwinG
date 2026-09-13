@@ -69,7 +69,7 @@ class StatusPanel(ctk.CTkToplevel):
             ], "Keine Testverbindungen.")
 
             load = self.status.system_load
-            src = "live (Backend)" if self.status.backend_online else "Mock (kein Backend)"
+            src = "live (Backend)" if self.status.backend_online else "offline (kein Backend)"
             self.footer.configure(
                 text=f"CPU: {load.get('cpu', '–')}% | RAM: {load.get('ram', '–')}%   ·   Quelle: {src}"
             )

@@ -5,8 +5,9 @@ Start:  python main.py
 Login → Hauptfenster mit Chat, 6 Aktionsbuttons, Skripte-Galerie,
 Status-Panel (Live), Einstellungen (Systeminstruktionen + Modell).
 
-Backend (optional): Flask-API + WebSocket auf localhost:5000.
-Ohne Backend läuft alles offline mit Mock-Daten.
+Backend (optional): REST-API + WebSocket auf localhost:5000 (server/app.py, Standardbibliothek).
+Ohne Backend läuft die Konsole offline; die Live-Listen bleiben leer — es werden
+keine erfundenen Beispiel-Daten angezeigt (utils/api_client.EmptyLiveDataSource).
 """
 from __future__ import annotations
 
