@@ -5,11 +5,12 @@ Datei,Zeilen,Status,Begruendung
 .npmrc,4,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 BUILD_INSTRUCTIONS.md,330,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 Dockerfile,14,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
-GAP_MATRIX.md,350,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
-INVENTAR.csv,387,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+GAP_MATRIX.md,356,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+INVENTAR.csv,391,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 Makefile,66,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
-README.md,644,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+README.md,647,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 REPORT.md,180,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+TODO.md,345,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/.gitignore,101,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/app/.gitignore,2,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 android/app/build.gradle,101,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
@@ -157,7 +158,7 @@ desktop/views/scripts.py,165,REAL,"Automatisch geprueft (scripts/audit_inventar.
 desktop/views/settings.py,231,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 desktop/views/status_panel.py,92,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 docker-compose.yml,59,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
-docs/INDEX.md,97,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
+docs/INDEX.md,100,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 docs/agent-gallery.md,114,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 docs/api-websockets.md,109,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
 docs/device-control.md,270,REAL,Doku-/Daten-/Asset-Datei: beschreibt statt zu implementieren (Marker-Scan nicht aussagekraeftig); Inhalt stichprobenartig geprueft
@@ -293,6 +294,7 @@ server/status_board.py,131,REAL,"Automatisch geprueft (scripts/audit_inventar.py
 server/store.py,243,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 server/tests/test_api_contract.py,135,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 server/tests/test_discovery.py,69,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
+server/tests/test_todo_consistency.py,82,REAL,"Test-Datei: Mocks/Fixtures sind hier Werkzeug, kein Befund; Suite laeuft gruen"
 server/wsutil.py,195,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/App.css,12,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"
 src/App.tsx,15,REAL,"Automatisch geprueft (scripts/audit_inventar.py): keine TODO/FIXME/MOCK/STUB/PLACEHOLDER-Marker, keine Dummy-Returns"

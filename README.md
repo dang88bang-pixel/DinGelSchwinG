@@ -153,6 +153,9 @@ Details: [`docs/api-websockets.md`](docs/api-websockets.md) ·
 
 | Dokument | Inhalt |
 |---|---|
+| [`TODO.md`](TODO.md) | 📝 Arbeitsliste aller offenen & teilfertigen Punkte (`A-*`/`G-*` mit Ist-Zustand, Schritten, „Fertig wenn") |
+| [`GAP_MATRIX.md`](GAP_MATRIX.md) | 🔍 Befund-/Gap-Matrix Fassung 2.0: 193 Checks, 390 Dateien, Rest-Gaps § 12, Aktionsketten § 14 |
+| [`INVENTAR.csv`](INVENTAR.csv) | 🗂️ Datei-Inventar mit REAL/STUB/PLACEHOLDER/TODO-Befund je Datei |
 | [`docs/device-control.md`](docs/device-control.md) | 🔧 Device-Control: ADB/Fastboot-Binaries, Port-View, Hersteller-DB, Befehl-Referenz, ROM-Datenbank, Brick-Schutz (ARB), Flash-Assistent, Fehlerbehebung |
 | [`docs/usb-hersteller.md`](docs/usb-hersteller.md) | USB-Hersteller (VID→Name, `usb.ids`-Merge), ADB-/USB-Geräteabruf, Vorabprüfung vor Eingriffen, Befehlsreferenz, Grenzen (kein Unlock/IMEI/FRP) |
 | [`docs/INDEX.md`](docs/INDEX.md) | 📇 Querverweis-Index aller Dokumente (Kurzbeschreibung je Datei) |

@@ -2,12 +2,16 @@
 
 **Stand: 2026-09-13 · Fassung 2.0 (100 % erfasst, jede Zeile gegen den Arbeitsbaum verifiziert)**
 
-> **Vollständigkeitsanspruch.** Diese Matrix erfasst **alle 388 tracked Dateien**
-> (`git ls-files | wc -l` → 388) über alle neun Baugruppen des Repos. Jede Zeile nennt die
+> **Vollständigkeitsanspruch.** Diese Matrix erfasst **alle 390 tracked Dateien**
+> (`git ls-files | wc -l` → 390) über alle neun Baugruppen des Repos. Jede Zeile nennt die
 > Anforderungsquelle, die Umsetzung **mit Datei/Beweis** und den am 2026-09-13 selbst
 > ausgeführten Nachweis (Befehle + Ausgaben in **§ 11 Verifikationsprotokoll**).
 > Zeilen ohne lauffähigen Nachweis sind ausdrücklich als ⛔/„nicht ausführbar" markiert —
 > nichts ist „angenommen grün".
+>
+> **Arbeitsliste:** Alle offenen bzw. teilfertigen Punkte aus § 12 (`G-*`) und § 14.3 (`A-*`)
+> stehen mit Ist-Zustand, Schritten und Fertig-Kriterium in [`TODO.md`](TODO.md);
+> `server/tests/test_todo_consistency.py` hält beide Dateien synchron.
 >
 > **Quelle „gefordert":** `FULL_IMPLEMENTATION_TODO.md` existiert im Repo nicht. Gefordert ist
 > daher aus `README.md` (v2.2), `BUILD_INSTRUCTIONS.md`, `docs/*.md` (inkl. `openapi.yaml`,
@@ -32,10 +36,10 @@
 | Betrieb (Docker/NGINX/Monitoring/CI) | `deploy/`, `docker-compose.yml`, `.github/` | § 8 (6) | ✅ |
 | Qualitätssicherung & Audit-Artefakte | `tests/`, `*/tests/`, `INVENTAR.csv`, `Makefile` | § 9 (7) | ✅ |
 | Phasen-Spec-Sonderpunkte | — | § 10 (8) | ✅ |
-| **Aktionsketten** (Skills → Tools → Buttons → Workflows) | `src/lib/agent/`, `desktop/utils/agent.py`, `server/app.py` | § 14 (Tiefenprüfung + Liste A-1…A-11) | ✅ |
+| **Aktionsketten** (Skills → Tools → Buttons → Workflows) | `src/lib/agent/`, `desktop/utils/agent.py`, `server/app.py` | § 14 (Tiefenprüfung + Liste A-1…A-12) | ✅ |
 
 **Audit-Artefakt `INVENTAR.csv`** (Generator `scripts/audit_inventar.py`, `make inventar`):
-**388 Dateien** → REAL 374 · BACKUP 9 · STUB 2 · PLACEHOLDER 2 · TODO 1 · MOCK 0 · FIXME 0 · DEAD 0.
+**390 Dateien** → REAL 376 · BACKUP 9 · STUB 2 · PLACEHOLDER 2 · TODO 1 · MOCK 0 · FIXME 0 · DEAD 0.
 Die fünf Nicht-REAL-Befunde (ohne Backups) stehen 1:1 in § 12 „Offene Punkte".
 Der Status ist **belegt, nicht behauptet**: Der Generator scannt jede Quelldatei nach
 Markern (TODO/FIXME/MOCK/STUB/PLACEHOLDER/„not implemented") und nennt in der Begründung
@@ -165,11 +169,11 @@ Zeilennummer + Textstelle; Doku-/Datendateien und Test-Dateien werden als solche
 
 | # | Gefordert | Vorhanden (Beweis) | Status |
 |---|---|---|---|
-| 9.1 | Einheitliche Test-Matrix | `make test-all` (2026-09-13, **exit 0**): server 10 + desktop **61** + gateway 47 + selftest 24 + genesis 10 + web **36** = **188 Checks**, dazu Smoke 13 + 20 + Lasttest | ✅ |
+| 9.1 | Einheitliche Test-Matrix | `make test-all` (2026-09-13, **exit 0**): server **15** + desktop **61** + gateway 47 + selftest 24 + genesis 10 + web **36** = **193 Checks**, dazu Smoke 13 + 20 + Lasttest | ✅ |
 | 9.2 | `npm test` | Vitest 0.34 + happy-dom: **36/36** (retry 8, bugReport 3, agentEngine 10, enterprise-nodes 9, **Aktionsketten-Deckung 6**) | ✅ |
 | 9.3 | Typen/Lint/Build | `tsc --noEmit` clean, `eslint --max-warnings 0` clean, `vite build` Erfolg (35 s; Chunk-Warnung > 500 kB bleibt Tech-Debt) | ✅ |
 | 9.4 | Test-Isolation gegen Ambient-Dienste | **Neu:** Desktop-Tests pinnen `api_client.BASE_URL` auf `127.0.0.1:1`; Agent-Engine-Tests stubben `fetch` (vorher schlug `intentScanLive` fehl, sobald Gateway/Bridge liefen — im Voll-Lauf reproduziert und behoben) | ✅ |
-| 9.5 | Audit-Inventar aktuell | `INVENTAR.csv` neu erzeugt: **388 Dateien** (vorher 310 — `server/`, `tests/`, `deploy/` fehlten), marker-basiert belegt | ✅ |
+| 9.5 | Audit-Inventar aktuell | `INVENTAR.csv` neu erzeugt: **390 Dateien** (vorher 310 — `server/`, `tests/`, `deploy/` fehlten), marker-basiert belegt | ✅ |
 | 9.6 | Keine Secrets im Code | grep-Audit über `*.py/ts/tsx/kt/mjs/json/yml` → **0 Treffer** (§ 11) | ✅ |
 | 9.7 | Keine TODO/FIXME-Marker im Produktionscode | Generator-Befund: **FIXME 0**, TODO **1** (nur `config/enterprise-nodes.csv`, Datenebene) | ✅ |
 
@@ -211,7 +215,8 @@ Alles selbst ausgeführt (Sandbox: Node v22.22.3, Python 3.11.2, `npm ci` → 52
 | OpenAPI | PyYAML-Parse + Zählung | **31 Pfade**, alle mit Operation |
 | i18n | Schlüssel-Vergleich de/en | 222/222, **0** Abweichungen |
 | Secrets | grep über alle Quell-/Config-Dateien | **0 Treffer** |
-| Inventar | `python3 scripts/audit_inventar.py` | **388 Dateien**, 5 Nicht-REAL (+9 Backups) |
+| Inventar | `python3 scripts/audit_inventar.py` | **390 Dateien**, 5 Nicht-REAL (+9 Backups) |
+| TODO-Konsistenz | `python3 server/tests/test_todo_consistency.py` | **5/5** — jede `G-*`/`A-*`-ID hat einen Abschnitt mit „Fertig wenn"; Negativkontrolle (ID umbenannt) schlägt mit `['G-9']` fehl |
 | CI | `gh run list --workflow=build-apk.yml` | letzter `main`-Run **success** (34718200773) |
 | Nicht ausführbar | Docker, NGINX, Gradle/Kotlin, Rust/crates.io, `dl.google.com` | in der Sandbox blockiert/abwesend (⛔-Zeilen 4.6, 6.10, 8.1, 8.2, 1.16) |
 
@@ -313,6 +318,7 @@ erfand nach 6 s `success`, `POST /api/workflows` markierte **jeden** Namen nach 
 | **A-9** | Terminal- + Gateway-Kette gleichzeitig | Default-Port **8765** doppelt belegt (G-5); nur mit `PTY_PORT`/`DGS_TCP_PORT` parallel | Einen Default verschieben + Doku nachziehen |
 | **A-10** | Enterprise-Knoten-Kette | `probeNodeEndpoint()` funktioniert (9 Tests), aber **keine UI** ruft sie auf (G-2); `GET /api/nodes/validate` prüft nur das eigene Backend | Panel/Skill anbinden; `/api/nodes/validate` auf echte Knoten erweitern |
 | **A-11** | Audio-/JNI-Kette | Nicht vorhanden (Spec-Abweichung 10.3/10.4) | Nur bei neuer Anforderung |
+| **A-12** | `adb_devices` in der Desktop-Konsole | `_intent_adb_devices()` liefert ohne `_clients` bzw. bei Live-Fehler eine **nicht gekennzeichnete Demo-Liste** (`R58M123ABC – Pixel 7`, `192.168.1.42:5555`); Audit vermerkt „Geräteliste abgefragt". Die Web-Variante (`intentAdbDevices`, `agentEngine.ts:521`) gibt stattdessen einen ehrlichen Hinweis | Demo-Fallback als „Beispiel" kennzeichnen oder entfernen, Audit auf `demo` setzen |
 
 **Außerhalb der Aktionsketten offen:** G-1 (Knoten-Planungsdaten), G-3 (`fastboot`-Platzhalter),
 G-6 (kein `.wasm`), G-7 (CT45P proprietär), G-8 (kein Android-SDK lokal), G-9 (Bundle > 500 kB),
@@ -330,17 +336,17 @@ G-10 (Upstream-Paket) — Details in § 12.
 15. Neue Deckungs-Tests: `actionChainCoverage.test.ts` (6) + `desktop/tests/test_skill_chain.py` (6);
     `docs/openapi.yaml` um POST `/api/workflows` + 501-Antworten ergänzt.
 16. Neuer Abschnitt **§ 14** mit gemessener Deckung und der vollständigen Liste offener
-    Kettenteile **A-1…A-11**.
+    Kettenteile **A-1…A-12**.
 
 ## Zusammenfassung
 
 - **Erfasste Anforderungen: 93 Zeilen** in 10 Kapiteln (§1 21 · §2 5 · §3 12 · §4 7 · §5 5 ·
   §6 10 · §7 12 · §8 6 · §9 7 · §10 8) — **✅ 80 · ⚠️ 5 · ⛔ 5 · N/A 2 · Teil-N/A 1**
-- **Teststand 2026-09-13 (nach Tiefenprüfung): 188/188 Checks grün** (server 10, desktop 61,
+- **Teststand 2026-09-13 (nach Tiefenprüfung): 193/193 Checks grün** (server 15, desktop 61,
   gateway 47, selftest 24, genesis 10, web 36) **+ 33 Smoke-Checks** + tsc/eslint/vite-build
   grün; `make test-all` exit 0.
 - **Aktionsketten (§ 14):** Web 30/30 Skills + 6/6 Buttons, Desktop 37/37 Skills + 6/6 Buttons —
-  offen bleiben **A-1…A-11** (u. a. Skript-Runner, Workflow-Registry, LLM-Multi-Turn,
+  offen bleiben **A-1…A-12** (u. a. Skript-Runner, Workflow-Registry, LLM-Multi-Turn,
   ADB-Ausführung, 3D-Raycast, Port 8765).
 - **Echte Code-Lücken:** keine funktionalen mehr in Web/Gateway/Desktop/Backend —
   verbleibend: G-1/G-2 (Datenbestand + UI-Anbindung), G-4 (ungenutzter 3D-Stub), G-9 (Chunk-Größe).
