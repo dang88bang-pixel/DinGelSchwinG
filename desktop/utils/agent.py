@@ -27,6 +27,7 @@ from .script_executor import ScriptExecutor, ScriptResult
 from .skill_loader import (
     Skill, load_skills, load_system_instruction, save_system_instruction, skills_to_prompt,
 )
+from . import nodes as node_probe
 from .status_manager import StatusManager
 
 # Optionale Erweiterungen (MCP / mobile-devices gateway / Gallerie / RAG).
@@ -63,6 +64,48 @@ APPROVAL_WORDS = re.compile(
     r"ja[, ]*führe aus|ja[, ]*fuehre aus|ok[, ]*ausführen|ok[, ]*ausfuehren)\b",
     re.IGNORECASE,
 )
+
+
+# ---------------------------------------------------------------------------
+# Grenzen des Modell-Loops (Aktionskette A-3) — identisch zur Web-Engine
+# (src/lib/agent/agentEngine.ts: LLM_MAX_TURNS/…/LLM_TOKEN_BUDGET).
+# ---------------------------------------------------------------------------
+LLM_MAX_TURNS = 3
+LLM_MAX_TOOLS_PER_TURN = 5
+LLM_FEEDBACK_CHARS = 1200
+LLM_TOKEN_BUDGET = 24_000
+
+LLM_CONTINUE_HINT = (
+    "Die Werkzeug-Ergebnisse stehen oben. Antworte jetzt auf die ursprüngliche Frage "
+    "und nutze die Ergebnisse als Beleg. Nur wenn noch ein Werkzeug fehlt, gib genau "
+    "eine TOOL:-Zeile aus — sonst antworte ohne TOOL:-Zeile."
+)
+
+
+def _mask_for_model(text: str) -> tuple[str, list[str]]:
+    """Secrets maskieren, bevor Werkzeug-Ergebnisse zurück ins Modell gehen."""
+    if _page_ingest is not None:
+        try:
+            return _page_ingest.mask_secrets(text)
+        except Exception:  # noqa: BLE001 – Maskierung darf den Loop nicht stoppen
+            pass
+    return text, []
+
+
+def _build_tool_feedback(lines: list[str], results: list[str],
+                         max_chars: int = LLM_FEEDBACK_CHARS) -> str:
+    """Werkzeug-Ergebnisse als Rückkopplung: gekürzt und bereinigt."""
+    blocks = []
+    for index, line in enumerate(lines):
+        raw = results[index] if index < len(results) else ""
+        text, hits = _mask_for_model(raw or "")
+        if len(text) > max_chars:
+            text = f"{text[:max_chars]}\n… gekürzt ({len(text)} Zeichen insgesamt)"
+        note = f" (maskiert: {', '.join(hits)})" if hits else ""
+        call = line.strip()
+        call = call[call.index(":") + 1:].strip() if ":" in call else call
+        blocks.append(f"TOOL: {call}{note}\nERGEBNIS:\n{text}")
+    return "\n\n".join(blocks)
 
 
 class Agent:
@@ -365,6 +408,10 @@ class Agent:
             return self._intent_clients()
         if re.search(r"\b(workflows?|tasks?|angriffe|aufgaben)\b", t) and re.search(r"(laufen|status|show|zeige|welche|aktive)", t):
             return self._intent_workflows()
+        # A-10: Enterprise-Knoten – Bestand + echte Endpunkt-Probe
+        if (re.search(r"enterprise[-_ ]?knoten|\bknoten\b|node[-_ ]?status|\bqloud\b", t)
+                and re.search(r"status|pr(ü|ue)f|probe|erreichbar|zeig|list|welche|verbind", t)):
+            return self._intent_node_status(t)
         if re.search(r"gallerie|gallery|marktplatz", t):
             return self._intent_gallery(t)
         if re.search(r"installiere\s+(den\s+)?agent|aktiviere\s+den\s+agent", t):
@@ -581,7 +628,21 @@ class Agent:
             return "❌ Bitte nenne die Button-Nummer: 'Belege Button 3 mit …'"
         idx = int(m.group(1)) - 1
         script = re.search(r"([\w.-]+\.(py|sh|ps1|js))", t)
-        if script:
+        # A-6: freie Aktionen auf echte Skills abbilden statt "task:custom".
+        skill = re.search(r"\bskills?\s*(?:[:=]\s*|\s+)([a-z_][a-z0-9_]*)"
+                          r"((?:\s+[a-z_][a-z0-9_]*=\S+)*)", t, re.IGNORECASE)
+        if skill:
+            name = skill.group(1).lower()
+            known = [sk.name for sk in self.skills]
+            if name not in known:
+                self._audit("assign_button", f"abgelehnt: unbekannter skill {name}")
+                return (f"❌ Skill '{name}' existiert im Modus {self.mode} nicht.\n"
+                        f"Verfügbar: {', '.join(known)}")
+            params = (skill.group(2) or "").strip()
+            action = f"skill:{name}" + (f" {params}" if params else "")
+            ok = self.assign_button(idx, action, f"Skill {name}" + (f" ({params})" if params else ""))
+            detail = f"Button {idx+1} → Skill {name}" + (f" {params}" if params else "")
+        elif script:
             ok = self.assign_button(idx, f"script:{script.group(1)}", f"Skript {script.group(1)}")
             detail = f"Button {idx+1} → Skript {script.group(1)}"
         elif "workflow" in t:
@@ -1034,6 +1095,24 @@ class Agent:
             base += f"\n- wissensbasis: {stats.get('documents', 0)} dokumente / {stats.get('chunks', 0)} abschnitte"
         return base
 
+    def _intent_node_status(self, t: str) -> str:
+        """A-10: Enterprise-Knoten echt proben (server/nodes.py, CSV-Bestand).
+
+        `ask()` läuft mit Callback im Worker-Thread – die Probe blockiert die
+        UI also nicht. Ohne Kategorie werden alle Knoten geprüft, der Befund
+        nennt immer den echten Grund (network-error statt erfundenem ok).
+        """
+        category = node_probe.match_category(t)
+        self._audit("node_status", category or "alle")
+        result = (node_probe.probe_one(category, 2.0) if category
+                  else node_probe.probe_all(2.0))
+        text = node_probe.format_result(result)
+        self.status.add_workflow("node_probe", 100,
+                                 "success" if result.get("ok") else "failed",
+                                 note=f"Knoten erreichbar: {result.get('reachable', 0)}"
+                                      f"/{result.get('total', 0)}")
+        return text
+
     def _intent_knowledge_search(self, t: str) -> str:
         if self.knowledge is None:
             return "⚠️ utils/agentGallery.py fehlt – Wissensbasis nicht verfügbar."
@@ -1083,22 +1162,68 @@ class Agent:
                 + (f"\n## Wissensbasis-Auszug (nur daraus antworten, mit Quelle zitieren)\n{knowledge}\n" if knowledge else "")
                 + skills_to_prompt(self.skills))
 
-    def _try_llm(self, text: str) -> str:
+    def _try_llm(self, text: str, max_turns: int = LLM_MAX_TURNS,
+                 token_budget: int = LLM_TOKEN_BUDGET) -> str:
+        """Modell-Antwort mit Werkzeug-Rückkopplung (Aktionskette A-3).
+
+        Spiegel von `AgentEngine.tryLLM()` in `src/lib/agent/agentEngine.ts`:
+        ein Loop mit vier Abbruchkriterien (keine TOOL-Zeile · `max_turns` ·
+        Wiederholung derselben Zeile · Token-Budget). Die Ergebnisse werden
+        gekürzt und secret-maskiert zurückgespielt, jeder Lauf schreibt
+        `llm_turns` ins Audit.
+        """
         system = self.system_instruction + "\n\n" + self._llm_context()
-        try:
-            raw = self.backend.generate(system, text)
-        except BackendError as exc:
-            self._audit("llm_error", str(exc))
-            return f"⚠️ Modell nicht verfügbar ({exc}).\n" + self._fallback(text)
-        # TOOL:-Zeilen ausführen
-        tool_lines = [ln for ln in raw.splitlines() if ln.strip().startswith("TOOL:")]
-        body = "\n".join(ln for ln in raw.splitlines() if not ln.strip().startswith("TOOL:"))
-        results = []
-        for line in tool_lines[:5]:
-            results.append(self._execute_tool_line(line))
-        if results:
-            body = body.strip() + "\n\n" + "\n".join(results)
-        return body.strip() or "🤖 (leere Antwort – bitte versuche es noch einmal.)"
+        bodies: list[str] = []
+        tool_outputs: list[str] = []
+        executed: set[str] = set()
+        feedback = ""
+        turns = 0
+        tokens = 0
+        stop = "Antwort ohne TOOL-Zeile"
+
+        while turns < max_turns:
+            turns += 1
+            prompt = text if turns == 1 else f"{text}\n\n{feedback}\n\n{LLM_CONTINUE_HINT}"
+            planned = tokens + _estimate_tokens(system) + _estimate_tokens(prompt)
+            if planned > token_budget:
+                stop = f"Token-Budget {token_budget} erreicht"
+                turns -= 1
+                break
+            tokens = planned
+            try:
+                raw = self.backend.generate(system, prompt)
+            except BackendError as exc:
+                self._audit("llm_error", f"{exc} (Turn {turns})")
+                return f"⚠️ Modell nicht verfügbar ({exc}).\n" + self._fallback(text)
+            tokens += _estimate_tokens(raw)
+
+            lines = raw.splitlines()
+            tool_lines = [ln for ln in lines if ln.strip().startswith("TOOL:")][:LLM_MAX_TOOLS_PER_TURN]
+            body = "\n".join(ln for ln in lines if not ln.strip().startswith("TOOL:")).strip()
+            if body:
+                bodies.append(body)
+            if not tool_lines:
+                break
+
+            fresh = [ln for ln in tool_lines if ln.strip().lower() not in executed]
+            if not fresh:
+                stop = "Abbruch: dieselbe TOOL-Zeile wiederholt"
+                break
+            results = [self._execute_tool_line(ln) for ln in fresh]
+            executed.update(ln.strip().lower() for ln in fresh)
+            tool_outputs.extend(r for r in results if r and r.strip())
+            feedback = _build_tool_feedback(fresh, results)
+            if turns >= max_turns:
+                stop = f"maxTurns {max_turns} erreicht"
+
+        self._audit("llm_turns",
+                    f"turns={turns} tools={len(executed)} tokens={tokens} stop={stop}")
+        if turns == 0:
+            return f"⚠️ Modell-Loop nicht gestartet: {stop}.\n" + self._fallback(text)
+        answer = "\n\n".join(part for part in [*bodies, *tool_outputs] if part.strip())
+        note = (f"\n\n🔁 Modell-Loop: {turns} Turns, {len(executed)} Werkzeug-Aufruf(e), "
+                f"~{tokens} Tokens — beendet: {stop}.") if turns > 1 else ""
+        return (answer or "🤖 (leere Antwort – bitte versuche es noch einmal.)") + note
 
     def _execute_tool_line(self, line: str) -> str:
         """Öffentliche Tool-Kette: liefert immer einen Text (nie None)."""
@@ -1138,6 +1263,13 @@ class Agent:
                 return self._intent_gateway(f"gateway {key}")
             if skill == "show_metrics":
                 return self._intent_metrics()
+            if skill == "node_status":
+                needle = str(params.get("node") or params.get("kategorie") or "").strip()
+                category = node_probe.match_category(needle) if needle else None
+                self._audit("node_status", category or "alle")
+                result = (node_probe.probe_one(category, 2.0) if category
+                          else node_probe.probe_all(2.0))
+                return node_probe.format_result(result)
             if skill == "gateway_selftest":
                 return self._intent_gateway("gateway selbsttest")
             if skill == "gateway_grant":
@@ -1169,7 +1301,16 @@ class Agent:
             if skill == "help":
                 return self._intent_help()
             if skill == "assign_button":
-                ziel = params.get("script") or params.get("workflow") or params.get("skill") or ""
+                # Ziel eindeutig kennzeichnen, damit skill=<name> nicht als
+                # freie Aktion (task:custom) endet — A-6.
+                if params.get("script"):
+                    ziel = params["script"]
+                elif params.get("workflow"):
+                    ziel = f"workflow {params['workflow']}"
+                elif params.get("skill"):
+                    ziel = f"skill={params['skill']}"
+                else:
+                    ziel = ""
                 return self._intent_assign_button(
                     f"belege button {params.get('button', params.get('slot', ''))} mit {ziel}".strip()
                 )
@@ -1249,9 +1390,35 @@ class Agent:
             name = action.split(":", 1)[1]
             if name == "scan":
                 return self._intent_scan("scan")
-            self.status.add_workflow(name, progress=10)
-            self._audit("start_workflow", name)
-            return f"✅ Workflow '{name}' gestartet (siehe Status-Panel)."
+            # Ehrlich bleiben: fremde Workflows führt die Desktop-Konsole nicht
+            # selbst aus (der Backend-Client hat keine JWT-Sitzung). Eingetragen
+            # wird der Lauf deshalb als `queued`, nicht als gestartet.
+            self.status.add_workflow(
+                name, progress=0, status="queued",
+                note="keine Desktop-Ausführung — Backend POST /api/workflows",
+            )
+            self._audit("start_workflow", f"{name} (queued – keine Desktop-Ausführung)")
+            return (
+                f"⏸️ Workflow '{name}' ist eingetragen (Status: queued) – "
+                "ausgeführt wird er hier nicht.\n"
+                "Echte Ausführung: Backend `POST /api/workflows` "
+                "(Registry: config/workflows.json), Web-App-Aktionsbutton\n"
+                "oder Operations-Center → „Workflow ausführen“."
+            )
+        # A-6: skill:<name> [k=v …] läuft über dieselbe Kette wie "TOOL: <name>".
+        if action.startswith("skill:"):
+            call = action.split(":", 1)[1].strip()
+            name = call.split()[0] if call else ""
+            self._audit("skill_button", name or "(leer)")
+            if not name:
+                return "❌ Button-Aktion 'skill:' ohne Skill-Name – bitte neu belegen."
+            return self._execute_tool_line(f"TOOL: {call}")
+        if action.startswith("task:"):
+            name = action.split(":", 1)[1] or "custom"
+            self._audit("task_button", name)
+            return (f"ℹ️ Button-Aktion '{name}' ist eine freie Platzhalter-Aktion.\n"
+                    "Belege den Button mit etwas Ausführbarem: 'belege button 3 mit network_scan.py',\n"
+                    "'belege button 3 mit workflow scan' oder 'belege button 3 mit skill show_audit'.")
         return f"❓ Unbekannte Aktion: {action}"
 
     # ------------------------------------------------------------------

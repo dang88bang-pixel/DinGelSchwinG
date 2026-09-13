@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "hinweis": "Workflow-Definitionen des Backends (TODO A-2). `server/workflows.py` führt die Schritte sequenziell aus und meldet je Schritt Status, Dauer und Detail. Schritt-Arten: `builtin` = In-Prozess-Handler aus BUILTIN_STEPS (braucht Server-Zustand), `script` = Name aus der Skript-Whitelist server/data/scripts/manifest.json (gepinnter Subprocess, Exit-Code entscheidet). Platzhalter in `args` (`{subnet}`) werden aus den Aufruf-Parametern ersetzt. Geprüft mit `python3 server/tests/test_workflows.py`.",
+  "workflows": [
+    {
+      "name": "scan_network",
+      "title": "Netzwerk-Scan (Discovery + Subnetz-Sweep)",
+      "description": "Erfasst lokale Schnittstellen/USB/BLE und scannt danach aktiv das Subnetz; beide Ergebnisse werden in den Geräte-Store gemergt.",
+      "aliases": [
+        "network_scan",
+        "scan"
+      ],
+      "timeout": 150,
+      "params": [
+        {
+          "name": "subnet",
+          "default": "192.168.1.0/24",
+          "description": "IPv4-CIDR-Subnetz für den aktiven Sweep",
+          "pattern": "^[0-9]{1,3}(\\.[0-9]{1,3}){3}/[0-9]{1,2}$"
+        }
+      ],
+      "steps": [
+        {
+          "id": "collect_local",
+          "title": "Passive Erfassung (NICs, USB-Serial, BLE-Adapter)",
+          "kind": "builtin",
+          "target": "collect_local",
+          "timeout": 30
+        },
+        {
+          "id": "net_scan",
+          "title": "Aktiver Subnetz-Sweep",
+          "kind": "builtin",
+          "target": "net_scan",
+          "args": {
+            "subnet": "{subnet}"
+          },
+          "timeout": 120
+        }
+      ]
+    },
+    {
+      "name": "host_health",
+      "title": "Host-Health (Dateisystem, Ports, Last)",
+      "description": "Prüft den Backend-Host: freie Kapazität, offene Dienste-Ports und Systemlast. Zwei Schritte laufen als gepinnte Whitelist-Skripte, der Lastschritt im Prozess.",
+      "aliases": [
+        "health",
+        "host_check"
+      ],
+      "timeout": 90,
+      "params": [
+        {
+          "name": "path",
+          "default": "/",
+          "description": "Zu prüfendes Dateisystem",
+          "pattern": "^[A-Za-z0-9._/\\-]{1,200}$"
+        },
+        {
+          "name": "min_free_gb",
+          "default": "1",
+          "description": "Schwelle freie Kapazität in GB (darunter Exit-Code 2)",
+          "pattern": "^[0-9]+(\\.[0-9]+)?$"
+        }
+      ],
+      "steps": [
+        {
+          "id": "disk",
+          "title": "Dateisystem-Bericht",
+          "kind": "script",
+          "target": "disk_report.py",
+          "args": {
+            "path": "{path}",
+            "min-free-gb": "{min_free_gb}"
+          },
+          "timeout": 20
+        },
+        {
+          "id": "ports",
+          "title": "Dienste-Ports (Backend, Gateway, Terminal, Bridge, Status)",
+          "kind": "script",
+          "target": "port_report.py",
+          "args": {
+            "host": "127.0.0.1",
+            "ports": "5000,8765,8766,8767,8768,8790,8791",
+            "timeout": "0.4"
+          },
+          "timeout": 45
+        },
+        {
+          "id": "load",
+          "title": "Systemlast",
+          "kind": "builtin",
+          "target": "system_load",
+          "timeout": 15
+        }
+      ]
+    },
+    {
+      "name": "service_selfcheck",
+      "title": "Selbstprüfung der Dienste",
+      "description": "Zählt Store-Bestand, misst den HTTP-Loopback-Durchsatz und prüft die eigenen Ports. Läuft ohne externe Ziele.",
+      "aliases": [
+        "selfcheck",
+        "self_check"
+      ],
+      "timeout": 90,
+      "steps": [
+        {
+          "id": "store",
+          "title": "Bestand (Geräte, Clients, Audit)",
+          "kind": "builtin",
+          "target": "self_health",
+          "timeout": 15
+        },
+        {
+          "id": "throughput",
+          "title": "Durchsatz-Selbsttest (HTTP-Loopback)",
+          "kind": "builtin",
+          "target": "throughput",
+          "timeout": 30
+        },
+        {
+          "id": "ports",
+          "title": "Eigene Ports erreichbar",
+          "kind": "script",
+          "target": "port_report.py",
+          "args": {
+            "host": "127.0.0.1",
+            "ports": "5000",
+            "timeout": "0.4"
+          },
+          "timeout": 20,
+          "optional": true
+        }
+      ]
+    }
+  ]
+}

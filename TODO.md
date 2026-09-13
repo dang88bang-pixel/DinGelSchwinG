@@ -1,7 +1,7 @@
 # TODO — offene & teilfertige Punkte
 
 **Stand: 2026-09-13 · Quelle: [`GAP_MATRIX.md`](GAP_MATRIX.md) Fassung 2.0 (§ 12 Rest-Gaps `G-*`,
-§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (390 Dateien, 5 Nicht-REAL)**
+§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (405 Dateien, 4 Nicht-REAL)**
 
 Diese Liste ist die **Arbeitsliste** des Projekts. Jeder Eintrag nennt Ist-Zustand, Ziel,
 konkrete Schritte und — wichtig — den **Nachweis**, mit dem der Punkt als erledigt gilt.
@@ -17,17 +17,17 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 
 | ID | Titel | Status | Prio | Aufwand |
 |---|---|---|---|---|
-| [A-2](#a-2-workflow-registry) | Workflow-Registry (nur `scan_network` echt) | teilfertig | P1 | M |
-| [A-1](#a-1-skript-runner-im-backend) | Skript-Runner im Backend (nur `network_scan.py`) | teilfertig | P1 | M |
-| [A-10](#a-10--g-2-enterprise-knoten-an-ui-anbinden) | Enterprise-Knoten an UI anbinden | teilfertig | P1 | S |
-| [A-3](#a-3-llm-kette-multi-turn) | LLM-Kette: Multi-Turn statt 1 Durchgang / max. 5 Tools | offen | P1 | M |
+| [A-2](#a-2-workflow-registry) | Workflow-Registry (nur `scan_network` echt) | **erledigt ✅ 2026-09-13** | P1 | M |
+| [A-1](#a-1-skript-runner-im-backend) | Skript-Runner im Backend (nur `network_scan.py`) | **erledigt ✅ 2026-09-13** | P1 | M |
+| [A-10](#a-10--g-2-enterprise-knoten-an-ui-anbinden) | Enterprise-Knoten an UI anbinden | **erledigt ✅ 2026-09-13** | P1 | S |
+| [A-3](#a-3-llm-kette-multi-turn) | LLM-Kette: Multi-Turn statt 1 Durchgang / max. 5 Tools | **erledigt ✅ 2026-09-13** | P1 | M |
 | [A-7](#a-7-ingest--grabber-offline-pfad) | Ingest/Grabber ohne Gateway (Offline-Pfad) | offen | P1 | M |
-| [A-6](#a-6-freie-button-aktionen-taskcustom) | Freie Button-Aktionen (`task:custom`) | teilfertig | P1 | S |
+| [A-6](#a-6-freie-button-aktionen-taskcustom) | Freie Button-Aktionen (`task:custom`) | **erledigt ✅ 2026-09-13** | P1 | S |
 | [A-5](#a-5-adb-ausführung-aus-dem-web) | ADB-Ausführung aus dem Web (nur Plan/Skript) | n/a im Browser | P1 | M |
 | [A-12](#a-12-demo-geräteliste-im-desktop-kennzeichnen) | Demo-Geräteliste im Desktop kennzeichnen | **erledigt ✅ 2026-09-13** | P1 | S |
 | [G-5](#g-5--a-9-default-port-8765-entflechten) | Default-Port 8765 entflechten (= A-9) | **erledigt ✅ 2026-09-13** | P1 | S |
-| [G-9](#g-9-bundle-splitting) | Bundle-Splitting (Chunk > 500 kB) | offen | P1 | M |
-| [A-8](#a-8--g-4-3d-raycast-entscheiden) | 3D-Raycast: implementieren **oder** entfernen (= G-4) | teilfertig | P1 | S–L |
+| [G-9](#g-9-bundle-splitting) | Bundle-Splitting (Chunk > 500 kB) | **erledigt ✅ 2026-09-13** | P1 | M |
+| [A-8](#a-8--g-4-3d-raycast-entscheiden) | 3D-Raycast: implementieren **oder** entfernen (= G-4) | **erledigt ✅ 2026-09-13** | P1 | S–L |
 | [G-1](#g-1-enterprise-knoten-produktivbestand) | Enterprise-Knoten: Produktivbestand einpflegen | offen | P2 | S |
 | [G-3](#g-3-fastboot-binary) | `fastboot`-Binary statt 542-B-Platzhalter | teilfertig | P2 | S |
 | [G-6](#g-6-wasm-artefakt-bauen) | `.wasm`-Artefakt bauen (Rust/wasm-pack) | teilfertig | P2 | M |
@@ -43,60 +43,124 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 ## P1 — funktional, ohne externe Abhängigkeit umsetzbar
 
 ### A-2 Workflow-Registry
-- **Status:** teilfertig · **Quelle:** GAP-Matrix A-2 (§ 14.3)
-- **Betroffen:** `server/app.py` (`WORKFLOW_IMPL`, `POST /api/workflows`), `src/lib/agent/agentEngine.ts` (`executeActionString`, `workflow:*`)
-- **Ist:** Nur `scan_network` (Alias `network_scan`, `scan`) führt echte Arbeit aus, alles andere
-  antwortet ehrlich mit **501**. Der Web-Button trägt fremde Workflows als `queued` ein und
-  sagt, wo sie wirklich laufen.
+- **Status:** ✅ **erledigt 2026-09-13** · **Quelle:** GAP-Matrix A-2 (§ 14.3)
+- **Betroffen:** `server/workflows.py` (neu), `config/workflows.json` (neu), `server/app.py`
+  (`POST /api/workflows`, `GET /api/workflows/registry`), `src/lib/api/client.ts`,
+  `src/lib/agent/agentEngine.ts` (`runWorkflowViaBackend`), `src/components/OperationsCenter.tsx`,
+  `desktop/utils/agent.py` + `desktop/utils/status_manager.py` (`workflow:*` meldet ehrlich `queued`)
+- **Ist (vorher):** Nur `scan_network` (Alias `network_scan`, `scan`) führte echte Arbeit aus,
+  alles andere antwortete mit **501**; der Web-Button trug fremde Workflows als `queued` ein.
 - **Ziel:** Mehrstufige Workflows serverseitig mit echtem Fortschritt.
-- **Schritte:**
-  - [ ] Workflow-Definitionen (Schritte, Skript/Endpoint, Timeout) als Daten, z. B. `config/workflows.json`
-  - [ ] `WORKFLOW_IMPL` durch Registry-Lookup ersetzen; Schritte sequenziell mit `progress` ausführen
-  - [ ] `GET /api/workflows` liefert Schritt-Details (`steps[]`, `error`)
-  - [ ] Web-Button `workflow:<name>` ruft `POST /api/workflows` und zeigt echten Fortschritt statt `queued`
-  - [ ] `docs/openapi.yaml` nachziehen
+- **Umgesetzt:**
+  - [x] Workflow-Definitionen als Daten: `config/workflows.json` (3 Workflows, Parameter mit
+        Regex-Mustern; unbekannte Parameter → **400** `PARAMS_NOT_ALLOWED`)
+  - [x] `WORKFLOW_IMPL` entfernt — `server/workflows.py` führt Schritte sequenziell mit `progress`
+        aus (`builtin` = In-Prozess-Handler, `script` = gepinnter Whitelist-Subprocess)
+  - [x] `GET /api/workflows` liefert `steps[]` (Status, Dauer, Detail, `exitCode`, `error`),
+        `GET /api/workflows/registry` liefert die Definitionen
+  - [x] Web-Button `workflow:<name>` ruft `POST /api/workflows` und zeigt echte Schritte;
+        undefinierte Workflows bleiben **501**, ohne Backend bleibt der Task `queued`
+  - [x] Desktop: `workflow:<name>` trägt einen `queued`-Eintrag mit Begründung ein statt
+        „✅ gestartet“ zu behaupten (`workflow:scan` läuft weiterhin echt im Hintergrund)
+  - [x] `docs/openapi.yaml` nachgezogen (`server/tests/test_api_contract.py` 5/5)
 - **Fertig wenn:** `curl -X POST …/api/workflows -d '{"name":"<neu>"}'` echte Schritte mit
   `progress` liefert **und** `python3 tests/suite.py` + `make test-py` grün bleiben.
+- **Nachweis:** `python3 server/tests/test_scripts_workflows.py`, `python3 tests/suite.py`
+  (**failed: 0** gegen laufendes Backend), `npm test`. `POST /api/workflows` mit
+  `{"name":"host_health"}` liefert `status: success`, `progress: 100` und ≥ 2 Skript-Schritte mit
+  `exitCode: 0`; `deploy_all` liefert weiterhin **501**, `subnet=../../etc` liefert **400**.
 
 ### A-1 Skript-Runner im Backend
-- **Status:** teilfertig · **Quelle:** GAP-Matrix A-1
-- **Betroffen:** `server/app.py` (`SCRIPT_IMPL`, `POST /api/scripts/run`), `desktop/data/scripts/`
-- **Ist:** Serverseitig läuft nur `network_scan.py`; jedes andere Skript bekommt **501**
-  (vorher: jedes Skript lieferte ein Scan-Ergebnis). Echte Skripte laufen nur in der Desktop-Konsole.
+- **Status:** ✅ **erledigt 2026-09-13** · **Quelle:** GAP-Matrix A-1
+- **Betroffen:** `server/script_runner.py` (neu), `server/data/scripts/` (neu: `manifest.json`,
+  `port_report.py`, `disk_report.py`), `scripts/pin-server-scripts.py` (neu), `server/app.py`
+  (`GET /api/scripts`, `POST /api/scripts/run`), `src/components/OperationsCenter.tsx`
+- **Ist (vorher):** Serverseitig lief nur `network_scan.py`; jedes andere Skript bekam **501**.
+  Echte Skripte liefen nur in der Desktop-Konsole.
 - **Ziel:** Whitelist-basierte Skript-Ausführung im Backend.
-- **Schritte:**
-  - [ ] Skript-Whitelist + Ablage (`server/data/scripts/`) mit SHA-256-Pinning
-  - [ ] Ausführung mit Timeout, Argument-Validierung, Ausgabe-Cap (kein Shell-Inject)
-  - [ ] Audit-Eintrag je Lauf (bereits vorhanden: `store.audit("run_script", …)`) um Exit-Code ergänzen
-  - [ ] `src/components/OperationsCenter.tsx`: Skriptliste aus `/api/scripts` statt fester Vorgabe
+- **Umgesetzt:**
+  - [x] Skript-Whitelist + Ablage `server/data/scripts/` mit SHA-256-Pinning
+        (`kind: script` = Subprocess, `kind: builtin` = In-Prozess, braucht Server-Zustand)
+  - [x] Ausführung mit Timeout, Argument-Mustern je Parameter, Ausgabe-Cap und `argv`-Übergabe
+        (kein Shell-Inject); manipulierte Datei → **409**, fremdes Skript → **501**
+  - [x] Audit-Eintrag je Lauf inkl. Exit-Code (`run_script … exit=0/2`)
+  - [x] `OperationsCenter.tsx`: Skript- und Workflow-Auswahl aus `GET /api/scripts` bzw.
+        `GET /api/workflows/registry` statt fester Vorgabe, Aufrufe mit `Authorization`
+  - [x] Pins nachziehbar/prüfbar: `python3 scripts/pin-server-scripts.py [--check]`
 - **Fertig wenn:** Ein zweites, whitelist-gelistetes Skript per API läuft (Exit-Code im Audit) und
   ein nicht gelistetes weiterhin 501 liefert (Test in `server/tests/`).
+- **Nachweis:** `python3 server/tests/test_scripts_workflows.py` (23 Tests), `python3 tests/suite.py`
+  (**failed: 0**): `disk_report.py` und `port_report.py` laufen per API mit `exitCode: 0`,
+  fehlerhafte Argumente → **400**, nicht gelistete Skripte → **501**, Exit-Code steht im Audit.
 
 ### A-10 / G-2 Enterprise-Knoten an UI anbinden
-- **Status:** teilfertig (**G-2** ist derselbe Punkt) · **Quelle:** GAP-Matrix A-10 / G-2 / 1.20
-- **Betroffen:** `src/config/enterprise-nodes.ts` (`probeNodeEndpoint()`, 9 Tests), `server/app.py` (`GET /api/nodes/validate`)
-- **Ist:** Die Probe ist real (HEAD→GET, Timeout, ehrliche Gründe), aber **kein Panel** ruft sie auf;
-  `/api/nodes/validate` prüft nur das eigene Backend.
+- **Status:** ✅ **erledigt 2026-09-13** (**G-2** ist derselbe Punkt) · **Quelle:** GAP-Matrix A-10 / G-2 / 1.20
+- **Betroffen:** `src/config/enterprise-nodes.ts` (`probeAllNodes`, `formatNodeProbe`,
+  `formatNodeBatch`, `findNodeCategory`, `PROBE_REASON_LABEL`), `src/components/EnterpriseNodesPanel.tsx`
+  (neu), `src/components/NetworkDashboard.tsx`, `src/config/skills.ts`, `src/lib/agent/agentEngine.ts`,
+  `server/nodes.py` (neu), `server/app.py` (`GET /api/nodes/validate?node=`), `desktop/utils/nodes.py`
+  (neu), `desktop/utils/agent.py`, `desktop/data/skillz.md`, `docs/openapi.yaml`
+- **Ist (vorher):** Die Probe war real (HEAD→GET, Timeout, ehrliche Gründe), aber **kein Panel**
+  rief sie auf; `/api/nodes/validate` prüfte nur das eigene Backend.
 - **Ziel:** Knoten-Status sichtbar und prüfbar.
-- **Schritte:**
-  - [ ] Panel (oder Abschnitt im Operations-Center) listet `getAllNodeConfigs()` + Probe-Ergebnis
-  - [ ] Agent-Skill `node_status` in `src/config/skills.ts` + `executeToolLine`-Mapping
-  - [ ] `/api/nodes/validate` optional gegen echte Knoten (Parameter `node=`), sonst Selbstprüfung
+- **Umgesetzt:**
+  - [x] Panel `EnterpriseNodesPanel.tsx` (im `NetworkDashboard` nach dem Operations-Center) listet
+        `getAllNodeConfigs()` mit Probe-Ergebnis, Status-Pill, Latenz, Grund und Fehlerdetail;
+        probt automatisch beim Öffnen und umschaltbar **Browser-Probe** (`probeAllNodes()`) oder
+        **Backend-Probe** (`GET /api/nodes/validate?node=<kategorie>`)
+  - [x] Agent-Skill `node_status` in `src/config/skills.ts` + `executeToolLine`-Mapping und
+        Chat-Erkennung (`intentNodeStatus`); Desktop gespiegelt (`data/skillz.md`,
+        `_intent_node_status`, `desktop/utils/nodes.py` nutzt dieselbe Server-Logik)
+  - [x] `GET /api/nodes/validate?node=<kategorie|knoten-id|all>` probt serverseitig den Bestand
+        aus `config/enterprise-nodes.csv`; **ohne** Parameter bleibt die bisherige Selbstprüfung
+        (`scope: self`), unbekannter Knoten → `reason: unknown-node`, `timeout=abc` → **400**
+  - [x] `docs/openapi.yaml` nachgezogen (`test_api_contract.py` 5/5)
+- **Ehrlichkeit:** Der Bestand enthält Planungs-Hosts (`*.qloud.local`) — Panel, Chat-Antwort und
+  API nennen in dem Fall den echten Grund (`network-error`) und verweisen auf
+  [G-1](#g-1-enterprise-knoten-produktivbestand); ein grüner Haken wird nicht erfunden.
 - **Fertig wenn:** `grep -rn "enterprise-nodes" src/components` ≥ 1 Treffer und der neue Test
   in `src/config/__tests__/enterpriseNodes.test.ts` den UI-Pfad abdeckt.
+- **Nachweis:** `grep -rn "enterprise-nodes" src/components` = 2 Treffer
+  (`EnterpriseNodesPanel.tsx`, Import in `NetworkDashboard.tsx`);
+  `src/config/__tests__/enterpriseNodes.test.ts` deckt Batch-Probe, Textfassung, Kategorie-Erkennung
+  **und** die UI-/Agent-/Backend-Anbindung ab (`npm test`); `server/tests/test_node_probe.py` probt
+  gegen einen lokalen HTTP-Dienst 200, 405→GET-Fallback, 503, Timeout, Netzfehler und nicht
+  probbares Schema (`python3 -m unittest discover -s server/tests`); `python3 tests/suite.py`
+  **failed: 0** mit 7 neuen Knoten-Checks gegen das laufende Backend.
 
 ### A-3 LLM-Kette: Multi-Turn
-- **Status:** offen · **Quelle:** GAP-Matrix A-3
-- **Betroffen:** `src/lib/agent/agentEngine.ts` (`tryLLM`, `slice(0, 5)`)
-- **Ist:** Ein Durchgang; maximal **5** `TOOL:`-Zeilen werden ausgeführt, ihre Ergebnisse gehen
-  **nicht** zurück ins Modell.
+- **Status:** ✅ **erledigt 2026-09-13** · **Quelle:** GAP-Matrix A-3
+- **Betroffen:** `src/lib/agent/agentEngine.ts` (`tryLLM`, `buildToolFeedback`,
+  `LLM_LOOP_LIMITS`), `desktop/utils/agent.py` (`_try_llm`, `_build_tool_feedback` — Spiegel),
+  `src/lib/rag.ts` (`tokenize`, `MAX_QUERY_CHARS` — beim Testen gefunden, siehe unten)
+- **Ist (vorher):** Ein Durchgang; maximal **5** `TOOL:`-Zeilen wurden ausgeführt, ihre Ergebnisse
+  gingen **nicht** zurück ins Modell.
 - **Ziel:** Werkzeug-Ergebnisse rückkoppeln (Agent-Loop) mit klarem Abbruch.
-- **Schritte:**
-  - [ ] Loop mit `maxTurns` (z. B. 3) und Token-Budget aus `liveMetrics`
-  - [ ] Tool-Ergebnisse als Kontext anhängen (gekürzt, ohne Secrets)
-  - [ ] Abbruch bei Wiederholung/Fehler + Audit-Eintrag `llm_turns`
-  - [ ] Test: Mock-Backend, das erst nach Tool-Ergebnis antwortet
+- **Umgesetzt:**
+  - [x] Loop mit `maxTurns` (3) und Token-Budget (24 000, Schätzung über `estimateTokens()` aus
+        `liveMetrics`); Grenzen sind als `LlmLoopLimits`-Objekt je Aufruf enger fassbar
+  - [x] Tool-Ergebnisse als Kontext: `buildToolFeedback()` hängt je Turn `TOOL:`/`ERGEBNIS:`-Blöcke
+        an, gekürzt auf 1 200 Zeichen und mit `maskSecrets()` bereinigt (Passwort-/Key-Muster
+        werden als `[… – MASKIERT]` übergeben)
+  - [x] Vier Abbruchkriterien: keine `TOOL:`-Zeile · `maxTurns` erreicht · dieselbe Zeile
+        wiederholt · Budget gesprengt; jeder Lauf schreibt `llm_turns`
+        (`turns=… tools=… tokens=… stop=…`) ins Audit, Modell-Fehler weiterhin `llm_error`
+  - [x] Antwort kennzeichnet den Loop ehrlich (`🔁 Modell-Loop: N Turns … beendet: <Grund>`),
+        bei `turns=0` wird der Grund genannt statt einer leeren Antwort
+  - [x] Desktop gespiegelt (`_try_llm` mit denselben Konstanten/Gründen) — Web und Konsole
+        bleiben, wie im Projekt üblich, gleichauf
+  - [x] Tests: `src/lib/agent/__tests__/llmLoop.test.ts` (12) und
+        `desktop/tests/test_llm_loop.py` (12) mit Skript-Backend, das erst nach dem
+        Werkzeug-Ergebnis antwortet
+- **Nebenbefund (gefunden und geschlossen):** `tokenize()` in `src/lib/rag.ts` nutzte einen
+  verschachtelten Quantor ohne Längengrenze — eine lange Trennzeichen-freie Eingabe
+  (400 000 Zeichen, z. B. ein eingefügter Base64-Block) lief **84 Sekunden** in exponentielles
+  Backtracking. Jetzt: `{1,64}`-Grenzen (66 ms, gleiche Treffer) plus `MAX_QUERY_CHARS = 20 000`
+  in `search()`; abgesichert durch `src/lib/__tests__/ragTokenize.test.ts` (5 Tests).
 - **Fertig wenn:** Der neue Test einen 2-Turn-Lauf nachweist und `npm test` grün ist.
+- **Nachweis:** `llmLoop.test.ts` weist den 2-Turn-Lauf nach (zweiter Prompt enthält
+  `ERGEBNIS:` + `LLM_CONTINUE_HINT`, Audit `turns=2 tools=1`); `npm test` **73/73**,
+  `python3 -m unittest discover -s desktop/tests` **82/82**, `make test-py` grün.
 
 ### A-7 Ingest-/Grabber-Offline-Pfad
 - **Status:** offen · **Quelle:** GAP-Matrix A-7
@@ -111,16 +175,23 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 - **Fertig wenn:** `npm test` einen Ingest **ohne** Gateway-Antwort als `ok` mit Quelle `lokal` ausweist.
 
 ### A-6 Freie Button-Aktionen (`task:custom`)
-- **Status:** teilfertig · **Quelle:** GAP-Matrix A-6
-- **Betroffen:** `src/lib/agent/agentEngine.ts` (`intentAssignButton`, `executeActionString`)
-- **Ist:** `assign_button` ohne Skript/Workflow erzeugt `task:custom`; der Button erklärt sich
-  jetzt selbst, führt aber nichts aus.
+- **Status:** ✅ **erledigt 2026-09-13** · **Quelle:** GAP-Matrix A-6
+- **Betroffen:** `src/lib/agent/agentEngine.ts` (`intentAssignButton`, `executeActionString`,
+  `executeToolLine`), `src/config/skills.ts`, `desktop/data/skillz.md`, `desktop/utils/agent.py`
+- **Ist (vorher):** `assign_button` ohne Skript/Workflow erzeugte `task:custom`; der Button
+  erklärte sich selbst, führte aber nichts aus.
 - **Ziel:** Freie Aktionen auf echte Skills/Endpoints abbilden.
-- **Schritte:**
-  - [ ] `assign_button` akzeptiert `skill=<name>` und legt `skill:<name>` auf den Button
-  - [ ] `executeActionString` führt `skill:<name>` über `executeToolLine` aus
-  - [ ] Test in `actionChainCoverage.test.ts`: Button → Skill → Antwort
+- **Umgesetzt:**
+  - [x] `assign_button` akzeptiert `skill=<name>` (gegen `SKILLS` geprüft) und legt `skill:<name>`
+        auf den Button; unbekannte Skills werden abgelehnt statt still übernommen
+  - [x] `executeActionString` führt `skill:<name>` über `executeToolLine` aus — jeder deklarierte
+        Skill ist damit als Button-Aktion erreichbar
+  - [x] Desktop gespiegelt: `_dispatch_tool_line` bedient dieselben Skills aus `data/skillz.md`
+  - [x] Tests: Web (`actionChainCoverage.test.ts`: Button → Skill → Antwort, unbekannter Skill,
+        jeder Skill aus `SKILLS` wird bedient) und Desktop (`test_skill_chain.py`)
 - **Fertig wenn:** Der Test einen Button mit `skill:show_audit` belegt und die Audit-Antwort erhält.
+- **Nachweis:** Der Test belegt einen Button mit `skill:show_audit` und erhält die Audit-Antwort;
+  `npm test` und `python3 -m unittest discover -s desktop/tests` sind grün.
 
 ### A-5 ADB-Ausführung aus dem Web
 - **Status:** n/a im Browser (Design-Grenze), offen als Server-Proxy · **Quelle:** GAP-Matrix A-5 (§ 14.3)
@@ -182,29 +253,42 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
   (beide Ports offen) und der neue Test grün ist.
 
 ### G-9 Bundle-Splitting
-- **Status:** offen · **Quelle:** GAP-Matrix G-9
-- **Betroffen:** `vite.config.ts`, `src/components/Scene3D.tsx`, `src/lib/agent/transformersBackend.ts`
-- **Ist:** `vite build` warnt: `index` 1,94 MB, `transformers.web` 883 kB (> 500 kB).
+- **Status:** ✅ **erledigt 2026-09-13** · **Quelle:** GAP-Matrix G-9
+- **Betroffen:** `vite.config.ts`, `scripts/check-bundle.mjs` (neu), `src/components/Scene3D.tsx`
+  (Aufrufer `NetworkDashboard.tsx`), `src/components/PairingPanel.tsx`
+- **Ist (vorher):** `vite build` warnte: `index` 1,94 MB, `transformers.web` 883 kB (> 500 kB).
 - **Ziel:** Kleinere Erstladung.
-- **Schritte:**
-  - [ ] `build.rollupOptions.output.manualChunks` für `three`/`@react-three`
-  - [ ] `Scene3D` per `React.lazy` laden (3D-Dashboard ist nicht Startansicht)
-  - [ ] Prüfen, ob `html5-qrcode`/`qrcode.react` ebenfalls lazy gehen
+- **Umgesetzt:**
+  - [x] `manualChunks` für `three`/`@react-three`, `transformers`/`onnx`, Charts und QR-Code;
+        `hoistTransitiveImports: false` + `resolveDependencies`-Filter gegen Modulepreload-Bloat
+  - [x] `Scene3D` per `React.lazy` + `Suspense` (3D-Dashboard ist nicht Startansicht)
+  - [x] `html5-qrcode` dynamisch in `PairingPanel.tsx`; `qrcode.react` entfernt (ungenutzt)
+  - [x] Budget-Wächter `scripts/check-bundle.mjs` (läuft nach `npm run build`): initial ≤ 500 kB,
+        Einzel-Chunk ≤ 520 kB, gesamt ≤ 700 kB — sonst Build-Fehler
 - **Fertig wenn:** `npm run build` keine Chunk-Warnung mehr ausgibt (Zahl im Commit nennen).
+- **Nachweis:** `npm run build` ohne Chunk-Warnung; Erstladung **647,56 kB** (gzip **199,70 kB**)
+  — 626,90 kB direkt nach dem Split, +20 kB durch das A-10-Knotenpanel im Dashboard.
+  Vorher: 1 940 kB. Größter Einzel-Chunk `three` ≈ 390 kB (nur 2 Module, nicht weiter teilbar),
+  `vendor-transformers` 497 kB als Lazy-Chunk. `node scripts/check-bundle.mjs` grün.
 
 ### A-8 / G-4 3D-Raycast entscheiden
-- **Status:** teilfertig · **Quelle:** GAP-Matrix A-8 / G-4 / 6.9 · `INVENTAR.csv` `[STUB]`
+- **Status:** ✅ **erledigt 2026-09-13** — Variante A (entfernen) ·
+  **Quelle:** GAP-Matrix A-8 / G-4 / 6.9 · `INVENTAR.csv` `[STUB]`
 - **Betroffen:** `genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/RaycastUtil.kt`
   (`perform3DRaycast()` → `null`, Zeile 34, **ohne Aufrufer**), `…/ui/HitTest.kt` (real, 2D)
-- **Ist:** Dummy für einen Filament-3D-Pfad, den es nicht gibt; der reale Pfad ist 2D.
+- **Ist (vorher):** Dummy für einen Filament-3D-Pfad, den es nicht gibt; der reale Pfad ist 2D.
 - **Ziel:** Entweder echt oder weg — kein toter Stub.
-- **Schritte (Variante A, entfernen — empfohlen, Aufwand S):**
-  - [ ] `RaycastUtil.kt` löschen, `screenToNdc` bei Bedarf nach `HitTest.kt` übernehmen
-  - [ ] `INVENTAR.csv` neu erzeugen (`make inventar`) → `[STUB]`-Eintrag verschwindet
-- **Schritte (Variante B, implementieren — Aufwand L):**
-  - [ ] Filament-Renderer + inverse View-Projection anbinden, Ray/AABB-Slab-Test
-  - [ ] Kotlin-Unit-Test für den Slab-Test (CI mit SDK)
+- **Umgesetzt (Variante A, Aufwand S):**
+  - [x] `RaycastUtil.kt` gelöscht (`git rm`); `screenToNdc` bleibt in `HitTest.kt`, dessen KDoc
+        den 2D-Pfad als einzigen beschreibt
+  - [x] Audit-Sonderfall aus `scripts/audit_inventar.py` entfernt, `README`/Doku nachgezogen
+  - [x] `INVENTAR.csv` neu erzeugt (`make inventar`) → `[STUB]`-Eintrag für die Datei ist weg
+- **Variante B (Filament + Slab-Test)** bleibt bewusst unbaut: kein 3D-Renderer im Projekt,
+  Android-SDK/Gradle fehlen in der Arbeitsumgebung (siehe [G-8](#g-8-android--genesis-build-lokal)).
 - **Fertig wenn:** `python3 scripts/audit_inventar.py` für diese Datei keinen `STUB`-Befund mehr meldet.
+- **Nachweis:** `python3 scripts/audit_inventar.py` meldet für `RaycastUtil.kt` keinen Befund mehr
+  (Datei existiert nicht); einziger verbleibender `[STUB]` ist der by-design Vite-Alias
+  `src/lib/agent/onnxRuntimeNodeStub.ts`.
 
 ---
 
@@ -316,14 +400,13 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 
 ## Anhang — Nicht-REAL-Befunde aus `INVENTAR.csv`
 
-`python3 scripts/audit_inventar.py` meldet 390 Dateien, davon 5 Nicht-REAL. Jeder Befund hat
+`python3 scripts/audit_inventar.py` meldet 405 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
 hier einen Eintrag — damit kein Marker unbemerkt liegen bleibt:
 
 | Befund | Datei | TODO-ID | Bewertung |
 |---|---|---|---|
 | `PLACEHOLDER` | `android/app/src/main/assets/devicecontrol/fastboot` | [G-3](#g-3-fastboot-binary) | echtes Binary fehlt |
 | `TODO` | `config/enterprise-nodes.csv` | [G-1](#g-1-enterprise-knoten-produktivbestand) | Planungs-Hosts |
-| `STUB` | `genesis-orchestrator/…/ui/RaycastUtil.kt` | [A-8 / G-4](#a-8--g-4-3d-raycast-entscheiden) | toter Dummy |
 | `PLACEHOLDER` | `public/wasm/README.txt` | [G-6](#g-6-wasm-artefakt-bauen) | `.wasm`-Artefakt fehlt |
 | `STUB` | `src/lib/agent/onnxRuntimeNodeStub.ts` | — (kein Arbeitspunkt) | **bewusst:** Vite-Alias
   (`vite.config.ts:12`), damit das native `onnxruntime-node` nicht gebündelt wird; Browser nutzt
@@ -341,9 +424,19 @@ Pairing-Spec-Pfade + `/api/devices-status` (Phantom-Spec) · `openapi.yaml` 20 �
 `validateNodeEndpoint()`-Stub · Web-Tool-Kette 14/30 → **30/30** · Desktop-Tool-Kette 18/37 → **37/37** ·
 `gateway_grant`-`None` · Skill-Duplikate (`skills.ts`, `skillz.md`) ·
 Fake-`success` in `workflow:<name>`, `POST /api/workflows`, `POST /api/scripts/run` ·
-Desktop-Test-Isolation + `DGS_API_URL` · Frontend-Test-Isolation · `npm test` (36/36) ·
+Desktop-Test-Isolation + `DGS_API_URL` · Frontend-Test-Isolation ·
 **A-12** Demo-Geräteliste gekennzeichnet · **G-5/A-9** Port 8765 entflechtet (Terminal 8768) ·
-Watchdog/Log-Rotation/Bug-Reports · Gateway-Session-Persistenz · Genesis-`/graph` + Polar-Switch.
+**A-8/G-4** toter 3D-Raycast entfernt (`RaycastUtil.kt`, `[STUB]`-Befund weg) ·
+**G-9** Bundle gesplittet (Erstladung 1 940 kB → **647,56 kB**, Budget-Wächter `scripts/check-bundle.mjs`) ·
+**A-1** Skript-Whitelist im Backend (SHA-256-Pins, `server/script_runner.py`) ·
+**A-2** Workflow-Registry (`config/workflows.json`, `server/workflows.py`, `steps[]` mit Exit-Codes) ·
+**A-6** freie Button-Aktionen `skill:<name>` (Web + Desktop) ·
+**A-10/G-2** Enterprise-Knoten an UI, Agent und `GET /api/nodes/validate?node=` angebunden ·
+**A-3** Modell-Loop mit Werkzeug-Rückkopplung (max. 3 Turns, Token-Budget, Audit `llm_turns`) ·
+`tokenize()`-Backtracking in `src/lib/rag.ts` (84 s → 66 ms bei 400 000 Zeichen) ·
+Teststände: `npm test` 36/36 → **73/73** · `server/tests` 18 → **58** · `desktop/tests` 62 → **82** ·
+`tests/suite.py` **failed: 0** · Watchdog/Log-Rotation/Bug-Reports · Gateway-Session-Persistenz ·
+Genesis-`/graph` + Polar-Switch.
 
 ## Pflege dieser Liste
 

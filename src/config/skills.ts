@@ -48,10 +48,14 @@ export const SKILLS: Skill[] = [
   },
   {
     name: 'assign_button',
-    description: 'Belegt einen der 6 Aktionsbuttons mit einem Skript, Workflow oder Task.',
-    calls: ['"belege button 3 mit network_scan.py"', '"belege Button 1 mit workflow scan"'],
-    params: '<button 1-6> <skript|workflow|task>',
-    example: 'Belege Button 2 mit dem Skript backup_config.sh',
+    description: 'Belegt einen der 6 Aktionsbuttons mit einem Skript, Workflow oder Skill.',
+    calls: [
+      '"belege button 3 mit network_scan.py"',
+      '"belege Button 1 mit workflow scan"',
+      '"belege button 5 mit skill show_audit"',
+    ],
+    params: '<button 1-6> <skript|workflow <name>|skill=<name> [k=v …]>',
+    example: 'assign_button button=5 skill=show_audit',
   },
   {
     name: 'export_log',
@@ -221,6 +225,14 @@ export const SKILLS: Skill[] = [
     calls: ['"importiere https://files.internal/packs/dgs-demo-pack.json"', '"grabbe … als beats"', '"importiere … als styles"'],
     params: '<url> [als <kategorie>] – Kategorie sonst MIME-/namensbasiert erkannt',
     example: 'POST /gateway/import {"url":"…","category":"beats","tags":["werk"]}  ·  src/lib/grabber.ts → grabFromUrl()',
+  },
+  {
+    name: 'node_status',
+    description:
+      'Enterprise-Knoten: Bestand (MCP, API, Web-Hook, Notebook, KI-Inferenz) samt echter Endpunkt-Probe — erreichbar, Fehlerstatus, Timeout oder nicht probbares Schema.',
+    calls: ['"zeige die enterprise-knoten"', '"knoten status"', '"ist der api-knoten erreichbar?"'],
+    params: '[node=<kategorie>] – ohne Angabe werden alle fünf Knoten geprobt',
+    example: 'src/config/enterprise-nodes.ts → probeAllNodes()  ·  Backend: GET /api/nodes/validate?node=all',
   },
   {
     name: 'show_metrics',

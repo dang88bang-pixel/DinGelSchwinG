@@ -53,13 +53,25 @@ const STOPWORDS = new Set(
 // ---------------------------------------------------------------------------
 // Tokenisierung
 // ---------------------------------------------------------------------------
+/**
+ * Obergrenze für die Query-Länge in `search()`.
+ *
+ * Sehr lange Eingaben (eingefügte Logs, Base64-Blöcke) tragen nichts zur
+ * Trefferqualität bei, kosten aber Rechenzeit — deshalb wird die Query
+ * gekappt, bevor sie tokenisiert wird.
+ */
+export const MAX_QUERY_CHARS = 20_000;
+
 export function tokenize(text: string): string[] {
   const lower = text
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '');
   // Lauf 1: zusammenhängende Werte erhalten (2-4, 10.5, aes-128, CT45P-0001).
-  const values = lower.match(/[a-z0-9äöüß]+(?:[._-][a-z0-9äöüß]+)+/g) ?? [];
+  // Die Längengrenzen {1,64} sind Absicht: Ohne sie läuft der verschachtelte
+  // Quantor auf langen Trennzeichen-freien Ketten (z. B. 400 000 Zeichen „x“)
+  // in exponentielles Backtracking — gemessen 84 s statt 66 ms.
+  const values = lower.match(/[a-z0-9äöüß]{1,64}(?:[._-][a-z0-9äöüß]{1,64})+/g) ?? [];
   const words = lower.match(/[a-z0-9äöüß]{2,}/g) ?? [];
   return [...values, ...words]
     .map((t) => t.replace(/^[.\-_/+]+|[.\-_/+]+$/g, ''))
@@ -274,10 +286,13 @@ class RagStore {
 
   // -- Retrieval ---------------------------------------------------------
   search(query: string, topK = 5): RagHit[] {
-    const qTerms = tokenize(query);
+    // Query kappen (MAX_QUERY_CHARS): schützt vor minutenlanger Tokenisierung
+    // bei eingefügten Logs/Base64-Blöcken, ohne die Trefferqualität zu ändern.
+    const capped = query.length > MAX_QUERY_CHARS ? query.slice(0, MAX_QUERY_CHARS) : query;
+    const qTerms = tokenize(capped);
     if (!qTerms.length || !this.chunks.length) return [];
     const qVec = termFreq(qTerms);
-    const qEmbed = embeddingCache.get(query.trim());
+    const qEmbed = embeddingCache.get(capped.trim());
     const scored = this.chunks.map((c) => {
       let lexical = 0;
       for (const [term, freq] of Object.entries(qVec)) {

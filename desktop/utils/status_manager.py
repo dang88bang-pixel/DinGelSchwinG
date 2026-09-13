@@ -118,15 +118,25 @@ class StatusManager:
         merged.extend(manual.values())
         self.workflows = merged
 
-    def add_workflow(self, name: str, progress: int = 5) -> None:
+    def add_workflow(self, name: str, progress: int = 5, status: str = "running",
+                     note: str = "") -> None:
+        """Eintrag im Status-Panel.
+
+        `status` ist bewusst wählbar: nur was hier wirklich läuft, darf
+        "running" heißen. Ein Workflow, den die Konsole nicht selbst ausführt,
+        wird als "queued" eingetragen (mit Grund in `note`) — siehe A-2.
+        """
         with self._lock:
             self.manual_workflows = [
                 w for w in self.manual_workflows if w.get("name") != name
             ]
-            self.manual_workflows.append({
-                "name": name, "status": "running", "progress": progress,
+            entry = {
+                "name": name, "status": status, "progress": progress,
                 "started": time.strftime("%H:%M:%S"), "manual": True,
-            })
+            }
+            if note:
+                entry["note"] = note
+            self.manual_workflows.append(entry)
             self._sync_manual()
         self._notify()
 

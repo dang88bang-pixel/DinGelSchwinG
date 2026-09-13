@@ -1,6 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Radio, Wifi, Bluetooth, ShieldCheck, Cpu, Waves, MapPin, Activity, Menu, Zap, Layers, CircleDot } from 'lucide-react';
-import Scene3D from './Scene3D';
+// G-9 (Bundle-Splitting): `three` + `@react-three` (~700 kB) sind nur für die
+// 3D-Raumdarstellung nötig und nicht für die Startansicht. Die Szene wird
+// deshalb per React.lazy nachgeladen — der erste Paint kommt ohne sie aus.
+const Scene3D = lazy(() => import('./Scene3D'));
 import PairingPanel, { PairedDevice } from './PairingPanel';
 import NetworkDiagnostics from './diagnostics/NetworkDiagnostics';
 import MeshControl from './MeshControl';
@@ -22,6 +25,7 @@ import StatusBoard from './StatusBoard';
 import OverviewPanel from './OverviewPanel';
 import NfcReader from './NfcReader';
 import OperationsCenter from './OperationsCenter';
+import EnterpriseNodesPanel from './EnterpriseNodesPanel';
 import AssetGrabberPanel from './AssetGrabberPanel';
 import LiveStatusStrip from './LiveStatusStrip';
 import { useSensors } from '../hooks/useSensors';
@@ -166,7 +170,13 @@ export default function NetworkDashboard() {
               <div className="text-[10px] font-mono text-slate-500">Modus: <span className="text-white font-bold">{mode.toUpperCase()}</span></div>
             </div>
             <div className="h-[420px] md:h-[540px] lg:h-[580px] relative">
-              <Scene3D devices={sceneDevices} onSelect={setSelectedId} />
+              <Suspense fallback={
+                <div className="absolute inset-0 flex items-center justify-center text-[11px] font-mono text-cyan-200/70">
+                  3D-Szene wird geladen …
+                </div>
+              }>
+                <Scene3D devices={sceneDevices} onSelect={setSelectedId} />
+              </Suspense>
             </div>
           </div>
 
@@ -252,6 +262,8 @@ export default function NetworkDashboard() {
           <ReplayEditor />
           <RosettaPanel />
           <OperationsCenter />
+          {/* A-10: Knotenstatus sichtbar machen (Probe war real, aber ungenutzt) */}
+          <EnterpriseNodesPanel />
           {/* Rekursiver Lern-Feedback */}
           <div className="glass-card p-5 relative overflow-hidden ring-gradient">
             <h3 className="text-sm font-black text-white flex items-center gap-2 mb-3"><Zap className="w-4 h-4 text-amber-300" /> Rekursives Lernen (WASM)</h3>

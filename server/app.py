@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import threading
 import time
@@ -23,23 +22,32 @@ if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     __package__ = "server"
 
+from . import nodes as node_registry
 from . import store
 from .auth import decode_jwt, issue_jwt, verify_password
 from .diagnostics import payload_bytes, ping_targets, throughput_selftest
-from .discovery import collect_all, default_gateway, system_load
+from .discovery import collect_all, default_gateway, merge_discovered, system_load
 from .rbac import allows
 from .rate_limiter import allow as rate_allow
 from .device_manager import annotate_permissions
 from .research import research as do_research
+from .script_runner import (
+    ScriptError, describe_all as describe_scripts, known_names as known_scripts,
+    resolve as resolve_script, run_script, validate_args,
+)
+from .workflows import (
+    WorkflowError, describe_all as describe_workflows, known_names as known_workflows,
+    resolve as resolve_workflow, run_workflow,
+)
 
 BIND = os.environ.get("NEXUS_BIND", "0.0.0.0")
 PORT = int(os.environ.get("NEXUS_PORT", "5000"))
 WORKFLOWS: list[dict[str, Any]] = []
-#: Skripte, die der Executor wirklich ausführt (alles andere → 501).
-SCRIPT_IMPL = {"network_scan.py", "network_scan", "scan"}
-#: Workflows, die serverseitig echte Arbeit ausführen (alles andere → 501).
-WORKFLOW_IMPL = {"scan_network", "network_scan", "scan"}
 WF_LOCK = threading.Lock()
+# A-1/A-2: Die ausführbare Menge steht nicht mehr hier, sondern als Daten in
+# `server/data/scripts/manifest.json` (Skripte, SHA-256-gepinnt) bzw.
+# `config/workflows.json` (Workflows mit Schritten). Alles, was dort nicht
+# vorkommt, wird weiterhin ehrlich mit 501 beantwortet.
 
 
 def _json(handler: BaseHTTPRequestHandler, code: int, payload: Any) -> None:
@@ -100,18 +108,6 @@ def _need(handler: BaseHTTPRequestHandler, action: str) -> dict[str, Any] | None
         _json(handler, 403, {"type": "error", "code": "RBAC_DENIED", "message": f"Rolle {role} darf {action} nicht"})
         return None
     return claims
-
-
-def _merge_discovered(scanned: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    existing = {d["id"]: d for d in store.list_devices()}
-    for node in scanned:
-        prev = existing.get(node["id"], {})
-        node["bound"] = bool(prev.get("bound", node.get("bound")))
-        if prev.get("label"):
-            node["name"] = prev["label"]
-        store.upsert_device(node)
-        existing[node["id"]] = node
-    return list(existing.values())
 
 
 def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
@@ -284,7 +280,7 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
             subnet = str(_read_json(handler).get("subnet") or "")
         subnet = subnet or "192.168.1.0/24"
         scanned = collect_all(do_net_scan=deep, subnet=subnet)
-        merged = _merge_discovered(scanned)
+        merged = merge_discovered(scanned)
         store.audit("discovery.scan", claims["sub"], claims["role"], "ok", f"{len(scanned)} nodes")
         _json(handler, 200, {"devices": merged, "scanned": len(scanned), "subnet": subnet})
         return
@@ -456,53 +452,83 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
             _json(handler, 200, list(WORKFLOWS))
         return
 
+    # A-2: Workflow-Registry. Definitionen in config/workflows.json, Ausführung
+    # schrittweise mit echtem Fortschritt; unbekannte Namen bleiben 501.
     if path == "/api/workflows" and method == "POST":
         claims = _need(handler, "scripts.run")
         if not claims:
             return
-        body = _read_json(handler)
+        try:
+            body = _read_json(handler)
+        except ValueError:
+            _json(handler, 400, {"type": "error", "code": "BAD_REQUEST", "message": "JSON erwartet"})
+            return
         name = str(body.get("name") or "")
-        subnet = str(body.get("subnet") or "192.168.1.0/24")
-        # Ehrlich bleiben: nur benannte Workflows führen echte Arbeit aus –
-        # alles andere bekommt 501 statt eines erfundenen "success".
-        if name not in WORKFLOW_IMPL:
+        try:
+            spec = resolve_workflow(name)
+        except WorkflowError as exc:
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
+            return
+        if spec is None:
             _json(handler, 501, {
                 "type": "error",
                 "code": "NOT_IMPLEMENTED",
                 "message": (
-                    f"Workflow '{name or '(leer)'}' führt hier keine echte Arbeit aus. "
-                    f"Implementiert: {', '.join(sorted(WORKFLOW_IMPL))}."
+                    f"Workflow '{name or '(leer)'}' ist in config/workflows.json nicht definiert. "
+                    f"Registry: {', '.join(known_workflows()) or '(leer)'}."
                 ),
+                "registry": known_workflows(),
             })
             return
-        entry: dict[str, Any] = {
-            "name": name,
-            "status": "running",
-            "progress": 25,
-            "started": time.strftime("%H:%M:%S"),
-        }
-        with WF_LOCK:
-            WORKFLOWS[:] = [w for w in WORKFLOWS if w.get("name") != name]
-            WORKFLOWS.append(entry)
-        store.audit("workflow.start", claims["sub"], claims["role"], "ok", name)
+        # Parameter: deklarierte Namen aus Body/`params`/`subnet` (Alt-API).
+        raw_params: dict[str, Any] = {}
+        declared = {str(par.get("name")) for par in spec.params}
+        for key in sorted(declared):
+            if body.get(key) is not None:
+                raw_params[key] = body[key]
+        if isinstance(body.get("params"), dict):
+            for key, value in body["params"].items():
+                if key in declared and value is not None:
+                    raw_params[key] = value
         try:
-            scanned = collect_all(do_net_scan=True, subnet=subnet)
-            merged = _merge_discovered(scanned)
-            entry.update({
-                "status": "success",
-                "progress": 100,
-                "result": {"subnet": subnet, "scanned": len(scanned), "devices": len(merged)},
-                "finished": time.strftime("%H:%M:%S"),
-            })
-        except Exception as exc:  # noqa: BLE001
-            entry.update({
-                "status": "error",
-                "progress": 100,
-                "error": str(exc)[:200],
-                "finished": time.strftime("%H:%M:%S"),
-            })
-            store.audit("workflow.error", claims["sub"], claims["role"], "error", name)
-        _json(handler, 200, entry)
+            result = run_workflow(spec, raw_params)
+        except WorkflowError as exc:
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
+            return
+
+        with WF_LOCK:
+            WORKFLOWS[:] = [w for w in WORKFLOWS if w.get("name") != spec.name]
+            WORKFLOWS.append(result)
+        done = sum(1 for st in result.get("steps", []) if st.get("status") == "success")
+        store.audit(
+            "workflow.start" if result["status"] == "success" else "workflow.error",
+            claims["sub"], claims["role"],
+            "ok" if result["status"] == "success" else "error",
+            f"{spec.name} schritte={done}/{len(spec.steps)}",
+        )
+        _json(handler, 200, result)
+        return
+
+    # A-2: Die Workflow-Definitionen selbst (read-only), damit die UI keine
+    # Namen hartkodieren muss.
+    if path == "/api/workflows/registry" and method == "GET":
+        if not _need(handler, "devices.read"):
+            return
+        try:
+            _json(handler, 200, describe_workflows())
+        except WorkflowError as exc:
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
+        return
+
+    # A-1: Die Whitelist selbst — damit die UI die Skriptliste nicht mehr
+    # hartkodieren muss (Operations-Center) und der Integritätsbefund sichtbar ist.
+    if path == "/api/scripts" and method == "GET":
+        if not _need(handler, "devices.read"):
+            return
+        try:
+            _json(handler, 200, describe_scripts())
+        except ScriptError as exc:
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
         return
 
     if path == "/api/tests" and method == "GET":
@@ -598,42 +624,76 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         _json(handler, 200, {"route": route, "backendId": "nexus-local", "result": result})
         return
 
+    # A-1: Whitelist-basierte Skript-Ausführung. Was läuft, steht als Daten in
+    # `server/data/scripts/manifest.json` — `kind: script` läuft als gepinnter
+    # Subprocess (argv, Timeout, Ausgabe-Cap, Exit-Code im Audit), `kind: builtin`
+    # im Prozess, weil der Schritt den Geräte-Store braucht.
     if path == "/api/scripts/run" and method == "POST":
         claims = _need(handler, "scripts.run")
         if not claims:
             return
-        body = _read_json(handler)
+        try:
+            body = _read_json(handler)
+        except ValueError:
+            _json(handler, 400, {"type": "error", "code": "BAD_REQUEST", "message": "JSON erwartet"})
+            return
         # Zwei Aufrufer-Formate: Agent/CLI {script, args:{subnet}} und
         # Operations-Center {name, args:"--subnet 10.0.0.0/24"} (args als String).
         name = str(body.get("script") or body.get("name") or "network_scan.py")
-        args = body.get("args")
-        subnet = ""
-        if isinstance(args, dict):
-            subnet = str(args.get("subnet") or "")
-        elif isinstance(args, str):
-            found = re.search(r"--subnet[= ]+([0-9A-Fa-f:.]+/\d{1,2})", args)
-            subnet = found.group(1) if found else ""
-        subnet = subnet or str(body.get("subnet") or "") or "192.168.1.0/24"
-        # Ehrlich bleiben: ausgeführt wird hier nur der Discovery-Scan. Ein
-        # fremdes Skript wird nicht vorgetäuscht, sondern mit 501 beantwortet.
-        if name not in SCRIPT_IMPL:
+        raw_args = body.get("args")
+        if raw_args is None and body.get("subnet"):
+            raw_args = {"subnet": body["subnet"]}
+        try:
+            spec = resolve_script(name)
+        except ScriptError as exc:
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
+            return
+        # Ehrlich bleiben: nicht whitelisted → 501, kein erfundenes Ergebnis.
+        if spec is None:
             _json(handler, 501, {
                 "type": "error",
                 "code": "NOT_IMPLEMENTED",
                 "message": (
-                    f"Skript '{name}' wird serverseitig nicht ausgeführt. "
-                    f"Implementiert: {', '.join(sorted(SCRIPT_IMPL))}. "
-                    "Echte Skripte laufen in der Desktop-Konsole (desktop/data/scripts)."
+                    f"Skript '{name}' steht nicht auf der Backend-Whitelist. "
+                    f"Freigegeben: {', '.join(known_scripts()) or '(keine)'}. "
+                    "Eigene Skripte laufen in der Desktop-Konsole (desktop/data/scripts)."
                 ),
+                "whitelist": known_scripts(),
             })
             return
-        scanned = collect_all(do_net_scan=True, subnet=subnet)
-        _merge_discovered(scanned)
-        store.audit("run_script", claims["sub"], claims["role"], "ok", name)
-        lines = [f"SCAN_ERGEBNIS {subnet}: {len(scanned)} Geräte"]
-        for n in scanned:
-            lines.append(f"  - {n.get('ip') or n.get('path') or n['id']}  {n.get('name')}")
-        _json(handler, 200, {"ok": True, "script": name, "output": "\n".join(lines)})
+        try:
+            if spec.kind == "builtin":
+                args = validate_args(spec, raw_args)
+                subnet = args.get("subnet") or "192.168.1.0/24"
+                started = time.monotonic()
+                scanned = collect_all(do_net_scan=True, subnet=subnet)
+                merged = merge_discovered(scanned)
+                lines = [f"SCAN_ERGEBNIS {subnet}: {len(scanned)} Geräte"]
+                for n in scanned:
+                    lines.append(f"  - {n.get('ip') or n.get('path') or n['id']}  {n.get('name')}")
+                store.audit("run_script", claims["sub"], claims["role"], "ok",
+                            f"{spec.name} exit=0 builtin knoten={len(scanned)}")
+                _json(handler, 200, {
+                    "ok": True,
+                    "script": spec.name,
+                    "kind": "builtin",
+                    "exitCode": 0,
+                    "durationMs": int(round((time.monotonic() - started) * 1000)),
+                    "truncated": False,
+                    "output": "\n".join(lines),
+                    "result": {"subnet": subnet, "scanned": len(scanned), "devices": len(merged)},
+                })
+                return
+            result = run_script(spec, raw_args)
+        except ScriptError as exc:
+            store.audit("run_script", claims["sub"], claims["role"], "error",
+                        f"{spec.name} {exc.code}")
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
+            return
+        store.audit("run_script", claims["sub"], claims["role"],
+                    "ok" if result.ok else "error",
+                    f"{result.name} exit={result.exit_code}")
+        _json(handler, 200, result.describe())
         return
 
     if path == "/api/webauthn/challenge" and method == "POST":
@@ -648,11 +708,23 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
         _json(handler, 200, {"grant": uuid.uuid4().hex})
         return
 
+    # A-10: ohne `node=` unveränderte Selbstprüfung des eigenen Backends,
+    # mit `node=<kategorie|id>` (oder `node=all`) echte Probe der Knoten aus
+    # config/enterprise-nodes.csv — HEAD, GET-Fallback, hartes Timeout.
     if path == "/api/nodes/validate" and method == "GET":
         if not _need(handler, "diag.run"):
             return
-        # Prüft das eigene Backend, nicht die fiktiven qloud-Hosts
-        _json(handler, 200, {"ok": True, "endpoint": f"http://{BIND}:{PORT}/api/health"})
+        try:
+            timeout = float(qs.get("timeout") or node_registry.PROBE_TIMEOUT_S)
+        except ValueError:
+            _json(handler, 400, {"type": "error", "code": "BAD_REQUEST",
+                                 "message": "timeout muss eine Zahl sein"})
+            return
+        timeout = max(0.5, min(timeout, 30.0))
+        result = node_registry.validate(qs.get("node") or "", timeout)
+        if result.get("scope") == "self":
+            result["endpoint"] = f"http://{BIND}:{PORT}/api/health"
+        _json(handler, 200, result)
         return
 
     _json(handler, 404, {"type": "error", "code": "NOT_FOUND", "message": path})
@@ -697,7 +769,7 @@ def main() -> None:
     store.seed_users()
     # Erstscan ohne tiefes Ping, damit Start schnell bleibt
     try:
-        _merge_discovered(collect_all(do_net_scan=False))
+        merge_discovered(collect_all(do_net_scan=False))
     except Exception:
         traceback.print_exc()
     httpd = ThreadingHTTPServer((BIND, PORT), Handler)

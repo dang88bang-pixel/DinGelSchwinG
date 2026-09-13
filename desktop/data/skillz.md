@@ -29,10 +29,10 @@ Parameter: <dateiname> [argumente...]
 Beispiel: run network_scan.py --subnet 10.0.0.0/24
 
 ## assign_button
-Beschreibung: Belegt einen der 6 Aktionsbuttons mit einem Skript, Workflow oder Task.
-Aufruf: "belege button 3 mit network_scan.py" | "belege Button 1 mit workflow scan"
-Parameter: <button 1-6> <skript|workflow|task>
-Beispiel: Belege Button 2 mit dem Skript backup_config.sh
+Beschreibung: Belegt einen der 6 Aktionsbuttons mit einem Skript, Workflow oder Skill.
+Aufruf: "belege button 3 mit network_scan.py" | "belege Button 1 mit workflow scan" | "belege button 5 mit skill show_audit"
+Parameter: <button 1-6> <skript|workflow <name>|skill=<name> [k=v …]>
+Beispiel: assign_button button=5 skill=show_audit
 
 ## export_log
 Beschreibung: Exportiert das aktuelle Audit-Log als JSON/CSV.
@@ -115,6 +115,12 @@ Parameter: <frage oder stichwörter> [top=n]
 Beschreibung: Übernimmt Text in die Wissensbasis (Datei data/knowledge/<name>.md).
 Aufruf: "lern: CT45P Reichweite 10 m" | "indexiere in die Wissensbasis: …"
 Parameter: name=<titel> text=<inhalt>
+
+## node_status
+Beschreibung: Enterprise-Knoten: Bestand (MCP, API, Web-Hook, Notebook, KI-Inferenz) samt echter Endpunkt-Probe – erreichbar, Fehlerstatus, Timeout oder nicht probbares Schema.
+Aufruf: "zeige die enterprise-knoten" | "knoten status" | "ist der api-knoten erreichbar?"
+Parameter: node=<kategorie> – ohne Angabe werden alle fünf Knoten geprobt
+Quelle: config/enterprise-nodes.csv (server/nodes.py) · Backend: GET /api/nodes/validate?node=all
 
 ## show_metrics
 Beschreibung: Live-Kennzahlen des Agenten: Läufe, Zeit, Tokens, Kosten, Cache-Trefferquote.

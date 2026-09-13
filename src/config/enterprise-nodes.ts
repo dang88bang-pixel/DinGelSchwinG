@@ -266,3 +266,85 @@ export async function probeNodeEndpoint(
 export async function validateNodeEndpoint(category: NodeCategory): Promise<boolean> {
   return (await probeNodeEndpoint(category)).ok;
 }
+
+// ---------------------------------------------------------------------------
+// Sammelprobe + Textfassung (A-10: dieselbe Logik für Panel und Agent-Skill)
+// ---------------------------------------------------------------------------
+
+export interface NodeProbeBatch {
+  /** Zeitpunkt der Probe (ms seit Epoch). */
+  at: number;
+  results: NodeProbeResult[];
+  ok: number;
+  total: number;
+  /** Wie lange die langsamste Probe dauerte (ms). */
+  slowestMs: number;
+}
+
+/**
+ * Probt alle Knoten der Datenbank parallel und fasst das Ergebnis zusammen.
+ * Liefert immer einen Befund je Knoten — auch offline (kein erfundenes `ok`).
+ */
+export async function probeAllNodes(
+  timeoutMs: number = NODE_PROBE_TIMEOUT_MS,
+): Promise<NodeProbeBatch> {
+  const categories = Object.keys(ENTERPRISE_NODES) as NodeCategory[];
+  const results = await Promise.all(categories.map((c) => probeNodeEndpoint(c, timeoutMs)));
+  return {
+    at: Date.now(),
+    results,
+    ok: results.filter((r) => r.ok).length,
+    total: results.length,
+    slowestMs: results.reduce((max, r) => Math.max(max, r.latencyMs), 0),
+  };
+}
+
+/** Deutsche Klartext-Gründe je Befund (für Panel, Chat und Audit). */
+export const PROBE_REASON_LABEL: Record<NodeProbeReason, string> = {
+  'http-ok': 'erreichbar (HTTP ok)',
+  'http-error': 'antwortet mit Fehlerstatus',
+  'network-error': 'nicht erreichbar (Netzfehler)',
+  'timeout': 'keine Antwort innerhalb des Timeouts',
+  'unsupported-scheme': 'Schema hat kein HTTP-Äquivalent — nicht probbar',
+};
+
+export function formatNodeProbe(r: NodeProbeResult): string {
+  const state = r.ok ? '🟢' : '🔴';
+  const status = r.status !== undefined ? ` HTTP ${r.status}` : '';
+  const latency = r.latencyMs ? ` in ${r.latencyMs} ms` : '';
+  return (
+    `${state} ${r.category} · ${r.nodeId} — ${PROBE_REASON_LABEL[r.reason]}${status}${latency}\n` +
+    `   Endpunkt: ${r.endpointUrl}\n` +
+    `   Probe: ${r.probeUrl ?? '(nicht möglich)'}${r.error ? `\n   Fehler: ${r.error.slice(0, 160)}` : ''}`
+  );
+}
+
+export function formatNodeBatch(batch: NodeProbeBatch): string {
+  const stamp = new Date(batch.at).toLocaleTimeString('de-DE');
+  const lines = [
+    `🛰️ Enterprise-Knoten: ${batch.ok}/${batch.total} erreichbar (Probe ${stamp}, ` +
+    `langsamste ${batch.slowestMs} ms)`,
+    ...batch.results.map(formatNodeProbe),
+  ];
+  if (batch.ok === 0) {
+    lines.push(
+      '⚠️ Kein Knoten erreichbar. Die Konfiguration enthält Planungs-Hosts ' +
+      '(*.qloud.local) — Produktivbestand fehlt (GAP-Matrix G-1).',
+    );
+  }
+  return lines.join('\n');
+}
+
+/** Kategorie aus freiem Text erkennen (Chat: „knoten status api“). */
+export function findNodeCategory(text: string): NodeCategory | null {
+  const needle = text.toLowerCase();
+  const categories = Object.keys(ENTERPRISE_NODES) as NodeCategory[];
+  const direct = categories.find((c) => needle.includes(c.toLowerCase()));
+  if (direct) return direct;
+  const byId = categories.find((c) => needle.includes(ENTERPRISE_NODES[c].nodeId.toLowerCase()));
+  if (byId) return byId;
+  if (/(inferenz|inference|llm)/.test(needle)) return 'KI-Inferenz';
+  if (/(webhook|web-hook|hook)/.test(needle)) return 'Web-Hook';
+  if (/(jupyter|notebook)/.test(needle)) return 'Notebook';
+  return null;
+}

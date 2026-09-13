@@ -1,5 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, Clock, Play, RefreshCcw, Server, ShieldCheck, TerminalSquare, Wifi } from 'lucide-react';
+import {
+  ApiError, api, ensureSession, fetchScriptRegistry, fetchWorkflowRegistry,
+  runScript, runWorkflow, type ScriptEntry, type WorkflowSpec,
+} from '../lib/api/client';
 
 type CheckState = 'idle' | 'checking' | 'ok' | 'fail';
 
@@ -25,10 +29,14 @@ const INITIAL_CHECKS: EndpointCheck[] = [
   { id: 'health', label: 'Backend Health', kind: 'HTTP', target: '/api/health', method: 'GET', minRole: 'public', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
   { id: 'devices', label: 'Geräte-API', kind: 'HTTP', target: '/api/devices', method: 'GET', minRole: 'operator', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
   { id: 'scan', label: 'Netzwerk-Scan', kind: 'HTTP', target: '/api/scan', method: 'POST', minRole: 'service', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
-  { id: 'script', label: 'Skript-Executor', kind: 'HTTP', target: '/api/scripts/run', method: 'POST', minRole: 'developer', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
+  // A-1: Die Probe fragt die Whitelist ab (read-only) statt ein Skript zu
+  // starten — `POST /api/scripts/run` würde bei jeder Prüfung echt scannen.
+  { id: 'scripts', label: 'Skript-Whitelist', kind: 'HTTP', target: '/api/scripts', method: 'GET', minRole: 'operator', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
   { id: 'iperf', label: 'iPerf3 Diagnose', kind: 'HTTP', target: '/api/diagnostics/iperf', method: 'GET', minRole: 'service', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
-  { id: 'mesh', label: 'Mesh Stream', kind: 'WS', target: '/ws/mesh', minRole: 'operator', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
-  { id: 'replay', label: 'Replay Stream', kind: 'WS', target: '/ws/replay', minRole: 'operator', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
+  // Reale WS-Kanäle des Backends (docs/api-websockets.md) statt /ws/mesh und
+  // /ws/replay, die nirgends bedient wurden und deshalb immer „fail“ zeigten.
+  { id: 'ws-status', label: 'Status-Board (WS)', kind: 'WS', target: '/api/ws/status', minRole: 'operator', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
+  { id: 'ws-terminal', label: 'Terminal (WS)', kind: 'WS', target: '/api/ws/terminal', minRole: 'service', status: 'idle', latencyMs: null, message: 'nicht geprüft' },
 ];
 
 function now(): string {
@@ -59,10 +67,59 @@ export default function OperationsCenter() {
   const [scanSubnet, setScanSubnet] = useState('192.168.1.0/24');
   const [scriptName, setScriptName] = useState('network_scan.py');
   const [scriptArgs, setScriptArgs] = useState('--subnet 192.168.1.0/24');
+  // A-1: Skriptliste kommt aus GET /api/scripts, nicht mehr aus einer Vorgabe.
+  const [scripts, setScripts] = useState<ScriptEntry[] | null>(null);
+  const [scriptsNote, setScriptsNote] = useState('Whitelist wird geladen …');
+  const [workflowName, setWorkflowName] = useState('');
+  const [workflowParams, setWorkflowParams] = useState('');
+  const [workflows, setWorkflows] = useState<WorkflowSpec[] | null>(null);
+  const [workflowsNote, setWorkflowsNote] = useState('Registry wird geladen …');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [events, setEvents] = useState<EventEntry[]>([
     { time: now(), level: 'info', text: 'Operations-Center bereit. Alle Aktionen nutzen echte Endpunkte.' },
   ]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const registry = await fetchScriptRegistry();
+        if (!active) return;
+        setScripts(registry.scripts);
+        setScriptsNote(
+          `${registry.executable}/${registry.count} ausführbar · ${registry.manifest}`,
+        );
+        const first = registry.scripts.find((sc) => sc.kind === 'script') ?? registry.scripts[0];
+        if (first) {
+          setScriptName(first.name);
+          setScriptArgs(first.args.map((a) => `--${a.name} ${a.default ?? ''}`.trimEnd()).join(' '));
+        }
+      } catch (e) {
+        if (!active) return;
+        const reason = e instanceof ApiError ? `HTTP ${e.status} ${e.message}` : String(e);
+        setScripts(null);
+        setScriptsNote(`Whitelist nicht ladbar (${reason}) — Skriptname manuell eingeben`);
+      }
+      try {
+        const registry = await fetchWorkflowRegistry();
+        if (!active) return;
+        setWorkflows(registry.workflows);
+        setWorkflowsNote(`${registry.count} Workflows · ${registry.config}`);
+        if (registry.workflows[0]) {
+          setWorkflowName(registry.workflows[0].name);
+          setWorkflowParams(
+            registry.workflows[0].params.map((pa) => `${pa.name}=${pa.default ?? ''}`).join(' '),
+          );
+        }
+      } catch (e) {
+        if (!active) return;
+        const reason = e instanceof ApiError ? `HTTP ${e.status} ${e.message}` : String(e);
+        setWorkflows(null);
+        setWorkflowsNote(`Registry nicht ladbar (${reason}) — Namen manuell eingeben`);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   const summary = useMemo(() => {
     const ok = checks.filter((c) => c.status === 'ok').length;
@@ -82,25 +139,27 @@ export default function OperationsCenter() {
   const checkHttp = useCallback(async (check: EndpointCheck) => {
     const started = performance.now();
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 6000);
+    // POST-Proben führen echte Arbeit aus (Scan) — dafür reicht 6 s nicht.
+    const budget = check.method === 'POST' ? 30_000 : 6_000;
+    const timeout = window.setTimeout(() => controller.abort(), budget);
     try {
-      const response = await fetch(check.target, {
+      // `api()` hängt das JWT an; ohne Sitzung würde jede Probe 401 liefern.
+      await ensureSession();
+      const data = await api<unknown>(check.target, {
         method: check.method ?? 'GET',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: check.method === 'POST' ? JSON.stringify({ probe: true }) : undefined,
         signal: controller.signal,
         cache: 'no-store',
       });
       const latencyMs = Math.round(performance.now() - started);
-      updateCheck(check.id, {
-        status: response.ok ? 'ok' : 'fail',
-        latencyMs,
-        message: response.ok ? `HTTP ${response.status}` : `HTTP ${response.status}`,
-      });
-      appendEvent({ level: response.ok ? 'ok' : 'warn', text: `${check.label}: HTTP ${response.status} (${latencyMs}ms)` });
+      const size = JSON.stringify(data ?? null).length;
+      updateCheck(check.id, { status: 'ok', latencyMs, message: `HTTP 200 · ${size} B` });
+      appendEvent({ level: 'ok', text: `${check.label}: HTTP 200 (${latencyMs}ms, ${size} B)` });
     } catch (e) {
       const latencyMs = Math.round(performance.now() - started);
-      const message = e instanceof Error ? e.message : 'nicht erreichbar';
+      const message = e instanceof ApiError
+        ? `HTTP ${e.status} ${e.code}`
+        : (e instanceof Error ? e.message : 'nicht erreichbar');
       updateCheck(check.id, { status: 'fail', latencyMs, message });
       appendEvent({ level: 'warn', text: `${check.label}: ${message}` });
     } finally {
@@ -158,20 +217,63 @@ export default function OperationsCenter() {
     setBusyAction(id);
     appendEvent({ level: 'info', text: `${target} wird ausgeführt.` });
     try {
-      const response = await fetch(target, {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const text = await response.text();
-      const compact = text ? text.slice(0, 240) : `HTTP ${response.status}`;
-      appendEvent({ level: response.ok ? 'ok' : 'error', text: `${target}: ${response.status} ${compact}` });
+      const data = await api<unknown>(target, { method: 'POST', body: JSON.stringify(payload) });
+      appendEvent({ level: 'ok', text: `${target}: HTTP 200 ${JSON.stringify(data).slice(0, 240)}` });
     } catch (e) {
-      appendEvent({ level: 'error', text: `${target}: ${e instanceof Error ? e.message : 'nicht erreichbar'}` });
+      const message = e instanceof ApiError ? `HTTP ${e.status} ${e.message}` : String(e);
+      appendEvent({ level: 'error', text: `${target}: ${message}` });
     } finally {
       setBusyAction(null);
     }
   }, [appendEvent]);
+
+  /** A-1: Skript aus der Whitelist ausführen — Exit-Code wird angezeigt. */
+  const runScriptAction = useCallback(async () => {
+    setBusyAction('script');
+    appendEvent({ level: 'info', text: `/api/scripts/run ${scriptName} ${scriptArgs}`.trim() });
+    try {
+      const result = await runScript(scriptName, scriptArgs);
+      const head = result.output.split('\n').filter(Boolean).slice(0, 3).join(' | ');
+      appendEvent({
+        level: result.ok ? 'ok' : 'error',
+        text: `${result.script}: exit=${result.exitCode} (${result.durationMs ?? 0}ms)` +
+          `${result.truncated ? ', Ausgabe gekappt' : ''} — ${head || result.error || 'keine Ausgabe'}`,
+      });
+    } catch (e) {
+      const message = e instanceof ApiError ? `HTTP ${e.status} ${e.message}` : String(e);
+      appendEvent({ level: 'error', text: `/api/scripts/run: ${message}` });
+    } finally {
+      setBusyAction(null);
+    }
+  }, [appendEvent, scriptArgs, scriptName]);
+
+  /** A-2: Workflow der Registry ausführen — echter Schrittverlauf statt queued. */
+  const runWorkflowAction = useCallback(async () => {
+    if (!workflowName) return;
+    setBusyAction('workflow');
+    appendEvent({ level: 'info', text: `/api/workflows ${workflowName} ${workflowParams}`.trim() });
+    try {
+      const params: Record<string, string> = {};
+      for (const part of workflowParams.split(/\s+/).filter(Boolean)) {
+        const [key, value] = part.split('=');
+        if (key && value !== undefined) params[key] = value;
+      }
+      const run = await runWorkflow(workflowName, params);
+      const steps = run.steps.map(
+        (st) => `${st.id}:${st.status}${st.exitCode !== undefined && st.exitCode !== null ? `(${st.exitCode})` : ''}`,
+      ).join(' ');
+      appendEvent({
+        level: run.status === 'success' ? 'ok' : 'error',
+        text: `${run.name}: ${run.status} ${run.progress}% in ${run.durationMs ?? 0}ms — ${steps}` +
+          (run.error ? ` — ${run.error}` : ''),
+      });
+    } catch (e) {
+      const message = e instanceof ApiError ? `HTTP ${e.status} ${e.message}` : String(e);
+      appendEvent({ level: 'error', text: `/api/workflows: ${message}` });
+    } finally {
+      setBusyAction(null);
+    }
+  }, [appendEvent, workflowName, workflowParams]);
 
   return (
     <div className="glass-card p-5 relative overflow-hidden ring-gradient">
@@ -217,15 +319,67 @@ export default function OperationsCenter() {
             <button disabled={busyAction !== null} onClick={() => void postAction('scan', '/api/scan', { subnet: scanSubnet })} className="flex items-center justify-center gap-2 rounded-xl bg-cyan-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-cyan-600 disabled:bg-slate-800 disabled:text-slate-500"><Play className="w-3.5 h-3.5" /> Netzwerk-Scan ausführen</button>
             <div className="grid md:grid-cols-2 gap-2">
               <label className="text-[10px] font-mono text-slate-400">
-                Skript
-                <input value={scriptName} onChange={(e) => setScriptName(e.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-violet-400" />
+                Skript (aus `/api/scripts`)
+                {scripts ? (
+                  <select
+                    value={scriptName}
+                    onChange={(e) => {
+                      const next = scripts.find((sc) => sc.name === e.target.value);
+                      setScriptName(e.target.value);
+                      if (next) {
+                        setScriptArgs(next.args.map((a) => `--${a.name} ${a.default ?? ''}`.trimEnd()).join(' '));
+                      }
+                    }}
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-violet-400"
+                  >
+                    {scripts.map((sc) => (
+                      <option key={sc.name} value={sc.name}>
+                        {sc.name} — {sc.kind}{sc.kind === 'script' && !sc.sha256Ok ? ' (Pin prüfen!)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={scriptName} onChange={(e) => setScriptName(e.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-violet-400" />
+                )}
               </label>
               <label className="text-[10px] font-mono text-slate-400">
-                Argumente
+                Argumente (nur freigegebene Muster)
                 <input value={scriptArgs} onChange={(e) => setScriptArgs(e.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-violet-400" />
               </label>
             </div>
-            <button disabled={busyAction !== null} onClick={() => void postAction('script', '/api/scripts/run', { name: scriptName, args: scriptArgs })} className="flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-violet-600 disabled:bg-slate-800 disabled:text-slate-500"><Play className="w-3.5 h-3.5" /> Skript ausführen</button>
+            <div className="text-[10px] font-mono text-slate-500">{scriptsNote}</div>
+            <button disabled={busyAction !== null} onClick={() => void runScriptAction()} className="flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-violet-600 disabled:bg-slate-800 disabled:text-slate-500"><Play className="w-3.5 h-3.5" /> Skript ausführen</button>
+
+            <div className="grid md:grid-cols-2 gap-2 pt-2 border-t border-white/5">
+              <label className="text-[10px] font-mono text-slate-400">
+                Workflow (aus `/api/workflows/registry`)
+                {workflows ? (
+                  <select
+                    value={workflowName}
+                    onChange={(e) => {
+                      const next = workflows.find((wf) => wf.name === e.target.value);
+                      setWorkflowName(e.target.value);
+                      if (next) {
+                        setWorkflowParams(next.params.map((pa) => `${pa.name}=${pa.default ?? ''}`).join(' '));
+                      }
+                    }}
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-emerald-400"
+                  >
+                    {workflows.map((wf) => (
+                      <option key={wf.name} value={wf.name}>{wf.name} — {wf.steps.length} Schritte</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={workflowName} onChange={(e) => setWorkflowName(e.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-emerald-400" />
+                )}
+              </label>
+              <label className="text-[10px] font-mono text-slate-400">
+                Parameter (`name=wert`, leer = Default)
+                <input value={workflowParams} onChange={(e) => setWorkflowParams(e.target.value)} className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none focus:border-emerald-400" />
+              </label>
+            </div>
+            <div className="text-[10px] font-mono text-slate-500">{workflowsNote}</div>
+            <button disabled={busyAction !== null || !workflowName} onClick={() => void runWorkflowAction()} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-emerald-600 disabled:bg-slate-800 disabled:text-slate-500"><Play className="w-3.5 h-3.5" /> Workflow ausführen</button>
           </div>
         </div>
 

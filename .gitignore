@@ -75,6 +75,10 @@ public/models/
 *.safetensors
 
 # Backend runtime (server/)
-server/data/
+# A-1: `server/data/` ist Laufzeit (data.db, Audit), ABER die Skript-Whitelist
+# unter `server/data/scripts/` ist Quellcode und muss versioniert sein
+# (SHA-256-Pinning in manifest.json wirkt nur gegen eingecheckte Dateien).
+server/data/*
+!server/data/scripts/
 server/**/__pycache__/
 logs/

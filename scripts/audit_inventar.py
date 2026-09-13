@@ -77,9 +77,6 @@ OVERRIDES = {
         "Nennt '--mock' nur in Bedienhinweisen/Labels; ruft echte Bridge-/Gateway-APIs ab"),
     "src/components/IntegrationsPanel.tsx": ("REAL",
         "Zeigt 'Mock-Gateway'-Pill nur bei simulated_token=true (ehrliche Kennzeichnung)"),
-    "genesis-orchestrator/android-app/app/src/main/java/com/genesis/orchestrator/ui/RaycastUtil.kt": ("STUB",
-        "perform3DRaycast() liefert null (Filament-AABB-Pfad nicht implementiert); ohne Aufrufer im Repo, "
-        "realer Pfad ist das 2D-HitTest.kt — siehe GAP-Matrix 6.9"),
     "scripts/audit_inventar.py": ("REAL",
         "Das Audit-Skript selbst: enthaelt die Marker-Regexe als Literale (Selbsttreffer, kein Befund)"),
     # --- Funktionale Checks brauchen einen laufenden Dienst ---

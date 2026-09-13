@@ -257,3 +257,23 @@ def collect_all(do_net_scan: bool = False, subnet: str = "192.168.1.0/24") -> li
         node.setdefault("rssi", -60)
         node.setdefault("txPower", -59)
     return nodes
+
+
+def merge_discovered(scanned: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Gefundene Knoten in den Geräte-Store mergen (Bindung/Label bleiben erhalten).
+
+    War vorher privat in `server/app.py`; die Workflow-Registry (A-2) braucht
+    denselben Schritt, deshalb hier als gemeinsame Funktion. Der Store-Import
+    bleibt lokal, damit `discovery` weiterhin ohne `store` importierbar ist.
+    """
+    from . import store
+
+    existing = {d["id"]: d for d in store.list_devices()}
+    for node in scanned:
+        prev = existing.get(node["id"], {})
+        node["bound"] = bool(prev.get("bound", node.get("bound")))
+        if prev.get("label"):
+            node["name"] = prev["label"]
+        store.upsert_device(node)
+        existing[node["id"]] = node
+    return list(existing.values())

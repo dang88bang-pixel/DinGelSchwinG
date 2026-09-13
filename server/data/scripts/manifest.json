@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "hinweis": "Skript-Whitelist des Backends (TODO A-1). `kind: script` läuft als Subprocess und ist per sha256 gepinnt — Hashes nachziehen mit `python3 scripts/pin-server-scripts.py`. `kind: builtin` läuft im Prozess des Backends, weil der Schritt Server-Zustand braucht (Device-Store, Discovery).",
+  "scriptsDir": "server/data/scripts",
+  "scripts": [
+    {
+      "name": "network_scan.py",
+      "kind": "builtin",
+      "handler": "network_scan",
+      "description": "Discovery-Scan: passive Erfassung + aktiver Subnetz-Scan, Ergebnisse werden in den Geräte-Store gemergt.",
+      "aliases": [
+        "network_scan",
+        "scan",
+        "scan_network"
+      ],
+      "timeout": 90,
+      "args": [
+        {
+          "name": "subnet",
+          "pattern": "^[0-9]{1,3}(\\.[0-9]{1,3}){3}/[0-9]{1,2}$",
+          "default": "192.168.1.0/24",
+          "description": "IPv4-CIDR-Subnetz, z. B. 192.168.1.0/24"
+        }
+      ]
+    },
+    {
+      "name": "port_report.py",
+      "kind": "script",
+      "file": "port_report.py",
+      "sha256": "3aea38949a2132f1fd25c64ded0ef9def0fa612e0ab14074d60705bccbb5b41b",
+      "description": "TCP-Connect-Bericht: öffnet echte Verbindungen gegen einen Host und meldet je Port offen/geschlossen/gefiltert.",
+      "aliases": [
+        "port_report",
+        "ports"
+      ],
+      "timeout": 45,
+      "args": [
+        {
+          "name": "host",
+          "pattern": "^[A-Za-z0-9._:-]{1,253}$",
+          "default": "127.0.0.1",
+          "description": "Ziel-Host (IP oder Name)"
+        },
+        {
+          "name": "ports",
+          "pattern": "^[0-9][0-9,\\- ]{0,199}$",
+          "default": "22,80,443,5000",
+          "description": "Kommaseparierte Ports oder Bereiche (max. 64)"
+        },
+        {
+          "name": "timeout",
+          "pattern": "^[0-9]+(\\.[0-9]+)?$",
+          "default": "0.5",
+          "description": "Connect-Timeout in Sekunden (0 < t <= 10)"
+        }
+      ]
+    },
+    {
+      "name": "disk_report.py",
+      "kind": "script",
+      "file": "disk_report.py",
+      "sha256": "3ee0e80a3ab48479c7bd73c92b04cb30ecd0ed8fe09d09ae68b64f41874d1e0b",
+      "description": "Dateisystem- und Lastbericht des Backend-Hosts (shutil.disk_usage, os.getloadavg, /proc/meminfo). Exit 2, wenn die freie Kapazität unter der Schwelle liegt.",
+      "aliases": [
+        "disk_report",
+        "disk"
+      ],
+      "timeout": 20,
+      "args": [
+        {
+          "name": "path",
+          "pattern": "^[A-Za-z0-9._/\\-]{1,200}$",
+          "default": "/",
+          "description": "Zu prüfendes Verzeichnis"
+        },
+        {
+          "name": "min-free-gb",
+          "pattern": "^[0-9]+(\\.[0-9]+)?$",
+          "default": "0",
+          "description": "Schwelle in GB; darunter Exit-Code 2"
+        }
+      ]
+    }
+  ]
+}

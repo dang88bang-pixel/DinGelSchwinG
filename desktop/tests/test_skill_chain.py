@@ -80,6 +80,81 @@ class TestSkillChainCoverage(unittest.TestCase):
             reply = self.agent.execute_action(idx)
             self.assertNotIn("Unbekannte Aktion", reply, f"Button {idx + 1} nicht bedient")
 
+
+class TestSkillButton(unittest.TestCase):
+    """A-6: freie Button-Aktionen muessen auf echte Skills abbildbar sein."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._base_url = api_client.BASE_URL
+        api_client.BASE_URL = UNREACHABLE_API
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        api_client.BASE_URL = cls._base_url
+
+    def _agent(self) -> Agent:
+        return Agent(role="admin", config={"engine": "none"})
+
+    def test_skill_button_belegt_und_fuehrt_aus(self) -> None:
+        agent = self._agent()
+        reply = agent._intent_assign_button("belege button 5 mit skill show_audit")
+        self.assertIn("Skill show_audit", reply)
+        self.assertEqual(agent.get_button(4).get("action"), "skill:show_audit")
+        out = agent.execute_action(4)
+        self.assertIn("Audit-Eintraege", out.replace("Audit-Einträge", "Audit-Eintraege"))
+        self.assertNotIn("Unbekannte Aktion", out)
+        self.assertNotIn("Platzhalter-Aktion", out)
+
+    def test_skill_parameter_werden_uebernommen(self) -> None:
+        agent = self._agent()
+        agent._intent_assign_button("belege button 2 mit skill export_log format=csv")
+        self.assertEqual(agent.get_button(1).get("action"), "skill:export_log format=csv")
+
+    def test_unbekannter_skill_wird_abgelehnt(self) -> None:
+        agent = self._agent()
+        vorher = agent.get_button(1).get("action")
+        reply = agent._intent_assign_button("belege button 2 mit skill gibt_es_nicht")
+        self.assertIn("existiert", reply)
+        self.assertIn("show_audit", reply)
+        self.assertEqual(agent.get_button(1).get("action"), vorher)
+
+    def test_tool_zeile_assign_button_skill(self) -> None:
+        agent = self._agent()
+        agent._execute_tool_line("TOOL: assign_button button=3 skill=show_metrics")
+        self.assertEqual(agent.get_button(2).get("action"), "skill:show_metrics")
+
+    def test_task_custom_erklaert_sich(self) -> None:
+        agent = self._agent()
+        reply = agent.execute_action_string("task:custom")
+        self.assertIn("Platzhalter-Aktion", reply)
+        self.assertIn("skill show_audit", reply)
+
+    def test_skill_ohne_name(self) -> None:
+        agent = self._agent()
+        reply = agent.execute_action_string("skill:")
+        self.assertIn("ohne Skill-Name", reply)
+
+    def test_fremder_workflow_wird_nicht_als_gestartet_gemeldet(self) -> None:
+        """A-2/Nachbefund: kein erfundener Erfolg für Workflows, die hier nicht laufen."""
+        agent = self._agent()
+        reply = agent.execute_action_string("workflow:deploy_all")
+        self.assertIn("queued", reply)
+        self.assertNotIn("✅", reply)
+        entry = next((w for w in agent.status.manual_workflows if w["name"] == "deploy_all"), None)
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry["status"], "queued")
+        self.assertEqual(entry["progress"], 0)
+        self.assertEqual(agent.status.active_workflows(), 0)
+        details = [e["detail"] for e in agent.audit_log if e.get("action") == "start_workflow"]
+        self.assertTrue(any("queued" in d for d in details), details)
+
+    def test_scan_button_bleibt_echt(self) -> None:
+        """workflow:scan läuft tatsächlich (Hintergrund-Skript) — unverändert."""
+        agent = self._agent()
+        reply = agent.execute_action_string("workflow:scan")
+        self.assertIn("Netzwerk-Scan", reply)
+
 class _WarnClients:
     """ADB-Träger, der keine Geräteliste liefern kann (⚠️-Antwort)."""
 

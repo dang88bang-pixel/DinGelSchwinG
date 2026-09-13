@@ -124,9 +124,12 @@ Die Android-App enthält eine **moderne, erweiterbare BLE-Polar-Konfiguration**
 - **`ble/ui/PolarConfigScreen.kt`** — Scroll-Liste mehrerer erweiterbarer
   Sektionen (Gerätesuche, Mess-Einstellungen, Sensor-Status) inkl.
   Android-12+-Runtime-Permission-Handling (`BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT`).
-- **`ui/RaycastUtil.kt`** — Screen→NDC-Konvertierung ([-1, 1]) als Einstieg
-  für den Filament-3D-Raycast (inverse View-Projection-Matrix) neben dem
-  2D-Fallback in `ui/HitTest.kt`.
+- **`ui/HitTest.kt`** — der einzige Hit-Test-Pfad: orthografischer
+  Ray/Circle-Test (`raycast`) plus Touch-Kurzform (`hitTest`), genutzt von
+  `ui/NodeGraphScreen.kt`. Ein früheres `ui/RaycastUtil.kt` (Screen→NDC und ein
+  `perform3DRaycast()`-Dummy für einen nicht existenten Filament-3D-Pfad) wurde
+  am 2026-09-13 entfernt — es hatte keinen Aufrufer (TODO **A-8** /
+  GAP-Matrix **G-4**, Variante A).
 
 Neue Konfigurationssektionen werden als zusätzliche `ExpandableCard`s ergänzt,
 ohne bestehende zu verändern.

@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+// G-9 (Bundle-Splitting): `html5-qrcode` (~250 kB) wird erst beim Start eines
+// QR-Scans dynamisch geladen. Der Typ-Import ist zur Build-Zeit erasiert und
+// zieht das Modul nicht in die Erstladung.
+import type { Html5QrcodeScanner as Html5QrcodeScannerType } from 'html5-qrcode';
 import { QrCode, Bluetooth, Waves, Wifi, ShieldCheck, Smartphone, Zap } from 'lucide-react';
 
 export interface PairedDevice {
@@ -12,7 +15,7 @@ export interface PairedDevice {
 
 export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice) => void }) {
   const [scanningQR, setScanningQR] = useState(false);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const scannerRef = useRef<Html5QrcodeScannerType | null>(null);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [pairingMethod, setPairingMethod] = useState<'qr' | 'ble' | 'nfc' | 'wifi'>('qr');
   const [statusMsg, setStatusMsg] = useState('Bereit zur Kopplung');
@@ -32,38 +35,45 @@ export default function PairingPanel({ onBind }: { onBind: (device: PairedDevice
     setScanResult(null);
     setStatusMsg('QR-Scan aktiv — Kamera freigeben');
     setTimeout(() => {
-      try {
-        const scanner = new Html5QrcodeScanner('qr-reader', {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0,
-        }, false);
-        scannerRef.current = scanner;
-        scanner.render(
-          (decodedText: string) => {
-            setScanResult(decodedText);
-            setStatusMsg('QR erkannt — Bindung wird durchgeführt');
-            // Simulate binding
-            onBind({
-              id: 'bound-' + Date.now(),
-              name: 'BoundClient-' + decodedText.slice(0, 8),
-              method: 'qr',
-              rssi: -55,
-              boundAt: new Date().toISOString(),
-            });
-            setScanningQR(false); // schließen
-            if (scannerRef.current) {
-              scannerRef.current.clear().catch(() => {});
-              scannerRef.current = null;
+      // Dynamischer Import: hält `html5-qrcode` aus der Erstladung (G-9).
+      void import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
+        try {
+          const scanner = new Html5QrcodeScanner('qr-reader', {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          }, false);
+          scannerRef.current = scanner;
+          scanner.render(
+            (decodedText: string) => {
+              setScanResult(decodedText);
+              setStatusMsg('QR erkannt — Bindung wird durchgeführt');
+              // Simulate binding
+              onBind({
+                id: 'bound-' + Date.now(),
+                name: 'BoundClient-' + decodedText.slice(0, 8),
+                method: 'qr',
+                rssi: -55,
+                boundAt: new Date().toISOString(),
+              });
+              setScanningQR(false); // schließen
+              if (scannerRef.current) {
+                scannerRef.current.clear().catch(() => {});
+                scannerRef.current = null;
+              }
+            },
+            (_err: unknown) => {
+              // ignore scan errors
             }
-          },
-          (_err: unknown) => {
-            // ignore scan errors
-          }
-        );
-      } catch (e) {
-        setStatusMsg('Kamera-Fehler — bitte Berechtigung prüfen');
-      }
+          );
+        } catch (e) {
+          setStatusMsg('Kamera-Fehler — bitte Berechtigung prüfen');
+        }
+      }, () => {
+        // Chunk nicht ladbar (offline/Pfadfehler): ehrlich melden statt hängen.
+        setScanningQR(false);
+        setStatusMsg('QR-Modul konnte nicht geladen werden — Netzwerk/Bundle prüfen');
+      });
     }, 300);
   }, [onBind, scanningQR]);
 

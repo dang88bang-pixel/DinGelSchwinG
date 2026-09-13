@@ -137,3 +137,126 @@ export async function registerClient(device = ''): Promise<void> {
     body: JSON.stringify({ clientId: `web-${location.hostname}`, device, last_action: 'ui' }),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Skript-Whitelist (A-1) und Workflow-Registry (A-2)
+// ---------------------------------------------------------------------------
+
+/** Ein freigegebenes Skript aus `server/data/scripts/manifest.json`. */
+export interface ScriptEntry {
+  name: string;
+  kind: 'script' | 'builtin';
+  description: string;
+  timeout: number;
+  args: { name: string; pattern: string; required: boolean; default: string | null; description: string }[];
+  aliases: string[];
+  file?: string;
+  sha256?: string;
+  present?: boolean;
+  sha256Ok?: boolean;
+  integrity?: string;
+  handler?: string;
+}
+
+export interface ScriptRegistry {
+  scriptsDir: string;
+  manifest: string;
+  count: number;
+  executable: number;
+  scripts: ScriptEntry[];
+}
+
+/** Ergebnis eines Skriptlaufs (`POST /api/scripts/run`). */
+export interface ScriptRunResult {
+  ok: boolean;
+  script: string;
+  kind: 'script' | 'builtin';
+  exitCode: number | null;
+  output: string;
+  error?: string;
+  durationMs?: number;
+  truncated?: boolean;
+  argv?: string[];
+  reason?: string;
+}
+
+/** Ein Schritt eines Workflow-Laufs (`config/workflows.json`). */
+export interface WorkflowStep {
+  id: string;
+  title: string;
+  kind: 'script' | 'builtin';
+  target: string;
+  status: 'running' | 'success' | 'error' | 'skipped';
+  progress?: number;
+  durationMs?: number;
+  exitCode?: number | null;
+  detail?: unknown;
+  error?: string;
+  truncated?: boolean;
+}
+
+export interface WorkflowRun {
+  name: string;
+  title?: string;
+  status: 'running' | 'success' | 'error';
+  progress: number;
+  started: string;
+  finished?: string;
+  durationMs?: number;
+  steps: WorkflowStep[];
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
+/** Whitelist samt Integritätsbefund — die UI soll nichts mehr hartkodieren. */
+export async function fetchScriptRegistry(): Promise<ScriptRegistry> {
+  await ensureSession();
+  return api<ScriptRegistry>('/api/scripts');
+}
+
+export async function runScript(
+  name: string,
+  args: Record<string, string> | string = {},
+): Promise<ScriptRunResult> {
+  await ensureSession();
+  return api<ScriptRunResult>('/api/scripts/run', {
+    method: 'POST',
+    body: JSON.stringify({ script: name, args }),
+  });
+}
+
+/** Führt einen Workflow der Registry aus und liefert den echten Schrittverlauf. */
+export async function runWorkflow(
+  name: string,
+  params: Record<string, string> = {},
+): Promise<WorkflowRun> {
+  await ensureSession();
+  return api<WorkflowRun>('/api/workflows', {
+    method: 'POST',
+    body: JSON.stringify({ name, ...params }),
+  });
+}
+
+/** Eine Workflow-Definition aus `config/workflows.json` (read-only). */
+export interface WorkflowSpec {
+  name: string;
+  title: string;
+  description: string;
+  timeout: number;
+  aliases: string[];
+  params: { name: string; default?: string; pattern?: string; description?: string }[];
+  steps: { id: string; title: string; kind: 'script' | 'builtin'; target: string;
+           args: Record<string, string>; timeout: number; optional: boolean }[];
+}
+
+export interface WorkflowRegistry {
+  config: string;
+  count: number;
+  workflows: WorkflowSpec[];
+}
+
+/** Registry der ausführbaren Workflows — die UI soll keine Namen raten. */
+export async function fetchWorkflowRegistry(): Promise<WorkflowRegistry> {
+  await ensureSession();
+  return api<WorkflowRegistry>('/api/workflows/registry');
+}

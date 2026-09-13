@@ -16,9 +16,12 @@
 import { apiUrl, describeEndpoint, getEndpoint } from '../endpoint';
 import { autoConfigure, formatCandidate, runPortView } from '../portview';
 import { grabFromUrl } from '../grabber';
-import { formatIngestReport, ingestPage } from '../pageIngest';
+import { formatIngestReport, ingestPage, maskSecrets } from '../pageIngest';
 import { formatBytes, shortHash, type PackCategory } from '../packs';
 import { SKILLS, Skill, skillsToPrompt } from '../../config/skills';
+import {
+  findNodeCategory, formatNodeBatch, formatNodeProbe, probeAllNodes, probeNodeEndpoint,
+} from '../../config/enterprise-nodes';
 import {
   ADB_SKILLS, ADB_SCRIPTS, ADB_SYSTEM_INSTRUCTION, AgentMode, CHAT_SYSTEM_INSTRUCTION,
   MODE_LABELS,
@@ -26,13 +29,16 @@ import {
 import { MOCK_DEVICES, type MockDevice } from '../../mocks/devices.mock';
 import { TransformersBackend } from './transformersBackend';
 import { gallery } from '../../lib/galleryStore';
-import { liveMetrics, formatMs, formatTokens, formatCost, MetricsSnapshot } from '../../lib/liveMetrics';
+import {
+  liveMetrics, formatMs, formatTokens, formatCost, estimateTokens, MetricsSnapshot,
+} from '../../lib/liveMetrics';
 import { rag, RagHit } from '../../lib/rag';
 import {
   fillRequired, gatewayCommand, gatewaySessions, gatewayStatus, gatewayTokens, mcpCall, mcpHealth, mcpTools, parseToolArgs, toolResultText,
   type GatewayStatus, type McpTool,
 } from '../../lib/mcpClient';
 import { deviceControl } from '../../lib/deviceControl';
+import { ApiError, runWorkflow as runBackendWorkflowApi, type WorkflowRun } from '../api/client';
 
 export interface AgentMessage {
   id: number;
@@ -103,6 +109,62 @@ export const BUTTON_DEFAULTS: ActionButton[] = [
   { label: '⏹️', action: 'stop', desc: 'Aktiven Workflow stoppen' },
   { label: '🗑️', action: 'clear_cache', desc: 'Cache leeren' },
 ];
+
+/**
+ * Obergrenzen des Modell-Loops (Aktionskette A-3).
+ *
+ * Ohne Grenzen würde ein Modell, das ständig `TOOL:`-Zeilen ausgibt, endlos
+ * Werkzeuge aufrufen. `LLM_MAX_TURNS` begrenzt die Durchgänge, das Token-Budget
+ * die Kosten (Schätzung über `estimateTokens`, wie sie `liveMetrics` nutzt).
+ */
+export const LLM_MAX_TURNS = 3;
+export const LLM_MAX_TOOLS_PER_TURN = 5;
+export const LLM_FEEDBACK_CHARS = 1200;
+export const LLM_TOKEN_BUDGET = 24_000;
+
+/** Grenzen eines Modell-Laufs — als Objekt, damit Aufrufer sie enger fassen können. */
+export interface LlmLoopLimits {
+  maxTurns: number;
+  maxToolsPerTurn: number;
+  feedbackChars: number;
+  tokenBudget: number;
+}
+
+export const LLM_LOOP_LIMITS: LlmLoopLimits = {
+  maxTurns: LLM_MAX_TURNS,
+  maxToolsPerTurn: LLM_MAX_TOOLS_PER_TURN,
+  feedbackChars: LLM_FEEDBACK_CHARS,
+  tokenBudget: LLM_TOKEN_BUDGET,
+};
+
+/** Auftrag an das Modell, nachdem Werkzeug-Ergebnisse zurückgespielt wurden. */
+export const LLM_CONTINUE_HINT =
+  'Die Werkzeug-Ergebnisse stehen oben. Antworte jetzt auf die ursprüngliche Frage ' +
+  'und nutze die Ergebnisse als Beleg. Nur wenn noch ein Werkzeug fehlt, gib genau ' +
+  'eine TOOL:-Zeile aus — sonst antworte ohne TOOL:-Zeile.';
+
+/**
+ * Werkzeug-Ergebnisse als Rückkopplung für den nächsten Turn.
+ * Gekürzt auf `LLM_FEEDBACK_CHARS` je Ergebnis und mit `maskSecrets()` bereinigt,
+ * damit keine Schlüssel/Passwörter ins Modell wandern.
+ */
+export function buildToolFeedback(
+  lines: string[],
+  results: string[],
+  maxChars: number = LLM_FEEDBACK_CHARS,
+): string {
+  return lines
+    .map((line, index) => {
+      const raw = results[index] ?? '';
+      const { text, hits } = maskSecrets(raw);
+      const cut = text.length > maxChars
+        ? `${text.slice(0, maxChars)}\n… gekürzt (${text.length} Zeichen insgesamt)`
+        : text;
+      const note = hits.length ? ` (maskiert: ${hits.join(', ')})` : '';
+      return `TOOL: ${line.trim().replace(/^TOOL:\s*/i, '')}${note}\nERGEBNIS:\n${cut}`;
+    })
+    .join('\n\n');
+}
 
 const STORAGE_MODE_KEY = 'dgs.agentMode';
 const STORAGE_CUSTOM_KEY = 'dgs.customInstruction';
@@ -299,7 +361,16 @@ export class AgentEngine {
     );
   }
 
-  async tryLLM(text: string): Promise<string> {
+  /**
+   * Modell-Antwort mit Werkzeug-Rückkopplung (Aktionskette A-3).
+   *
+   * Vorher: ein Durchgang, höchstens fünf `TOOL:`-Zeilen, deren Ergebnisse nie
+   * zurück ins Modell gingen. Jetzt läuft ein Loop mit vier Abbruchkriterien
+   * (keine `TOOL:`-Zeile · `LLM_MAX_TURNS` · Wiederholung · Token-Budget), die
+   * Werkzeug-Ergebnisse werden gekürzt und secret-maskiert zurückgespielt, und
+   * jeder Lauf schreibt `llm_turns` ins Audit.
+   */
+  async tryLLM(text: string, limits: LlmLoopLimits = LLM_LOOP_LIMITS): Promise<string> {
     let hits: RagHit[] = [];
     try {
       await rag.init();
@@ -318,14 +389,64 @@ export class AgentEngine {
       (knowledge ? `\n## Wissensbasis-Auszug (nur daraus antworten, mit Quelle zitieren)\n${knowledge}\n` : '') +
       skillsToPrompt(this.skills);
     const instruction = agent ? `${agent.systemPrompt}\n\n${this.systemInstruction}` : this.systemInstruction;
+    const systemPrompt = `${instruction}\n\n${context}`;
+
+    const bodies: string[] = [];
+    const toolOutputs: string[] = [];
+    const executed = new Set<string>();
+    let feedback = '';
+    let turns = 0;
+    let tokens = 0;
+    let stop = 'Antwort ohne TOOL-Zeile';
+
     try {
-      const raw = await this.backend.generate(instruction + '\n\n' + context, text);
-      const toolLines = raw.split('\n').filter((l) => l.trim().startsWith('TOOL:'));
-      const body = raw.split('\n').filter((l) => !l.trim().startsWith('TOOL:')).join('\n');
-      const results = await Promise.all(toolLines.slice(0, 5).map((l) => this.executeToolLine(l)));
-      return [body.trim(), ...results].filter(Boolean).join('\n\n') || '🤖 (leere Antwort)';
+      while (turns < limits.maxTurns) {
+        turns += 1;
+        const prompt = turns === 1 ? text : `${text}\n\n${feedback}\n\n${LLM_CONTINUE_HINT}`;
+        const nextTokens = tokens + estimateTokens(systemPrompt) + estimateTokens(prompt);
+        if (nextTokens > limits.tokenBudget) {
+          stop = `Token-Budget ${formatTokens(limits.tokenBudget)} erreicht`;
+          turns -= 1;
+          break;
+        }
+        tokens = nextTokens;
+        const raw = await this.backend.generate(systemPrompt, prompt);
+        tokens += estimateTokens(raw);
+
+        const lines = raw.split('\n');
+        const toolLines = lines
+          .filter((l) => l.trim().startsWith('TOOL:'))
+          .slice(0, limits.maxToolsPerTurn);
+        const body = lines.filter((l) => !l.trim().startsWith('TOOL:')).join('\n').trim();
+        if (body) bodies.push(body);
+        if (!toolLines.length) break;
+
+        // Wiederholung derselben Zeile bringt kein neues Ergebnis → Abbruch.
+        const fresh = toolLines.filter((l) => !executed.has(l.trim().toLowerCase()));
+        if (!fresh.length) {
+          stop = 'Abbruch: dieselbe TOOL-Zeile wiederholt';
+          break;
+        }
+        const results = await Promise.all(fresh.map((l) => this.executeToolLine(l)));
+        for (const line of fresh) executed.add(line.trim().toLowerCase());
+        toolOutputs.push(...results.filter(Boolean));
+        feedback = buildToolFeedback(fresh, results, limits.feedbackChars);
+        if (turns >= limits.maxTurns) stop = `maxTurns ${limits.maxTurns} erreicht`;
+      }
+
+      this.audit('llm_turns',
+        `turns=${turns} tools=${executed.size} tokens=${tokens} stop=${stop}`);
+      // Kein Turn gelaufen (Budget schon vor dem ersten Aufruf überschritten):
+      // Grund nennen statt einer leeren Antwort.
+      if (turns === 0) return `⚠️ Modell-Loop nicht gestartet: ${stop}.`;
+      const answer = [...bodies, ...toolOutputs].filter(Boolean).join('\n\n') || '🤖 (leere Antwort)';
+      const loopNote = turns > 1
+        ? `\n\n🔁 Modell-Loop: ${turns} Turns, ${executed.size} Werkzeug-Aufruf(e), ` +
+          `~${formatTokens(tokens)} Tokens — beendet: ${stop}.`
+        : '';
+      return answer + loopNote;
     } catch {
-      this.audit('llm_error', 'Modell-Antwort fehlgeschlagen');
+      this.audit('llm_error', `Modell-Antwort fehlgeschlagen (Turn ${turns})`);
       return '⚠️ Das Modell konnte nicht antworten. Die deterministische Engine ist weiter aktiv.';
     }
   }
@@ -350,6 +471,9 @@ export class AgentEngine {
       if (skill === 'gateway_sessions') return this.intentGatewaySessions();
       if (skill === 'gateway_selftest') return this.intentGatewaySelftest();
       if (skill === 'show_metrics') return this.intentMetrics();
+      if (skill === 'node_status') {
+        return this.intentNodeStatus(params.node ?? params.kategorie ?? params.query ?? 'knoten status');
+      }
       if (skill === 'gallery_list') return this.intentGallery(params.query ?? 'gallerie');
       if (skill === 'gallery_install') return this.intentGalleryInstall('', params.id ?? '');
       if (skill === 'knowledge_search') return this.intentKnowledgeSearch(params.query ?? 'wissen');
@@ -360,7 +484,15 @@ export class AgentEngine {
       if (skill === 'help') return this.intentHelp();
       if (skill === 'assign_button') {
         const slot = params.button ?? params.slot ?? '';
-        const target = params.script ?? params.workflow ?? params.skill ?? '';
+        // Ziel eindeutig kennzeichnen, damit `skill=<name>` nicht als freie
+        // Aktion (task:custom) endet — A-6.
+        const target = params.script
+          ? params.script
+          : params.workflow
+            ? `workflow ${params.workflow}`
+            : params.skill
+              ? `skill=${params.skill}`
+              : '';
         return this.intentAssignButton(`belege button ${slot} mit ${target}`.trim());
       }
       if (skill === 'mcp_list') return this.intentMcpList(params.query ?? params.tool ?? '');
@@ -563,8 +695,26 @@ export class AgentEngine {
     const idx = parseInt(m[1], 10) - 1;
     if (idx < 0 || idx > 5) return '❌ Button-Nummer muss zwischen 1 und 6 liegen.';
     const script = t.match(/([\w.-]+\.(py|sh|ps1|js))/);
+    // A-6: freie Aktionen auf echte Skills abbilden statt `task:custom`.
+    // Akzeptiert `skill=<name>`, `skill:<name>` und „mit skill <name>“;
+    // Parameter (`k=v`) werden mit auf den Button übernommen.
+    const skill = t.match(/\bskills?\s*(?:[:=]\s*|\s+)([a-z_][a-z0-9_]*)((?:\s+[a-z_][a-z0-9_]*=\S+)*)/i);
     let detail: string;
-    if (script) {
+    if (skill) {
+      const name = skill[1].toLowerCase();
+      const known = this.skills.map((s) => s.name);
+      if (!known.includes(name)) {
+        this.audit('assign_button', `abgelehnt: unbekannter skill ${name}`);
+        return (
+          `❌ Skill '${name}' existiert im Modus ${this.modeLabel} nicht.\n` +
+          `Verfügbar: ${known.join(', ')}`
+        );
+      }
+      const params = (skill[2] ?? '').trim();
+      const action = `skill:${name}${params ? ` ${params}` : ''}`;
+      this.buttons[idx] = { ...this.buttons[idx], action, desc: `Skill ${name}${params ? ` (${params})` : ''}` };
+      detail = `Button ${idx + 1} → Skill ${name}${params ? ` ${params}` : ''}`;
+    } else if (script) {
       this.buttons[idx] = { ...this.buttons[idx], action: `script:${script[1]}`, desc: `Skript ${script[1]}` };
       detail = `Button ${idx + 1} → Skript ${script[1]}`;
     } else if (t.includes('workflow')) {
@@ -1104,6 +1254,12 @@ export class AgentEngine {
   async tryAsyncIntents(t: string): Promise<string | null> {
     const lower = t.toLowerCase();
 
+    // A-10: Enterprise-Knoten-Status — die Probe war real, aber nirgends erreichbar.
+    if (/(enterprise[-_ ]?knoten|\bknoten\b|node[-_ ]?status|\bqloud\b)/.test(lower)
+        && /(status|pr(ü|ue)f|probe|erreichbar|zeig|list|welche|verbind)/.test(lower)) {
+      return this.intentNodeStatus(t);
+    }
+
     // mcp tool=<name> [key=value …] | mcp call <name> … | führe mcp-tool <name> aus
     const mcpMatch = lower.match(/\bmcp\b.{0,24}?\b(?:tool|call|aufruf|ausführen|ausfuehren)?[= :]*([a-z0-9_]{3,40})/);
     if (/\bmcp\b/.test(lower) && mcpMatch && !/(tools?|verbind|status|hilfe)/.test(mcpMatch[1])) {
@@ -1177,6 +1333,34 @@ export class AgentEngine {
     if (learnMatch && /(lern|indexier|wissen)/.test(lower)) return this.intentKnowledgeAddRaw(learnMatch[2], learnMatch[1]);
 
     return null;
+  }
+
+  /**
+   * A-10: Enterprise-Knoten proben (Browser-seitig über `probeNodeEndpoint`).
+   * Ohne Kategorie werden alle fünf Knoten geprüft; der Befund nennt immer den
+   * echten Grund — bei Planungs-Hosts ist „nicht erreichbar“ die korrekte Antwort.
+   */
+  async intentNodeStatus(t: string): Promise<string> {
+    const category = findNodeCategory(t);
+    this.audit('node_status', category ?? 'alle');
+    liveMetrics.noteTool('node_status');
+    try {
+      if (category) {
+        const result = await probeNodeEndpoint(category);
+        return (
+          `🛰️ Enterprise-Knoten ${category}:\n${formatNodeProbe(result)}\n` +
+          'Serverseitige Sicht: `GET /api/nodes/validate?node=' +
+          `${encodeURIComponent(category)}\``
+        );
+      }
+      const batch = await probeAllNodes();
+      return (
+        `${formatNodeBatch(batch)}\n` +
+        'Serverseitige Sicht: `GET /api/nodes/validate?node=all` · Panel: „Enterprise-Knoten“'
+      );
+    } catch (e) {
+      return `❌ Knoten-Probe fehlgeschlagen: ${String((e as Error)?.message ?? e).slice(0, 200)}`;
+    }
   }
 
   async intentMcpCall(tool: string, raw: string): Promise<string> {
@@ -1528,26 +1712,92 @@ export class AgentEngine {
     if (action.startsWith('workflow:')) {
       const name = action.split(':')[1];
       if (name === 'scan') return this.intentScanLive('scan');
-      // Ehrlich bleiben: der Browser führt keine fremden Workflows aus und
-      // erfindet keinen Fortschritt. Der Task bleibt als 'queued' sichtbar.
-      this.startTask(name, 0);
-      this.audit('start_workflow', `${name} (queued – keine Browser-Ausführung)`);
-      return (
-        `⏸️ Workflow '${name}' ist eingetragen (Status: queued) – ausgeführt wird er hier nicht.\n` +
-        'Echte Ausführung: Operations-Center → `/api/scripts/run`, Desktop-Konsole → Skripte-Galerie\n' +
-        'oder ein passendes MCP-Tool („mcp tools“). Nur `workflow:scan` läuft im Browser (Live-Scan).'
-      );
+      // A-2: fremde Workflows laufen über die Backend-Registry
+      // (config/workflows.json) — mit echtem Schrittverlauf statt 'queued'.
+      return this.runWorkflowViaBackend(name);
+    }
+    // A-6: `skill:<name> [k=v …]` läuft über dieselbe Kette wie `TOOL: <name>`.
+    if (action.startsWith('skill:')) {
+      const call = action.slice('skill:'.length).trim();
+      const name = call.split(/\s+/)[0] ?? '';
+      this.audit('skill_button', name || '(leer)');
+      if (!name) return '❌ Button-Aktion `skill:` ohne Skill-Name – bitte neu belegen.';
+      return this.executeToolLine(`TOOL: ${call}`);
     }
     if (action.startsWith('task:')) {
       const name = action.split(':')[1] ?? 'custom';
       this.audit('task_button', name);
       return (
         `ℹ️ Button-Aktion '${name}' ist eine freie Platzhalter-Aktion.\n` +
-        'Belege den Button mit etwas Ausführbarem: „Belege Button 3 mit network_scan.py“\n' +
-        'oder „Belege Button 3 mit workflow scan“.'
+        'Belege den Button mit etwas Ausführbarem: „Belege Button 3 mit network_scan.py“,\n' +
+        '„Belege Button 3 mit workflow scan“ oder „Belege Button 3 mit skill show_audit“.'
       );
     }
     return `❓ Unbekannte Aktion: ${action}`;
+  }
+
+  /**
+   * A-2: Workflow über `POST /api/workflows` ausführen (Registry in
+   * `config/workflows.json`). Liefert den echten Schrittverlauf; ist das
+   * Backend nicht erreichbar, bleibt der Task ehrlich als `queued` stehen —
+   * es wird kein Fortschritt erfunden.
+   */
+  async runWorkflowViaBackend(name: string, params: Record<string, string> = {}): Promise<string> {
+    this.startTask(name, 5);
+    this.audit('start_workflow', `${name} (backend)`);
+    liveMetrics.noteTool(`workflow:${name}`);
+    let run: WorkflowRun;
+    try {
+      run = await runBackendWorkflowApi(name, params);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 501) {
+        this.failTask(name);
+        this.audit('workflow_unknown', `${name} nicht in der Registry`);
+        return (
+          `❌ Workflow '${name}' ist in der Backend-Registry nicht definiert.\n` +
+          `${e.message}\n` +
+          'Definitionen liegen in `config/workflows.json`.'
+        );
+      }
+      // Backend offline/401/403: nichts läuft — Task bleibt wartend sichtbar.
+      this.updateTask(name, 0);
+      this.audit('start_workflow', `${name} (queued – Backend nicht erreichbar)`);
+      return (
+        `⏸️ Workflow '${name}' ist eingetragen (Status: queued) – ausgeführt wird er hier nicht.\n` +
+        `Grund: ${String((e as Error)?.message ?? e).slice(0, 160)}\n` +
+        'Echte Ausführung: Backend starten (`make server`), dann erneut drücken; ' +
+        'oder Operations-Center → `/api/scripts/run`. Nur `workflow:scan` läuft im Browser (Live-Scan).'
+      );
+    }
+
+    const steps = run.steps ?? [];
+    const done = steps.filter((s) => s.status === 'success').length;
+    const icon = (status: string): string =>
+      status === 'success' ? '✅' : status === 'skipped' ? '⏭️' : status === 'error' ? '❌' : '▶️';
+    const lines = steps.map((s) => {
+      const exit = s.exitCode === undefined || s.exitCode === null ? '' : `, exit ${s.exitCode}`;
+      const ms = s.durationMs === undefined ? '' : `, ${s.durationMs} ms`;
+      const why = s.error ? ` — ${s.error.slice(0, 120)}` : '';
+      return `- ${icon(s.status)} ${s.id} (${s.kind}: ${s.target}${exit}${ms})${why}`;
+    });
+
+    if (run.status === 'success') {
+      this.finishTask(name);
+      this.audit('workflow_done', `${name} schritte=${done}/${steps.length}`);
+      const result = run.result && Object.keys(run.result).length
+        ? `\nErgebnis: ${AgentEngine.clip(JSON.stringify(run.result), 400)}`
+        : '';
+      return (
+        `✅ Workflow '${run.name}' abgeschlossen: ${done}/${steps.length} Schritte in ${run.durationMs ?? 0} ms.` +
+        `\n${lines.join('\n')}${result}`
+      );
+    }
+    this.failTask(name);
+    this.audit('workflow_error', `${name}: ${String(run.error ?? '').slice(0, 120)}`);
+    return (
+      `❌ Workflow '${run.name}' fehlgeschlagen nach ${done}/${steps.length} Schritten.\n` +
+      `${run.error ?? '(ohne Angabe)'}\n${lines.join('\n')}`
+    );
   }
 
   // ------------------------------------------------------------------

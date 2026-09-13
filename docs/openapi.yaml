@@ -411,18 +411,27 @@ paths:
   /api/workflows:
     get:
       tags: [console]
-      summary: (Desktop-Konsole) Workflows auflisten
+      summary: (Desktop-Konsole) Workflow-Läufe auflisten
+      description: |
+        Liefert die letzten Läufe inkl. `steps[]` (Status, Exit-Code, Dauer,
+        Detail je Schritt) und `error` — A-2.
       x-rbac: operator
       responses:
-        "200": { description: Workflow-Liste }
+        "200": { description: "[{ name, title, status, progress, started, finished, steps[], result?, error? }]" }
     post:
       tags: [console]
-      summary: Workflow starten — nur implementierte Namen führen echte Arbeit aus
+      summary: Workflow der Registry ausführen (Schritte sequenziell, echter Fortschritt)
       description: |
-        Implementiert ist derzeit `scan_network` (Alias `network_scan`, `scan`):
-        führt einen echten Discovery-Scan aus und liefert `result.scanned`.
-        Jeder andere Name antwortet **501 NOT_IMPLEMENTED** statt eines
-        erfundenen Erfolgs.
+        Die ausführbaren Workflows stehen als Daten in `config/workflows.json`
+        (A-2); `GET /api/workflows/registry` listet sie. Jeder Schritt läuft
+        sequenziell und meldet Status, Dauer und Detail — `kind: builtin` im
+        Prozess, `kind: script` als SHA-256-gepinnter Subprocess aus der
+        Skript-Whitelist (Exit-Code entscheidet über den Schrittstatus).
+
+        Ein Name, der nicht in der Registry steht, antwortet **501
+        NOT_IMPLEMENTED** samt `registry[]` statt eines erfundenen Erfolgs.
+        Nur deklarierte Parameter werden akzeptiert und gegen ihr Muster
+        geprüft, sonst **400 PARAMS_INVALID**.
       x-rbac: service
       requestBody:
         required: true
@@ -432,12 +441,49 @@ paths:
               type: object
               required: [name]
               properties:
-                name: { type: string, example: scan_network }
-                subnet: { type: string, example: "192.168.1.0/24" }
+                name: { type: string, example: scan_network, description: "Name oder Alias aus der Registry" }
+                params:
+                  type: object
+                  description: "Alternative zu flachen Schlüsseln; nur deklarierte Parameter"
+                  additionalProperties: { type: string }
+                subnet: { type: string, example: "192.168.1.0/24", description: "Kurzform für scan_network" }
+                path: { type: string, example: "/", description: "host_health: Dateisystem" }
+                min_free_gb: { type: string, example: "1", description: "host_health: Schwelle in GB" }
       responses:
         "200":
-          description: "{ name, status, progress, started, finished, result }"
+          description: "{ name, title, status, progress, started, finished, durationMs, steps[], result?, error? }"
+        "400": { $ref: "#/components/responses/JsonError" }
+        "403": { $ref: "#/components/responses/JsonError" }
         "501": { $ref: "#/components/responses/JsonError" }
+        "503": { $ref: "#/components/responses/JsonError" }
+
+  /api/workflows/registry:
+    get:
+      tags: [console]
+      summary: Workflow-Definitionen (read-only)
+      description: |
+        Inhalt von `config/workflows.json` mit Schritten, Parametern und
+        Timeouts — damit die UI keine Namen hartkodieren muss (A-2).
+      x-rbac: operator
+      responses:
+        "200":
+          description: "{ config, count, workflows: [{ name, title, description, timeout, aliases[], params[], steps[] }] }"
+        "503": { $ref: "#/components/responses/JsonError" }
+
+  /api/scripts:
+    get:
+      tags: [ops]
+      summary: Skript-Whitelist samt Integritätsbefund (read-only)
+      description: |
+        Liefert die in `server/data/scripts/manifest.json` freigegebenen Skripte
+        mit erlaubten Argumenten (Muster/Default), Timeout, SHA-256-Pin und dem
+        Prüfergebnis `sha256Ok`/`integrity` (A-1). Das Operations-Center baut
+        daraus seine Skriptliste.
+      x-rbac: operator
+      responses:
+        "200":
+          description: "{ scriptsDir, manifest, count, executable, scripts: [{ name, kind, description, timeout, args[], aliases[], file?, sha256?, present?, sha256Ok?, integrity?, handler? }] }"
+        "503": { $ref: "#/components/responses/JsonError" }
 
   /api/tests:
     get:
@@ -493,7 +539,18 @@ paths:
   /api/scripts/run:
     post:
       tags: [ops]
-      summary: Skript-Executor (Discovery-Scan mit Audit-Eintrag)
+      summary: Whitelist-Skript ausführen (Exit-Code im Audit)
+      description: |
+        Ausgeführt wird nur, was in `server/data/scripts/manifest.json` steht
+        (A-1). `kind: script` läuft als Subprocess mit argv-Liste (nie
+        `shell=True`), Timeout und Ausgabe-Cap; der SHA-256-Pin wird vor dem
+        Start geprüft. `kind: builtin` läuft im Prozess, weil der Schritt den
+        Geräte-Store braucht (`network_scan.py`).
+
+        Ablehnungen sind ehrlich: nicht whitelisted → **501** (mit
+        `whitelist[]`), fremdes/unpassendes Argument → **400**, Pin-Abweichung
+        oder fehlender Interpreter → **409**. Ein Lauf mit Exit-Code ≠ 0
+        antwortet 200 mit `ok: false` und dem echten Exit-Code.
       x-rbac: service
       requestBody:
         required: true
@@ -502,22 +559,26 @@ paths:
             schema:
               type: object
               properties:
-                script: { type: string, example: network_scan.py }
+                script: { type: string, example: disk_report.py }
                 name: { type: string, description: "Alias für script (Operations-Center)" }
                 args:
-                  description: "Objekt ({subnet}) ODER CLI-String ('--subnet 10.0.0.0/24')"
+                  description: "Objekt ({path: '/'}) ODER CLI-String ('--subnet 10.0.0.0/24')"
                   oneOf:
                     - type: object
                     - type: string
+                subnet: { type: string, description: "Kurzform für network_scan.py" }
       responses:
         "200":
-          description: "{ ok, script, output }"
+          description: "{ ok, script, kind, exitCode, output, error, durationMs, truncated, argv, reason }"
+        "400": { $ref: "#/components/responses/JsonError" }
         "403": { $ref: "#/components/responses/JsonError" }
+        "409": { $ref: "#/components/responses/JsonError" }
         "501":
-          description: Skript wird serverseitig nicht ausgeführt (nur `network_scan.py`)
+          description: Skript steht nicht auf der Whitelist (mit `whitelist[]`)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+        "503": { $ref: "#/components/responses/JsonError" }
 
   /api/diagnostics/iperf:
     get:
@@ -620,10 +681,33 @@ paths:
   /api/nodes/validate:
     get:
       tags: [ops]
-      summary: Endpunkt-Selbstprüfung des Backends (keine fiktiven qloud-Hosts)
+      summary: Enterprise-Knoten serverseitig proben (oder Backend-Selbstprüfung)
+      description: |
+        Ohne `node=` unveränderte Selbstprüfung des eigenen Backends. Mit
+        `node=<kategorie|knoten-id>` wird der Knoten aus
+        `config/enterprise-nodes.csv` echt geprobt (HEAD, bei 405/501
+        GET-Fallback, hartes Timeout), mit `node=all` der gesamte Bestand (A-10).
+
+        Ehrlicher Befund statt erfundenem Erfolg: `reason` ist eines von
+        `http-ok`, `http-error`, `network-error`, `timeout`,
+        `unsupported-scheme`, `unknown-node`. Solange Planungs-Hosts
+        (`*.qloud.local`) konfiguriert sind, ist `network-error` erwartbar
+        (GAP-Matrix G-1).
       x-rbac: operator
+      parameters:
+        - name: node
+          in: query
+          description: "Kategorie (z. B. `API`, `2. API`), Knoten-ID oder `all`"
+          schema: { type: string, example: API }
+        - name: timeout
+          in: query
+          description: "Probe-Timeout in Sekunden (0.5–30, Default 4)"
+          schema: { type: number, default: 4 }
       responses:
-        "200": { description: "{ ok, endpoint }" }
+        "200":
+          description: "Selbstprüfung `{ ok, scope: self, endpoint, devices, nodesInConfig, hint }` · Einzelknoten `{ ok, scope: node, node, nodeId, endpoint, probeUrl, status, reason, reasonLabel, latencyMs, error? }` · Bestand `{ ok, scope: all, reachable, total, nodes[] }`"
+        "400": { $ref: "#/components/responses/JsonError" }
+        "403": { $ref: "#/components/responses/JsonError" }
 
   /metrics:
     get:
