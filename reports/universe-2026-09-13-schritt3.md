@@ -29,6 +29,22 @@ Universe-Audit findet **0 Kandidaten** (`reports/inventory.md`).
 | `desktop/utils/agent.py`, `desktop/data/skillz.md`, `agentEngine.intentGatewayDemo`, `LiveDashboardPanel`, `skills.ts` | Bezeichnungen „Demo-Handshake" | „Handshake-Selbsttest" (das Kommando `demo_handshake` bleibt API-kompatibel; es ist echte AES-128-Krypto gegen den Token-Simulator) | `tsc` ✅ · Skill-ID `token_selftest` |
 | `public/demo/` → `public/samples/` | Verzeichnis- und UI-Bezeichnung „Demo" | Beispiel-Assets für Grabber/Page-Ingest liegen unter `public/samples/`; i18n-Schlüssel `sampleHint`/`sample`/`pageSampleHint`, Doku und Panel-Texte nachgezogen | `grep` ohne `/demo/`-Treffer · Build ✅ |
 
+## Rest-Treffer für „mock/demo" (vollständig klassifiziert)
+
+Nach dem Umbau sind **alle** verbleibenden Treffer eine dieser vier harmlosen Klassen —
+nachprüfbar mit `bash scripts/universe_audit.sh` (0 Kandidaten) und:
+
+```bash
+grep -rniE "\b(mock|demo|fake|simulat|placeholder|dummy)\w*" src mobile-server desktop \
+  android genesis-orchestrator --include='*.ts' --include='*.tsx' --include='*.py' --include='*.kt'
+```
+
+1. **HTML-Attribute** `placeholder="…"` (Texteingabe-Hinweise) — keine Attrappen.
+2. **Testdouble hinter Flag:** BLE-Backend `mock` (Default `auto`), `--mock`-Startmodus,
+   `simulate-token`-Prozess, `demo_handshake`-Kommando (echte AES-128-Krypto).
+3. **Simulator-/Selbsttest-Pfade** (`simulate_token_response`, `throughput_selftest`) — rechnen real.
+4. **Kommentare/Beschreibungen/Hilfetexte**, die den Startbefehl `--mock` erklären.
+
 ## Bewusst *nicht* entfernt (Testdoubles hinter explizitem Schalter)
 
 | Artefakt | Warum es bleibt |
@@ -53,6 +69,10 @@ Universe-Audit findet **0 Kandidaten** (`reports/inventory.md`).
 | `python3 scripts/audit_inventar.py` | ✅ `MOCK: 0 · STUB: 1 · TODO: 0 · PLACEHOLDER: 0 · DEAD: 0` |
 | `bash scripts/universe_audit.sh` | ✅ **0 Kandidaten** (0 Marker · 3 harmlose Bezeichner-Treffer in Kommentaren/Tests · 0 „nicht implementiert") |
 | `python3 tests/universe_harness.py --with-build` | ✅ Exit 0 · Fazit `PARTIAL` (nur Toolchain-Skips) |
+
+**CI verifiziert:** Lauf [34729762869](https://github.com/dang88bang-pixel/DinGelSchwinG/actions/runs/34729762869)
+→ `✓ Inventar (Schritt 1)` · `✓ Test-Harness (Schritt 5)` (inkl. Node-Tests, Python-Collections,
+Frontend-Build, Server/Gateway/Desktop-Suiten), Artefakte `inventory` + `universe-harness`, ohne Warnungen.
 
 **Integration nachgewiesen:** Mit laufendem Gateway (`python3 mobile-server/mobile_ble_server.py run --mock`)
 liefert `AgentEngine.refreshDevices()` echte Whitelist-Geräte (`CT45P-0001`, `CT45P-DEMO`) aus
