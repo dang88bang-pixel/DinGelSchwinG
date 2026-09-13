@@ -77,12 +77,16 @@ jobs:
         # --with-build erzeugt zusätzlich das Frontend-Artefakt (dist/) — Schritt 5.
         run: python3 tests/universe_harness.py --with-build --json reports/harness.json
 
-      - name: Projekt-Testsuiten (Python)
-        # Die Suiten des Repos selbst — schnell (< 2 s) und ohne Zusatzdienste lauffähig.
-        run: |
-          python3 -m unittest discover -s server/tests
-          python3 mobile-server/tests/test_gateway.py
-          python3 desktop/tests/test_core.py
+      # Die Suiten des Repos selbst — je Suite ein eigener Schritt (Fehlerzuordnung
+      # ohne Log-Download) und ohne Zusatzdienste lauffähig.
+      - name: Server-Tests (unittest)
+        run: python3 -m unittest discover -s server/tests -v
+
+      - name: Gateway-Tests (mobile-server)
+        run: python3 mobile-server/tests/test_gateway.py
+
+      - name: Desktop-Tests
+        run: python3 desktop/tests/test_core.py
 
       - name: Ergebnis als Artefakt hochladen
         if: always()
