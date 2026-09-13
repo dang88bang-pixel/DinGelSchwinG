@@ -85,6 +85,19 @@ export const ADB_SKILLS: Skill[] = [
     example: '',
   },
   {
+    name: 'adb_run',
+    description:
+      'Führt ein freigegebenes ADB-Verb wirklich aus — über das Backend (POST /api/adb/run), ' +
+      'sobald dort ein ADB-Träger läuft (adb-Binary oder registrierter Host). Ohne Träger ' +
+      'bleibt es ehrlich beim Plan + ausführbaren Skript; Risiko-Verben erst nach „freigeben“.',
+    calls: ['"adb devices"', '"adb -s <serial> logcat lines=200 tag=System"',
+            '"adb shell getprop ro.build.version.sdk"', '"adb connect 192.168.1.20:5555"',
+            '"adb pull /sdcard/DCIM dcim"'],
+    params: 'adb <verb> [-s <serial>] [key=value …] · Verben: devices, logcat, shell, pull, ' +
+            'connect, disconnect, install, uninstall, reboot, tcpip (letzte vier = Risiko, Freigabe nötig)',
+    example: 'adb -s SERIAL logcat lines=200',
+  },
+  {
     name: 'adb_connect',
     description: 'Stellt die ADB-Verbindung über WiFi her (adb tcpip + connect).',
     calls: ['"verbinde gerät per wifi"', '"adb over wifi"', '"adb tcpip"'],

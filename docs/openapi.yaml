@@ -580,6 +580,102 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "503": { $ref: "#/components/responses/JsonError" }
 
+  /api/adb/status:
+    get:
+      tags: [ops]
+      summary: ADB-Träger und Verb-Whitelist (Aktionskette A-5)
+      description: |
+        Zeigt offen, wer ausführt: `carrier.kind = local` (ein `adb`-Binary auf
+        dem Backend-Host, `NEXUS_ADB=/pfad/zum/adb` oder PATH) oder `remote`
+        (registrierter Träger, nur mit `NEXUS_ADB_REMOTE=1`). Ohne Träger ist
+        `carrier: null` — die Web-Seite bleibt dann beim Plan + Skript und
+        `/api/adb/run` antwortet **501**. Dazu die freigegebenen Verben mit
+        Seriennummer-Pflicht, Argumenten, Risiko-Flag und Timeout sowie die
+        Read-only-Liste für `adb shell`.
+      x-rbac: operator
+      responses:
+        "200":
+          description: "{ carrier, localBinary, remoteEnabled, workDir, verbs[], shellAllowlist[], hint }"
+        "401": { $ref: "#/components/responses/JsonError" }
+        "403": { $ref: "#/components/responses/JsonError" }
+
+  /api/adb/run:
+    post:
+      tags: [ops]
+      summary: ADB-Verb über das Backend ausführen (Träger nötig, Exit-Code im Audit)
+      description: |
+        Führt ein Verb der Whitelist (`devices`, `logcat`, `shell`, `pull`,
+        `connect`, `disconnect`, `install`, `uninstall`, `reboot`, `tcpip`) als
+        argv-Liste aus — nie über eine Shell. Seriennummer und Argumente werden
+        gegen Muster geprüft; Datei-Argumente (`pull`, `install`) bleiben unter
+        `server/data/adb/`; `adb shell` akzeptiert nur Read-only-Befehle
+        (`getprop`, `pm list packages`, `dumpsys battery`, `ls`, `df`, …).
+
+        Ehrliche Ablehnungen: unbekanntes Verb → **400** `VERB_NICHT_ERLAUBT`,
+        Muster/Argument-Verstoß → **400**, Befehl nicht read-only → **403**
+        `SHELL_NICHT_FREIGEGEBEN`, Risiko-Verb ohne `approve` → **403**
+        `FREIGABE_NOETIG`, kein Träger → **501** `KEIN_ADB_TRAEGER` (die
+        Web-Seite liefert dann weiterhin Plan + Skript). Ein Lauf mit
+        Exit-Code ≠ 0 antwortet 200 mit `ok: false` und dem echten Exit-Code;
+        jeder Aufruf schreibt `adb_run` ins Audit (`<verb> exit=<code> <grund>`).
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verb]
+              properties:
+                verb: { type: string, example: logcat }
+                serial: { type: string, description: "Geräte-Seriennummer (Pflicht für shell/pull/install/uninstall/reboot/tcpip)", example: R58M123ABC }
+                args:
+                  type: object
+                  description: "Je Verb: tag/lines · command · remote/local · ip · apk · package · mode · port"
+                  example: { lines: "200", tag: "System" }
+                approve: { type: boolean, description: "Freigabe für Risiko-Verben (install/uninstall/reboot/tcpip)" }
+                timeout: { type: number, description: "Sekunden, gekappt auf das Verb-Limit (max. 180)" }
+      responses:
+        "200":
+          description: "{ ok, verb, serial, argv[], carrier, exitCode, output, truncated, durationMs, reason, error?, summary }"
+        "400": { $ref: "#/components/responses/JsonError" }
+        "401": { $ref: "#/components/responses/JsonError" }
+        "403": { $ref: "#/components/responses/JsonError" }
+        "501":
+          description: Kein ADB-Träger registriert (`KEIN_ADB_TRAEGER`) — weiterhin Plan + Skript
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/adb/carrier:
+    post:
+      tags: [ops]
+      summary: Entfernten ADB-Träger registrieren (nur mit NEXUS_ADB_REMOTE=1)
+      description: |
+        Trägt einen ausführenden Host (z. B. die Desktop-Konsole) ein, an den
+        `/api/adb/run` die argv-Liste per POST weitergibt. Ohne
+        `NEXUS_ADB_REMOTE=1` ist der Weg zu → **403** `REMOTE_TRAEGER_DEAKTIVIERT`;
+        ein lokales `adb`-Binary hat immer Vorrang. Einträge verfallen nach
+        `ttl` Sekunden (Standard 120) — danach gilt wieder „kein Träger“.
+      x-rbac: service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, endpoint]
+              properties:
+                name: { type: string, example: desktop-werkstatt }
+                endpoint: { type: string, description: "http(s)://host[:port][/pfad]", example: "http://127.0.0.1:8787/adb" }
+                ttl: { type: number, description: "Gültigkeit in Sekunden (10–3600, Standard 120)" }
+      responses:
+        "200":
+          description: "{ ok: true, carrier: { kind: remote, name, endpoint, registeredAt, expiresAt } }"
+        "400": { $ref: "#/components/responses/JsonError" }
+        "401": { $ref: "#/components/responses/JsonError" }
+        "403": { $ref: "#/components/responses/JsonError" }
+
   /api/diagnostics/iperf:
     get:
       tags: [diagnostics]

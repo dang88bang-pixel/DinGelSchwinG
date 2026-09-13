@@ -260,3 +260,92 @@ export async function fetchWorkflowRegistry(): Promise<WorkflowRegistry> {
   await ensureSession();
   return api<WorkflowRegistry>('/api/workflows/registry');
 }
+
+// ---------------------------------------------------------------------------
+// A-5: ADB über das Backend ausführen (Träger nötig — sonst Plan + Skript)
+// ---------------------------------------------------------------------------
+
+/** Ein freigegebenes Verb aus `server/adb.py` (Spiegel der Whitelist). */
+export interface AdbVerbSpec {
+  verb: string;
+  needsSerial: boolean;
+  args: string[];
+  risky: boolean;
+  timeout: number;
+  help: string;
+}
+
+/** Wer ausführt: `local` = adb-Binary auf dem Backend-Host, `remote` = registrierter Träger. */
+export interface AdbCarrier {
+  kind: 'local' | 'remote';
+  name: string;
+  path?: string;
+  endpoint?: string;
+  expiresAt?: number;
+}
+
+export interface AdbStatus {
+  carrier: AdbCarrier | null;
+  localBinary: string | null;
+  remoteEnabled: boolean;
+  workDir: string;
+  verbs: AdbVerbSpec[];
+  shellAllowlist: string[];
+  hint: string;
+}
+
+export interface AdbRunRequest {
+  verb: string;
+  serial?: string;
+  args?: Record<string, string>;
+  /** Risiko-Verben (install/uninstall/reboot/tcpip) laufen nur mit Freigabe. */
+  approve?: boolean;
+  timeout?: number;
+}
+
+export interface AdbRunResult {
+  ok: boolean;
+  verb: string;
+  serial: string | null;
+  argv: string[];
+  carrier: { kind: string; name?: string };
+  exitCode: number | null;
+  output: string;
+  truncated: boolean;
+  durationMs: number;
+  reason: string;
+  error?: string;
+  /** Klartext-Zeile inkl. Exit-Code und Träger — für Chat/Panel. */
+  summary?: string;
+}
+
+/** Träger-Bestand + Verb-Whitelist. Ohne Träger ist `carrier` null (ehrlich). */
+export async function fetchAdbStatus(): Promise<AdbStatus> {
+  await ensureSession();
+  return api<AdbStatus>('/api/adb/status');
+}
+
+/**
+ * Führt ein Whitelist-Verb aus. Wirft `ApiError(501, 'KEIN_ADB_TRAEGER')`, wenn
+ * nichts ausführt — der Aufrufer bleibt dann beim Plan + Skript.
+ */
+export async function runAdb(req: AdbRunRequest): Promise<AdbRunResult> {
+  await ensureSession();
+  return api<AdbRunResult>('/api/adb/run', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+/** Entfernten Träger (Desktop/Host) registrieren — nur mit `NEXUS_ADB_REMOTE=1`. */
+export async function registerAdbCarrier(
+  name: string,
+  endpoint: string,
+  ttl = 120,
+): Promise<{ ok: boolean; carrier: AdbCarrier }> {
+  await ensureSession();
+  return api<{ ok: boolean; carrier: AdbCarrier }>('/api/adb/carrier', {
+    method: 'POST',
+    body: JSON.stringify({ name, endpoint, ttl }),
+  });
+}

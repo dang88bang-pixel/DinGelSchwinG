@@ -144,6 +144,40 @@ def main() -> int:
           str(unknown)[:200])
     req("GET", "/api/nodes/validate?timeout=abc", token=token, expect=400)
 
+    # --- A-5: ADB-Ausführung über das Backend (Träger entscheidet) ---------
+    adb_status = req("GET", "/api/adb/status", token=token)
+    check("adb-bestand nennt traeger, whitelist und shell-liste",
+          bool(adb_status) and isinstance(adb_status.get("verbs"), list)
+          and len(adb_status["verbs"]) == 10
+          and any(v.get("verb") == "logcat" for v in adb_status["verbs"])
+          and "getprop" in (adb_status.get("shellAllowlist") or [])
+          and "carrier" in adb_status, str(adb_status)[:240])
+    carrier = (adb_status or {}).get("carrier")
+    if carrier:
+        run = req("POST", "/api/adb/run", {"verb": "devices"}, token=token)
+        check("mit traeger steht ein echter exit-code im befund",
+              bool(run) and isinstance(run.get("exitCode"), int)
+              and (run.get("carrier") or {}).get("kind") == carrier.get("kind")
+              and isinstance(run.get("argv"), list), str(run)[:240])
+    else:
+        # Ohne Träger darf nichts erfunden werden: 501 statt Exit-Code 0.
+        req("POST", "/api/adb/run", {"verb": "devices"}, token=token, expect=501)
+    req("POST", "/api/adb/run", {"verb": "format"}, token=token, expect=400)
+    req("POST", "/api/adb/run", {"verb": "reboot", "serial": "R58M123ABC"}, token=token, expect=403)
+    req("POST", "/api/adb/run",
+        {"verb": "shell", "serial": "R58M123ABC", "args": {"command": "rm -rf /sdcard"}},
+        token=token, expect=403)
+    audit_rows = req("GET", "/api/audit", token=token) or []
+    adb_verbs = {v.get("verb") for v in (adb_status or {}).get("verbs", [])}
+    check("adb_run liegt im audit (verb + exit-code oder ablehnungsgrund)",
+          any(r.get("step") == "adb_run"
+              and str(r.get("detail", "")).split(":", 1)[0].strip() in adb_verbs
+              and ("exit=" in str(r.get("detail", "")) or r.get("outcome") == "error")
+              for r in audit_rows), str(audit_rows)[:200])
+    req("POST", "/api/adb/carrier",
+        {"name": "desktop-werkstatt", "endpoint": "http://127.0.0.1:9/adb"}, token=token,
+        expect=200 if (adb_status or {}).get("remoteEnabled") else 403)
+
     req("POST", "/api/webauthn/challenge", {}, token=token)
     op = req("POST", "/api/login", {"email": "operator", "password": "operator"})
     ot = (op or {}).get("token")

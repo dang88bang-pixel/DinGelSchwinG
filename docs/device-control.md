@@ -148,6 +148,89 @@ Schritte des `FlashSetupWizard` (nativ):
 
 ---
 
+## 4a. ADB-Ausführung aus dem Web (Backend-Träger, A-5)
+
+Der Browser hat kein USB/ADB. Seit Aktionskette **A-5** führt das **Backend**
+freigegebene Verben aus, sobald dort ein Träger läuft — sonst bleibt es beim
+gewohnten Plan + ausführbaren Skript (`adb_<art>_<zeitstempel>.sh`), und die
+Antwort sagt das offen (HTTP 501 `KEIN_ADB_TRAEGER`, kein erfundener Exit-Code).
+
+| Endpunkt | RBAC | Zweck |
+|---|---|---|
+| `GET /api/adb/status` | `adb.read` (operator) | Träger, Verb-Whitelist, Read-only-Liste für `adb shell` |
+| `POST /api/adb/run` | `adb.run` (service) | Verb ausführen; Risiko-Verben nur mit `approve: true` |
+| `POST /api/adb/carrier` | `adb.carrier` (service) | entfernten Träger registrieren (nur mit `NEXUS_ADB_REMOTE=1`) |
+
+**Verb-Whitelist** (`server/adb.py` — argv ohne Shell, Seriennummer-Muster, Timeout):
+
+| Verb | serial | Argumente | Risiko | Timeout |
+|---|---|---|---|---|
+| `devices` | – | – | nein | 15 s |
+| `logcat` | optional | `tag`, `lines` | nein | 30 s |
+| `shell` | Pflicht | `command` — nur Read-only (`getprop`, `pm list packages`, `pm list permissions`, `dumpsys battery`, `settings get`, `ls`, `df`, `uptime`, `cat /proc/version`, `id`) | nein | 30 s |
+| `pull` | Pflicht | `remote` (absoluter Gerätepfad), `local` (bleibt in `server/data/adb/`) | nein | 120 s |
+| `connect` / `disconnect` | – | `ip` (`host[:port]`) | nein | 20 s |
+| `install` | Pflicht | `apk` (Datei aus `server/data/adb/`, `-r`) | **ja** | 180 s |
+| `uninstall` | Pflicht | `package` | **ja** | 60 s |
+| `reboot` | Pflicht | `mode` (`bootloader` oder `recovery`) | **ja** | 30 s |
+| `tcpip` | Pflicht | `port` (1–65535) | **ja** | 30 s |
+
+**Träger einrichten**
+
+```bash
+# Variante 1 — ein adb-Binary auf dem Backend-Host (PATH oder explizit):
+NEXUS_ADB=/pfad/zum/adb NEXUS_PORT=5000 python3 server/app.py
+
+# Variante 2 — ein anderer Host führt aus (z. B. die Werkstatt-Desktop).
+# Ohne NEXUS_ADB_REMOTE=1 ist dieser Weg zu (403 REMOTE_TRAEGER_DEAKTIVIERT).
+NEXUS_ADB_REMOTE=1 NEXUS_PORT=5000 python3 server/app.py
+curl -X POST http://127.0.0.1:5000/api/adb/carrier \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"desktop-werkstatt","endpoint":"http://127.0.0.1:8787/adb"}'
+# Der Eintrag gilt 120 s (ttl); danach zählt er nicht mehr als Träger.
+```
+
+**Träger-Vertrag** — was ein entfernter Host beantworten muss (die Desktop-Konsole
+oder ein Termux-Host können ihn später bedienen; geprüft wird er heute per
+HTTP-Stub in `server/tests/test_adb_proxy.py`):
+
+```http
+POST <endpoint>                      # vom Backend an den Träger gesendet
+{ "verb": "devices", "serial": "", "args": {}, "argv": ["adb", "devices", "-l"], "timeout": 15.0 }
+
+200 { "exitCode": 0, "output": "List of devices attached" }
+    { "exitCode": 1, "output": "adb: device not found", "error": "…" }   # Fehler bleiben Fehler
+```
+
+Der Träger führt `argv` aus (ohne Shell) und meldet den **echten** Exit-Code;
+das Backend ergänzt Träger-Name, Dauer, Kürzung und Audit. Ist der Träger nicht
+erreichbar oder antwortet er mit HTTP-Fehler, steht im Befund
+`traeger-nicht-erreichbar` bzw. `traeger-fehler` — niemals ein erfundener Erfolg.
+
+**Im Web-Chat** werden daraus echte Aufrufe: `adb devices`,
+`adb -s <serial> logcat lines=200 tag=System`,
+`adb shell getprop ro.build.version.sdk`, `adb connect 192.168.1.20:5555`,
+`adb pull /sdcard/DCIM dcim`. Risiko-Verben (`adb reboot bootloader`,
+`adb install app.apk`) legen zuerst einen Umsetzungsplan an — ausgeführt wird
+erst nach „freigeben“ (dann mit `approve: true`). Verben außerhalb der
+Whitelist (z. B. `adb backup`, `adb push`) bleiben beim Plan + Skript, weil
+das Backend sie nicht ausführt.
+
+**Antwort-Inhalt:** mit Träger Exit-Code, `argv`, Träger (`local`/`remote`),
+Dauer und Ausgabe (gekürzt auf 20 000 Zeichen); ohne Träger der 501-Grund, der
+lokal ausführbare Befehl und — wo eine Skript-Art passt (`logcat`→logs,
+`pull`→rescue, `shell`→shell, `connect`/`tcpip`→connect) — das fertige Skript.
+Jeder Aufruf schreibt `adb_run` (`<verb> exit=<code> <grund>`) bzw.
+`adb_carrier` ins Audit; `GET /api/audit` zeigt den Exit-Code.
+
+**Tests:** `server/tests/test_adb_proxy.py` (32 Tests: Whitelist, Muster,
+Freigabe, 501 ohne Träger, echte Exit-Codes/Timeouts über ein Fake-`adb`,
+entfernter Träger per HTTP-Stub, RBAC, Live-Endpunkte inkl. Audit) und
+`src/lib/agent/__tests__/adbProxy.test.ts` (16 Tests: Satz→Antrag, Ausführung
+mit Träger, Freigabe-Dialog, 501 → Plan + Skript).
+
+---
+
 ## 5. Brick-Schutz
 
 | Mechanismus | Umsetzung |
@@ -267,4 +350,8 @@ erreichbar:
 □ preFlashCheck blockiert manipulierte SHA-256 zuverlässig
 □ wizardUnlock verweigert ohne confirmed=true
 □ Flash-Historie enthält Eintrag nach Testlauf
+□ Web (A-5): GET /api/adb/status zeigt carrier=null, wenn kein Träger läuft
+□ Web (A-5): POST /api/adb/run → 501 KEIN_ADB_TRAEGER ohne Träger (Web bleibt bei Plan + Skript)
+□ Web (A-5): mit Träger Exit-Code 0 in der Antwort und adb_run-Eintrag im Audit
+□ Web (A-5): Risiko-Verb ohne approve=true → 403 FREIGABE_NOETIG
 ```

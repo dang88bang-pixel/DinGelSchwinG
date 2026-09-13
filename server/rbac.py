@@ -24,6 +24,9 @@ ACTION_MIN_ROLE = {
     "discovery.scan": "service",
     "scripts.run": "service",
     "diag.run": "operator",
+    "adb.read": "operator",      # A-5: Bestand/Träger einsehen
+    "adb.run": "service",        # A-5: Verb ausführen (Risiko-Verben brauchen Freigabe)
+    "adb.carrier": "service",    # A-5: entfernten Träger registrieren
 }
 
 

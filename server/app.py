@@ -27,6 +27,7 @@ from . import store
 from .auth import decode_jwt, issue_jwt, verify_password
 from .diagnostics import payload_bytes, ping_targets, throughput_selftest
 from .discovery import collect_all, default_gateway, merge_discovered, system_load
+from . import adb as adb_proxy
 from .rbac import allows
 from .rate_limiter import allow as rate_allow
 from .device_manager import annotate_permissions
@@ -694,6 +695,70 @@ def handle(handler: BaseHTTPRequestHandler, method: str) -> None:
                     "ok" if result.ok else "error",
                     f"{result.name} exit={result.exit_code}")
         _json(handler, 200, result.describe())
+        return
+
+    # --- ADB-Ausführung über das Backend (Aktionskette A-5) ---
+    # Der Browser hat kein USB/ADB. Läuft hier ein Träger (adb-Binary auf dem
+    # Backend-Host oder ein mit NEXUS_ADB_REMOTE=1 freigegebener Host), führt
+    # das Backend das Verb wirklich aus; ohne Träger bleibt es beim Plan +
+    # Skript der Web-Seite (501 `kein_adb_traeger` — kein erfundener Exit-Code).
+    if path == "/api/adb/status" and method == "GET":
+        if not _need(handler, "adb.read"):
+            return
+        _json(handler, 200, {"type": "adb.status", **adb_proxy.status()})
+        return
+
+    if path == "/api/adb/carrier" and method == "POST":
+        claims = _need(handler, "adb.carrier")
+        if not claims:
+            return
+        try:
+            body = _read_json(handler)
+        except ValueError:
+            _json(handler, 400, {"type": "error", "code": "BAD_REQUEST", "message": "JSON erwartet"})
+            return
+        try:
+            carrier = adb_proxy.register_carrier(
+                str(body.get("name") or ""), str(body.get("endpoint") or ""),
+                float(body.get("ttl") or adb_proxy.CARRIER_TTL_S))
+        except adb_proxy.AdbError as exc:
+            store.audit("adb_carrier", claims["sub"], claims["role"], "error",
+                        f"{exc.code}: {exc.message}")
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
+            return
+        store.audit("adb_carrier", claims["sub"], claims["role"], "ok",
+                    f"traeger={carrier['name']} endpoint={carrier['endpoint']}")
+        _json(handler, 200, {"type": "adb.carrier", "ok": True, "carrier": carrier})
+        return
+
+    if path == "/api/adb/run" and method == "POST":
+        claims = _need(handler, "adb.run")
+        if not claims:
+            return
+        try:
+            body = _read_json(handler)
+        except ValueError:
+            _json(handler, 400, {"type": "error", "code": "BAD_REQUEST", "message": "JSON erwartet"})
+            return
+        verb = str(body.get("verb") or "").strip().lower()
+        serial = str(body.get("serial") or "").strip()
+        args = body.get("args") if isinstance(body.get("args"), dict) else {}
+        approve = bool(body.get("approve"))
+        try:
+            timeout = float(body["timeout"]) if body.get("timeout") else None
+        except (TypeError, ValueError):
+            timeout = None
+        try:
+            result = adb_proxy.run(verb, serial, args, timeout, approve)
+        except adb_proxy.AdbError as exc:
+            store.audit("adb_run", claims["sub"], claims["role"], "error", f"{verb}: {exc.code}")
+            _json(handler, exc.status, {"type": "error", "code": exc.code, "message": exc.message})
+            return
+        store.audit("adb_run", claims["sub"], claims["role"],
+                    "ok" if result.get("ok") else "error",
+                    f"{verb}: exit={result.get('exitCode')} {result.get('reason')}")
+        _json(handler, 200, {"type": "adb.result", **result,
+                             "summary": adb_proxy.describe_result(result)})
         return
 
     if path == "/api/webauthn/challenge" and method == "POST":

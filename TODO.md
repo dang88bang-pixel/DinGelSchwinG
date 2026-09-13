@@ -1,7 +1,7 @@
 # TODO — offene & teilfertige Punkte
 
 **Stand: 2026-09-13 · Quelle: [`GAP_MATRIX.md`](GAP_MATRIX.md) Fassung 2.0 (§ 12 Rest-Gaps `G-*`,
-§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (407 Dateien, 4 Nicht-REAL)**
+§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (411 Dateien, 4 Nicht-REAL)**
 
 Diese Liste ist die **Arbeitsliste** des Projekts. Jeder Eintrag nennt Ist-Zustand, Ziel,
 konkrete Schritte und — wichtig — den **Nachweis**, mit dem der Punkt als erledigt gilt.
@@ -23,7 +23,7 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 | [A-3](#a-3-llm-kette-multi-turn) | LLM-Kette: Multi-Turn statt 1 Durchgang / max. 5 Tools | **erledigt ✅ 2026-09-13** | P1 | M |
 | [A-7](#a-7-ingest--grabber-offline-pfad) | Ingest/Grabber ohne Gateway (Offline-Pfad) | **erledigt ✅ 2026-09-13** | P1 | M |
 | [A-6](#a-6-freie-button-aktionen-taskcustom) | Freie Button-Aktionen (`task:custom`) | **erledigt ✅ 2026-09-13** | P1 | S |
-| [A-5](#a-5-adb-ausführung-aus-dem-web) | ADB-Ausführung aus dem Web (nur Plan/Skript) | n/a im Browser | P1 | M |
+| [A-5](#a-5-adb-ausführung-aus-dem-web) | ADB-Ausführung aus dem Web (Server-Proxy mit Träger) | **erledigt ✅ 2026-09-13** | P1 | M |
 | [A-12](#a-12-demo-geräteliste-im-desktop-kennzeichnen) | Demo-Geräteliste im Desktop kennzeichnen | **erledigt ✅ 2026-09-13** | P1 | S |
 | [G-5](#g-5--a-9-default-port-8765-entflechten) | Default-Port 8765 entflechten (= A-9) | **erledigt ✅ 2026-09-13** | P1 | S |
 | [G-9](#g-9-bundle-splitting) | Bundle-Splitting (Chunk > 500 kB) | **erledigt ✅ 2026-09-13** | P1 | M |
@@ -220,23 +220,55 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
   `npm test` und `python3 -m unittest discover -s desktop/tests` sind grün.
 
 ### A-5 ADB-Ausführung aus dem Web
-- **Status:** n/a im Browser (Design-Grenze), offen als Server-Proxy · **Quelle:** GAP-Matrix A-5 (§ 14.3)
-- **Betroffen:** `src/config/systemInstructions.ts` (`ADB_SKILLS`, 7 Skills ab Zeile 79),
-  `src/lib/agent/agentEngine.ts` (`tryAdbIntents` → `_plan_adb` / `generateAdbScript`),
-  `desktop/data/skillz_adb.md` (dieselben 8 Einträge) + `desktop/utils/agent.py` (`_generate_adb`),
-  `android/app/src/main/assets/devicecontrol/adb` (5 142 600 B, ELF)
-- **Ist:** Web **und** Desktop liefern zur ADB-Kette einen **Plan + ein ausführbares Skript**
-  (`adb_<art>_<zeitstempel>.sh` in `scripts_dir`), führen die Aktionen aber selbst **nicht** aus:
-  der Browser hat kein USB/ADB, die Desktop-Konsole schreibt nur die Datei. `adb_devices` fragt im
-  Desktop live (`_clients.adb_devices()`, sonst Demo-Fallback → [A-12](#a-12-demo-geräteliste-im-desktop-kennzeichnen)),
-  im Browser gibt es einen ehrlichen Hinweis (`intentAdbDevices`).
+- **Status:** ✅ **erledigt 2026-09-13** — Server-Proxy mit Träger-Pflicht · **Quelle:** GAP-Matrix A-5 (§ 14.3)
+- **Betroffen:** `server/adb.py` (neu), `server/app.py` (`GET /api/adb/status`, `POST /api/adb/run`,
+  `POST /api/adb/carrier`), `server/rbac.py` (`adb.read`/`adb.run`/`adb.carrier`),
+  `src/lib/agent/adbCommand.ts` (neu), `src/lib/api/client.ts` (`runAdb`, `fetchAdbStatus`,
+  `registerAdbCarrier`), `src/lib/agent/agentEngine.ts` (`intentAdbRunLive`, Freigabe-Zweig),
+  `src/config/systemInstructions.ts` (Skill `adb_run`), `docs/openapi.yaml`, `docs/device-control.md` §4a
+- **Ist (vorher):** Web **und** Desktop lieferten zur ADB-Kette einen **Plan + ein ausführbares Skript**
+  (`adb_<art>_<zeitstempel>.sh`), führten die Aktionen aber selbst **nicht** aus: der Browser hat
+  kein USB/ADB, die Desktop-Konsole schreibt nur die Datei.
 - **Ziel:** Web kann ADB über einen freigegebenen Ausführer laufen lassen.
-- **Schritte:**
-  - [ ] Backend-Endpunkt `POST /api/adb/run` (Whitelist-Verben, Geräte-Seriennummer, Timeout, Freigabe-Dialog)
-  - [ ] Ausführung nur, wenn ein ADB-Träger (Desktop/Host) registriert ist — sonst weiterhin Plan + Skript
-  - [ ] Audit je Aufruf (`store.audit("adb_run", …)`) und Anzeige des Exit-Codes
-  - [ ] `docs/openapi.yaml` + `docs/device-control.md` nachziehen
+- **Umgesetzt:**
+  - [x] `POST /api/adb/run` mit Whitelist (**10 Verben**: `devices`, `logcat`, `shell`, `pull`,
+        `connect`, `disconnect`, `install`, `uninstall`, `reboot`, `tcpip`) — argv-Übergabe ohne
+        Shell, Seriennummer-/Argument-Muster, Timeout je Verb (Deckel 180 s), Ausgabe-Cap
+        20 000 Zeichen; `adb shell` nur mit Read-only-Befehlen (`getprop`, `pm list packages`,
+        `dumpsys battery`, `ls`, `df`, …), Datei-Argumente (`pull`/`install`) bleiben in
+        `server/data/adb/` (kein `..`, kein Absolutpfad)
+  - [x] Ausführung **nur** mit Träger: `adb`-Binary auf dem Backend-Host (`NEXUS_ADB=/pfad` oder
+        PATH-Suche) oder registrierter entfernter Host (`POST /api/adb/carrier`, nur mit
+        `NEXUS_ADB_REMOTE=1`, TTL 120 s). Ohne Träger → **501** `KEIN_ADB_TRAEGER`; die Web-Seite
+        bleibt dann beim Plan + Skript und nennt den lokal ausführbaren Befehl
+  - [x] Freigabe & RBAC: Risiko-Verben (`install`, `uninstall`, `reboot`, `tcpip`) → **403**
+        `FREIGABE_NOETIG` ohne `approve=true`; im Chat legt `adb reboot bootloader` erst den
+        Umsetzungsplan an und läuft nach „freigeben“ (`adb.run` ab service, `adb.read` ab operator,
+        `adb.carrier` ab service)
+  - [x] Audit je Aufruf: `adb_run` mit `<verb>: exit=<code> <grund>` (bzw. Ablehnungsgrund) und
+        `adb_carrier` bei Registrierung; die Antwort zeigt Exit-Code, `argv`, Träger (`local`/
+        `remote`), Dauer und Ausgabe — Fehler-Exit-Codes werden nicht zu Erfolg
+  - [x] Web-Kette: `parseAdbCommand()` macht aus „adb -s <serial> logcat lines=200 tag=System“
+        den Request, `intentAdbRunLive()` zeigt den echten Befund; Verben außerhalb der Whitelist
+        (z. B. `adb backup`, `adb push`) laufen weiterhin über Plan + Skript
+  - [x] Doku: `docs/openapi.yaml` (33 → **36 Pfade**), `docs/device-control.md` §4a mit
+        Verb-Tabelle, Träger-Einrichtung und Träger-Vertrag; Smoke-Checks in `tests/suite.py`
+  - [x] Tests: `server/tests/test_adb_proxy.py` (**32** — Fake-`adb` mit echten Exit-Codes und
+        echtem Timeout, entfernter Träger per HTTP-Stub, RBAC-Matrix, Live-Endpunkte inkl. Audit)
+        und `src/lib/agent/__tests__/adbProxy.test.ts` (**16** — Satz→Antrag, Ausführung mit
+        Träger, Freigabe-Dialog, 501 → Plan + Skript)
+- **Grenze (bleibt):** Ein **Ausführer auf der Desktop-/Host-Seite** (Träger-Endpunkt, der die
+  übergebene `argv` wirklich laufen lässt) ist nicht gebaut — der Vertrag ist dokumentiert und
+  per HTTP-Stub getestet. `adb backup`/`adb push` bleiben bewusst außerhalb der Whitelist.
 - **Fertig wenn:** Ohne Träger weiterhin Plan/Skript (Test), mit Träger ein echter Exit-Code im Audit steht.
+- **Nachweis:** Ohne Träger: `test_ausfuehrung_ohne_traeger_bleibt_501` (501 `KEIN_ADB_TRAEGER`,
+  kein Exit-Code) + `adbProxy.test.ts` „erfindet ohne Träger keine Geräte und keinen Exit-Code“
+  (Antwort enthält `Kein ADB-Träger`, `adb devices -l`, aber keinen `Exit-Code n`). Mit Träger:
+  `test_devices_laeuft_mit_exit_code_0_und_audit` findet `adb_run … devices: exit=0` im Audit —
+  live nachvollzogen mit `NEXUS_ADB=<fake-adb>` auf Port 5001 (`exitCode: 0`,
+  `argv: ["…/adb","devices","-l"]`, Audit `adb_run admin ok | devices: exit=0 exit-code`).
+  Stände: `npm test` **102/102** · `server/tests` **90/90** · `desktop/tests` **93/93** ·
+  `tests/suite.py` + `tests/chain.py` **failed: 0** · `npm run lint`/`build` grün.
 
 ### A-12 Demo-Geräteliste im Desktop kennzeichnen
 - **Status:** ✅ **erledigt 2026-09-13** (neu gefunden und sofort geschlossen, § 14.4) ·
@@ -292,8 +324,9 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
   - [x] Budget-Wächter `scripts/check-bundle.mjs` (läuft nach `npm run build`): initial ≤ 500 kB,
         Einzel-Chunk ≤ 520 kB, gesamt ≤ 700 kB — sonst Build-Fehler
 - **Fertig wenn:** `npm run build` keine Chunk-Warnung mehr ausgibt (Zahl im Commit nennen).
-- **Nachweis:** `npm run build` ohne Chunk-Warnung; Erstladung **653,01 kB** (gzip **201,26 kB**)
-  — 626,90 kB direkt nach dem Split, +26 kB durch A-10-Knotenpanel und A-7-Drop-Zone.
+- **Nachweis:** `npm run build` ohne Chunk-Warnung; Erstladung **659,86 kB** (gzip **203,71 kB**)
+  — 626,90 kB direkt nach dem Split, +26 kB durch A-10-Knotenpanel und A-7-Drop-Zone,
+  +6,85 kB durch die A-5-ADB-Kette (`adbCommand.ts`, `runAdb`, `intentAdbRunLive`).
   Vorher: 1 940 kB. Größter Einzel-Chunk `three` ≈ 390 kB (nur 2 Module, nicht weiter teilbar),
   `vendor-transformers` 497 kB als Lazy-Chunk. `node scripts/check-bundle.mjs` grün.
 
@@ -426,7 +459,7 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 
 ## Anhang — Nicht-REAL-Befunde aus `INVENTAR.csv`
 
-`python3 scripts/audit_inventar.py` meldet 407 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
+`python3 scripts/audit_inventar.py` meldet 411 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
 hier einen Eintrag — damit kein Marker unbemerkt liegen bleibt:
 
 | Befund | Datei | TODO-ID | Bewertung |
@@ -453,7 +486,7 @@ Fake-`success` in `workflow:<name>`, `POST /api/workflows`, `POST /api/scripts/r
 Desktop-Test-Isolation + `DGS_API_URL` · Frontend-Test-Isolation ·
 **A-12** Demo-Geräteliste gekennzeichnet · **G-5/A-9** Port 8765 entflechtet (Terminal 8768) ·
 **A-8/G-4** toter 3D-Raycast entfernt (`RaycastUtil.kt`, `[STUB]`-Befund weg) ·
-**G-9** Bundle gesplittet (Erstladung 1 940 kB → **653,01 kB**, Budget-Wächter `scripts/check-bundle.mjs`) ·
+**G-9** Bundle gesplittet (Erstladung 1 940 kB → **659,86 kB**, Budget-Wächter `scripts/check-bundle.mjs`) ·
 **A-1** Skript-Whitelist im Backend (SHA-256-Pins, `server/script_runner.py`) ·
 **A-2** Workflow-Registry (`config/workflows.json`, `server/workflows.py`, `steps[]` mit Exit-Codes) ·
 **A-6** freie Button-Aktionen `skill:<name>` (Web + Desktop) ·
@@ -462,7 +495,10 @@ Desktop-Test-Isolation + `DGS_API_URL` · Frontend-Test-Isolation ·
 `tokenize()`-Backtracking in `src/lib/rag.ts` (84 s → 66 ms bei 400 000 Zeichen) ·
 **A-7** Ingest/Grabber ohne Gateway: `grabFromFile()`, `ingest_file()`, Quelle `lokal`,
 Drop-Zone im 📥-Panel, Markdown-Titel/Gliederung in beiden Spiegeln ·
-Teststände: `npm test` 36/36 → **86/86** · `server/tests` 18 → **58** · `desktop/tests` 62 → **93** ·
+**A-5** ADB-Ausführung aus dem Web: `server/adb.py` (10 Whitelist-Verben, argv ohne Shell),
+`POST /api/adb/run` + `/api/adb/carrier`, `GET /api/adb/status`, Träger-Pflicht (501 ohne Träger),
+Audit `adb_run` mit Exit-Code, Chat-Kette `parseAdbCommand()` → `intentAdbRunLive()` ·
+Teststände: `npm test` 36/36 → **102/102** · `server/tests` 18 → **90** · `desktop/tests` 62 → **93** ·
 `tests/suite.py` **failed: 0** · Watchdog/Log-Rotation/Bug-Reports · Gateway-Session-Persistenz ·
 Genesis-`/graph` + Polar-Switch.
 

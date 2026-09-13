@@ -38,7 +38,13 @@ import {
   type GatewayStatus, type McpTool,
 } from '../../lib/mcpClient';
 import { deviceControl } from '../../lib/deviceControl';
-import { ApiError, runWorkflow as runBackendWorkflowApi, type WorkflowRun } from '../api/client';
+import {
+  ApiError, runAdb, runWorkflow as runBackendWorkflowApi,
+  type AdbRunResult, type WorkflowRun,
+} from '../api/client';
+import {
+  adbScriptKind, describeAdbCommand, parseAdbCommand, type AdbRequest,
+} from './adbCommand';
 
 export interface AgentMessage {
   id: number;
@@ -186,7 +192,8 @@ export class AgentEngine {
   tasks: WorkflowEntry[] = [];
   attachments: string[] = [];
   backend: TransformersBackend = new TransformersBackend();
-  pendingPlan: { kind: string; plan: string } | null = null;
+  /** A-5: `adb` trägt einen ausführbaren Antrag — nach „freigeben“ läuft er wirklich. */
+  pendingPlan: { kind: string; plan: string; adb?: AdbRequest } | null = null;
   private nextMsgId = 1;
   /** Live-Caches (Phase 2.1): frische Gateway-/Nativ-Daten, sonst Demo-Fallback. */
   private deviceCache: DeviceCache | null = null;
@@ -320,6 +327,11 @@ export class AgentEngine {
       const plan = this.pendingPlan;
       this.pendingPlan = null;
       this.audit('approve_plan', plan.kind);
+      // A-5: liegt ein ADB-Antrag vor, führt das Backend ihn jetzt wirklich aus
+      // (Träger vorhanden) oder meldet ehrlich, dass keiner läuft.
+      if (plan.adb) {
+        return '✅ Freigabe erteilt.\n' + await this.intentAdbRunLive(plan.adb, { approved: true });
+      }
       return '✅ Freigabe erteilt.\n' + this.generateAdbScript(plan.kind);
     }
 
@@ -1070,6 +1082,103 @@ export class AgentEngine {
     }
   }
 
+  /**
+   * A-5: ADB-Verb über das Backend ausführen (`POST /api/adb/run`).
+   *
+   * Ohne Träger antwortet das Backend mit 501 `KEIN_ADB_TRAEGER` — dann bleibt
+   * es beim gewohnten Plan + Skript und die Antwort sagt das offen. Mit Träger
+   * stehen der echte Exit-Code, argv und die Ausgabe hier und im Server-Audit
+   * (`adb_run`). Risiko-Verben laufen erst nach ausdrücklicher Freigabe.
+   */
+  async intentAdbRunLive(req: AdbRequest, opts: { approved?: boolean } = {}): Promise<string> {
+    const approved = Boolean(opts.approved || req.approved);
+    const command = describeAdbCommand(req);
+    this.audit('adb_run',
+      `${req.verb}${req.serial ? ` serial=${req.serial}` : ''}${approved ? ' (freigegeben)' : ''}`);
+    liveMetrics.noteTool(`adb:${req.verb}`);
+
+    if (req.risky && !approved) {
+      const plan =
+        `1. Aktion: \`${command}\` — Risiko-Verb \`${req.verb}\`\n` +
+        '2. Ausführung: über das Backend (`POST /api/adb/run`), nur mit registriertem ADB-Träger\n' +
+        '3. Wirkung: greift in das Gerät ein (Neustart/Datenverlust möglich)\n' +
+        '4. Absicherung: Whitelist-Verb, argv ohne Shell, Seriennummer-Muster, Timeout, Audit mit Exit-Code\n' +
+        '5. Compliance: nur eigene oder schriftlich autorisierte Geräte';
+      this.pendingPlan = { kind: adbScriptKind(req.verb) ?? req.verb, plan, adb: req };
+      this.audit('plan_adb', `${req.verb} (risiko)`);
+      return (
+        `📋 Umsetzungsplan (Modus B – ADB-Risikoaktion: ${req.verb})\n${plan}\n\n` +
+        'Vor Ausführung ist deine ausdrückliche Freigabe erforderlich.\n' +
+        'Antworte mit **„freigeben“**, um fortzufahren.'
+      );
+    }
+
+    try {
+      const result = await runAdb({
+        verb: req.verb,
+        ...(req.serial ? { serial: req.serial } : {}),
+        ...(Object.keys(req.args).length ? { args: req.args } : {}),
+        ...(approved ? { approve: true } : {}),
+      });
+      return this.formatAdbResult(result);
+    } catch (e) {
+      return this.adbFailureText(req, e);
+    }
+  }
+
+  /** Echten Befund anzeigen: Exit-Code, Träger, argv, Dauer, Ausgabe (gekürzt). */
+  formatAdbResult(result: AdbRunResult): string {
+    const head = result.ok
+      ? `✅ ADB \`${result.verb}\` ausgeführt — Exit-Code 0`
+      : result.exitCode === null
+        ? `⚠️ ADB \`${result.verb}\` ohne Exit-Code (${result.reason})`
+        : `⚠️ ADB \`${result.verb}\` — Exit-Code ${result.exitCode} (${result.reason})`;
+    const carrier = result.carrier ?? { kind: 'unbekannt' };
+    const lines = [
+      head,
+      `Träger: ${carrier.kind}${carrier.name ? ` (${carrier.name})` : ''} · ${result.durationMs} ms · ` +
+        `argv: \`${(result.argv ?? []).join(' ')}\``,
+    ];
+    if (result.error) lines.push(`Fehler: ${result.error}`);
+    const output = (result.output ?? '').trim();
+    if (output) {
+      lines.push(`\`\`\`\n${AgentEngine.clip(output, 1400)}${result.truncated ? '\n… (Ausgabe gekürzt)' : ''}\n\`\`\``);
+    } else if (result.ok) {
+      lines.push('Ausgabe: (leer)');
+    }
+    lines.push('Audit: `adb_run` mit Exit-Code im Backend · Träger-Bestand: `GET /api/adb/status`');
+    return lines.join('\n');
+  }
+
+  /** 501/RBAC/Netzfehler ehrlich melden und den Ausweg (Plan/Skript) zeigen. */
+  adbFailureText(req: AdbRequest, e: unknown): string {
+    const command = describeAdbCommand(req);
+    const kind = adbScriptKind(req.verb);
+    if (e instanceof ApiError && e.code === 'KEIN_ADB_TRAEGER') {
+      return (
+        `⚠️ Kein ADB-Träger am Backend — \`${req.verb}\` wurde **nicht** ausgeführt (HTTP 501 \`${e.code}\`).\n` +
+        `${e.message}\n\n` +
+        'Träger einrichten: `adb`-Binary auf dem Backend-Host (`NEXUS_ADB=/pfad/zum/adb`) ' +
+        'oder Host registrieren (`POST /api/adb/carrier`, nur mit `NEXUS_ADB_REMOTE=1`).\n' +
+        `Lokal ausführbar wäre: \`${command}\`` +
+        (kind ? `\n\n${this.generateAdbScript(kind)}` : '')
+      );
+    }
+    if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+      return (
+        `❌ ADB \`${req.verb}\` abgelehnt (${e.status} \`${e.code}\`): ${e.message}\n` +
+        'RBAC: `adb.run` braucht mindestens die Rolle service, Risiko-Verben zusätzlich `approve=true`.'
+      );
+    }
+    if (e instanceof ApiError) {
+      return `❌ ADB \`${req.verb}\` abgelehnt (${e.status} \`${e.code}\`): ${e.message}\nBefehl: \`${command}\``;
+    }
+    return (
+      `❌ ADB \`${req.verb}\` nicht ausgeführt: ${String((e as Error)?.message ?? e).slice(0, 200)}\n` +
+      `Backend erreichbar? \`GET /api/adb/status\` zeigt Träger und Verb-Whitelist. Lokal: \`${command}\``
+    );
+  }
+
   /** Echter Skript-Start: network_scan läuft live, Rest ehrlich verortet. */
   async intentRunScriptLive(t: string): Promise<string> {
     const m = t.match(/([\w.-]+\.(py|sh|ps1|js))/);
@@ -1306,6 +1415,12 @@ export class AgentEngine {
 
     // REAL-IMPLEMENTATION 2026-09-11: Geräte/Clients/Scans/Skripte zuerst live
     // versuchen (Sync-Varianten in tryIntents bleiben als Fallback bestehen).
+    // A-5: „adb <verb> …“ läuft über das Backend, wenn dort ein Träger bereitsteht.
+    // Native bleibt `adb devices` bei der echten USB-Abfrage der App.
+    const adbRequest = parseAdbCommand(t);
+    if (adbRequest && !(adbRequest.verb === 'devices' && deviceControl.isNative())) {
+      return this.intentAdbRunLive(adbRequest);
+    }
     if (this.mode === 'adb' && /\badb\b/.test(lower) && /(gerät|geraet|device|list|zeige|welche|status)/.test(lower)) {
       return this.intentAdbDevicesLive();
     }

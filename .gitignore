@@ -78,6 +78,7 @@ public/models/
 # A-1: `server/data/` ist Laufzeit (data.db, Audit), ABER die Skript-Whitelist
 # unter `server/data/scripts/` ist Quellcode und muss versioniert sein
 # (SHA-256-Pinning in manifest.json wirkt nur gegen eingecheckte Dateien).
+# A-5: `server/data/adb/` ist das Ziel für `adb pull`/`adb install` (Laufzeit).
 server/data/*
 !server/data/scripts/
 server/**/__pycache__/
