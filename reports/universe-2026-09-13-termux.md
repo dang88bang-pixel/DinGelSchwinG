@@ -98,6 +98,12 @@ Lebenszyklus in einem isolierten Lauf (eigene Ports 8891/8865/8890, eigener `HOM
 16-ble-scan.sh        → 📡 2 Gerät(e) über mock
 ```
 
+## CI
+
+| Lauf | Inhalt | Ergebnis |
+|---|---|---|
+| [34732498229](https://github.com/dang88bang-pixel/DinGelSchwinG/actions/runs/34732498229) | Inventar-Audit (Schritt 1) + Test-Harness (Schritt 5) auf `445ba8f` | ✅ Audit-Job grün, Harness-Job grün — inkl. neuem Schritt **„Termux-Tests (mobile-server)"** |
+
 ## Grenzen (bewusst offen)
 
 1. **Echte Android-Hardware fehlt in dieser Umgebung.** Der Installer wurde in einem simulierten
@@ -125,5 +131,5 @@ Historie. Belege für die früheren Commits: CI-Läufe 34729762869 und 347298937
 
 _Erzeugt am 2026-09-13 aus den echten Läufen dieses Branches._
 
-**Fazit: READY** (Code, Tests, Doku, Live-Kette und App-Panel belegt; geräteseitige Ausführung
+**Fazit: READY** (CI-Lauf 34732498229 grün) (Code, Tests, Doku, Live-Kette und App-Panel belegt; geräteseitige Ausführung
 braucht echte Termux-Hardware)
