@@ -1,0 +1,63 @@
+{
+  "repo": "/home/user/DinGelSchwinG",
+  "stacks": [
+    "node",
+    "android",
+    "python"
+  ],
+  "platforms": [
+    "Capacitor (Android/iOS/Web)",
+    "Android (Gradle)",
+    "Container (Docker)",
+    "Web/PWA"
+  ],
+  "timestamp": "2026-09-13T00:27:06+0000",
+  "checks": [
+    {
+      "name": "Build/Test (node)",
+      "status": "✅",
+      "detail": "npm test --if-present"
+    },
+    {
+      "name": "Build/Test (android)",
+      "status": "⏭",
+      "detail": "Android SDK fehlt (ANDROID_HOME/ANDROID_SDK_ROOT) — `./gradlew testDebugUnitTest`"
+    },
+    {
+      "name": "Build/Test (python)",
+      "status": "✅",
+      "detail": "ast.parse-Syntaxprüfung (pytest nicht installiert): 77 Dateien geprüft, 0 Syntaxfehler"
+    },
+    {
+      "name": "Build-Artefakt (node)",
+      "status": "✅",
+      "detail": "npm run build"
+    },
+    {
+      "name": "Build-Artefakt (android)",
+      "status": "⏭",
+      "detail": "kein Build-Schritt definiert"
+    },
+    {
+      "name": "Build-Artefakt (python)",
+      "status": "⏭",
+      "detail": "kein Build-Schritt definiert"
+    },
+    {
+      "name": "health:5000",
+      "status": "⏭",
+      "detail": "kein Listener auf 127.0.0.1"
+    },
+    {
+      "name": "health:8765",
+      "status": "⏭",
+      "detail": "kein Listener auf 127.0.0.1"
+    },
+    {
+      "name": "health:8791",
+      "status": "⏭",
+      "detail": "kein Listener auf 127.0.0.1"
+    }
+  ],
+  "verdict": "PARTIAL"
+}

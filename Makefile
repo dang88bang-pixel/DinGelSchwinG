@@ -1,4 +1,4 @@
-.PHONY: install build up down logs reset test server
+.PHONY: install build up down logs reset test server universe
 
 install:
 	npm ci || npm install
@@ -26,6 +26,13 @@ test:
 	python3 -m unittest discover -s desktop/tests -v
 	python3 tests/suite.py
 	npm run type-check
+
+# Projektagnostisches Audit + Test-Harness (Schritt 1 und 5)
+# Hinweis: laufende Backends werden mitgeprüft, z. B. UNIVERSE_HEALTH_PORTS=5000,8791
+universe:
+	bash scripts/universe_audit.sh
+	UNIVERSE_HEALTH_PORTS=$${UNIVERSE_HEALTH_PORTS:-5000,8765,8791} \
+	  python3 tests/universe_harness.py --json reports/harness.json
 
 server:
 	python3 server/app.py

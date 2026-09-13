@@ -1,0 +1,75 @@
+name: Universe Check
+
+# Schritt 1 (Inventar) und Schritt 5 (Testen) der Auftragsbeschreibung
+# .github/agents/universal-engineer.md — projektagnostisch, läuft bei jedem Push/PR.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: universe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Inventar (Schritt 1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Audit-Skript ausführen
+        run: bash scripts/universe_audit.sh
+
+      - name: Bericht prüfen
+        run: |
+          test -s reports/inventory.md
+          echo "Zeilen: $(wc -l < reports/inventory.md)"
+          echo "Markiert: $(grep -cE 'MOCK|TODO|STUB|FIXME|PLACEHOLDER' reports/inventory.md || true)"
+
+      - name: Bericht als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory
+          path: reports/inventory.md
+          retention-days: 30
+
+  test:
+    name: Test-Harness (Schritt 5)
+    needs: audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Abhängigkeiten installieren
+        run: npm ci --no-audit --no-fund
+
+      - name: Test-Harness ausführen
+        env:
+          # Informative Health-Probes (offline ⇒ ⏭, kein Fehlschlag ohne --require-health)
+          UNIVERSE_HEALTH_PORTS: "5000,5173,8790,8791,8080-8085"
+        # --with-build erzeugt zusätzlich das Frontend-Artefakt (dist/) — Schritt 5.
+        run: python3 tests/universe_harness.py --with-build --json reports/harness.json
+
+      - name: Ergebnis als Artefakt hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: universe-harness
+          path: reports/harness.json
+          if-no-files-found: ignore
+          retention-days: 30
