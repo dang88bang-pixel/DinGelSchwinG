@@ -1,4 +1,4 @@
-# HackGPT-CPS — NEXUS-BUILDER v2.2
+#GPT-CPS — NEXUS-BUILDER v2.2
 ## Erweiterung: Service-/Developer-Zugriff & Sicheres Terminal
 
 Berechtigungserweiterung (Rollen Service L2 / Developer L3) plus gesichertes Terminal für Hardware-, Netzwerkgeräte und USB-C-Dongles. Zielrollen: Anwender Service / Entwickler — genau dafür ist der neue Zugriffsweg gebaut.
