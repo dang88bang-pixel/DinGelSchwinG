@@ -16,7 +16,6 @@ import PortViewPanel from './PortViewPanel';
 import DevicePortViewPanel from './DevicePortViewPanel';
 import FlashCenterPanel from './FlashCenterPanel';
 import IntegrationsPanel from './IntegrationsPanel';
-import TermuxPanel from './TermuxPanel';
 import AccessConsole from './AccessConsole';
 import NetworkPanel from './NetworkPanel';
 import StatusBoard from './StatusBoard';
@@ -57,7 +56,7 @@ export default function NetworkDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [termOpen, setTermOpen] = useState(false);
-  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'devices' | 'flash' | 'grabber' | 'integrations' | 'termux' | null>(null);
+  const [panel, setPanel] = useState<'gallery' | 'dashboard' | 'knowledge' | 'mcp' | 'portview' | 'devices' | 'flash' | 'grabber' | 'integrations' | null>(null);
 
   useEffect(() => {
     loadBLEWasm().then(mod => {
@@ -335,7 +334,6 @@ export default function NetworkDashboard() {
           ['flash', '🚀', 'Flash-Center (Custom-OS)'],
           ['grabber', '📥', 'Grabber (URL-Import)'],
           ['integrations', '🔗', 'Anbindungen (Geräte · Hersteller · Speicher)'],
-          ['termux', '📟', 'Termux (API · Widgets · Dienst)'],
         ] as const).map(([id, icon, title]) => (
           <button
             key={id}
@@ -359,7 +357,6 @@ export default function NetworkDashboard() {
       {panel === 'flash' && <FlashCenterPanel onClose={() => setPanel(null)} />}
       {panel === 'grabber' && <AssetGrabberPanel onClose={() => setPanel(null)} />}
       {panel === 'integrations' && <IntegrationsPanel onClose={() => setPanel(null)} />}
-      {panel === 'termux' && <TermuxPanel onClose={() => setPanel(null)} />}
     </div>
   );
 }

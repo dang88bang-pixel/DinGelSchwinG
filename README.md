@@ -78,6 +78,7 @@ Umgesetzt in dieser App:
 | **Software-Grabber** – URL → Beats/Samples/UI-Styles/Effekte/Filter, offline | `mobile-server/importer.py`, `src/lib/{grabber,assetStore,packs}.ts`, `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md) |
 | **Seiten-Ingest per Drag & Drop** – Inhalt prüfen, Seite + Software + Wissensbasis ablegen | `src/lib/pageIngest.ts`, `desktop/utils/page_ingest.py`, `AgentConsole` (Drop), `AssetGrabberPanel` | [`docs/portview-import.md`](docs/portview-import.md#2b-seiten-ingest-url-ins-chatfenster-ziehen--prüfen--intern-ablegen) |
 | **Anbindungen** – VID→Hersteller, ADB-/USB-Geräte, Speicherorte, Vorabprüfung (read-only) | `mobile-server/vendors.py`, `src/lib/vendors.ts`, `IntegrationsPanel` | [`docs/usb-hersteller.md`](docs/usb-hersteller.md) |
+| **Termux** – Gateway läuft auf dem Android-Gerät: Termux:API (17 freigegebene Kommandos), Termux:Widget-Startknöpfe, Termux:Boot-Autostart, termux-services-Dienst | `termux/install.sh`, `mobile-server/termux_bridge.py`, `src/lib/termux.ts`, `TermuxPanel` | [`docs/termux.md`](docs/termux.md) |
 
 Alle Panels haben ein Gegenstück in der **Desktop-Konsole** (`desktop/utils/clients.py`,
 `desktop/utils/agentGallery.py`, neue Intents in `desktop/utils/agent.py`: `adb geräte`,
@@ -169,6 +170,7 @@ Details: [`docs/api-websockets.md`](docs/api-websockets.md) ·
 | [`docs/mobile-ble-gateway.md`](docs/mobile-ble-gateway.md) | 🔐 Mobiles BLE-Gateway (Honeywell CT45P Xon+): AES-128-Challenge/Response, Whitelist, Lockout, Tamper, Ports,_HW_, rechtlicher Rand |
 | [`docs/agent-gallery.md`](docs/agent-gallery.md) | 🖼️ Agenten-Galerie (13 Profile, Skills, JSON-Import/-Export), RAG-Wissensdatenbank, Live-Statusleiste |
 | [`docs/portview-import.md`](docs/portview-import.md) | 🧭📥 PortView (UDP-Discovery, HTTP-Probe, Endpoint-Layer, native Capacitor-Brücke), Software-Grabber (URL/Pack-Import, SSRF-Filter, Dedupe, Offline-Cache, UI-Styles) und Seiten-Ingest per Drag & Drop (Inhalt prüfen → Seite + Software + Wissensbasis) |
+| [`docs/termux.md`](docs/termux.md) | 📟 Termux-Anbindung: Installer, Widgets, Boot-Autostart, Dienst, Gateway-Routen, Whitelist und Grenzen |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Android 11–16 / API 30–36, Tag → Release, Signing-Secrets, APK-Prüfung) |
 
 Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,

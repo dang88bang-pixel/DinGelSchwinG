@@ -11,7 +11,7 @@
     "Container (Docker)",
     "Web/PWA"
   ],
-  "timestamp": "2026-09-13T01:07:59+0000",
+  "timestamp": "2026-09-13T02:10:41+0000",
   "checks": [
     {
       "name": "Build/Test (node)",
@@ -26,7 +26,7 @@
     {
       "name": "Build/Test (python)",
       "status": "✅",
-      "detail": "ast.parse-Syntaxprüfung (pytest nicht installiert): 77 Dateien geprüft, 0 Syntaxfehler"
+      "detail": "ast.parse-Syntaxprüfung (pytest nicht installiert): 79 Dateien geprüft, 0 Syntaxfehler"
     },
     {
       "name": "Build-Artefakt (node)",
@@ -44,9 +44,9 @@
       "detail": "kein Build-Schritt definiert"
     },
     {
-      "name": "health:8765",
-      "status": "⚠️",
-      "detail": "Port offen, aber kein HTTP /health"
+      "name": "health:8790",
+      "status": "✅",
+      "detail": "HTTP 200 auf /health"
     },
     {
       "name": "health:8791",

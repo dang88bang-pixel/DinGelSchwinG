@@ -1,0 +1,45 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# REAL-IMPLEMENTATION 2026-09-13 — echte Termux-Anbindung (kein Demo-/Mock-Pfad)
+# Termux:Widget — Gateway-Status (Antippen zeigt Zustand + Ports)
+set -uo pipefail
+REPO_DIR="${DGS_REPO:-}"
+if [ -z "$REPO_DIR" ] || [ ! -d "$REPO_DIR/mobile-server" ]; then
+  for cand in "$HOME/DinGelSchwinG" "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.." 2>/dev/null && pwd)"; do
+    [ -n "$cand" ] && [ -d "$cand/mobile-server" ] && { REPO_DIR="$cand"; break; }
+  done
+fi
+[ -n "$REPO_DIR" ] && [ -d "$REPO_DIR/mobile-server" ] || { echo "Repo nicht gefunden - DGS_REPO in ~/.dgs/gateway.env setzen" >&2; exit 1; }
+[ -f "$HOME/.dgs/gateway.env" ] && { set -a; . "$HOME/.dgs/gateway.env"; set +a; }
+
+PORT="${DGS_HTTP_PORT:-8791}"
+PID_FILE="$HOME/.dgs/gateway.pid"
+
+printf '🎫 DinGelSchwinG Gateway\n'
+if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+  printf 'Prozess: läuft (PID %s)\n' "$(cat "$PID_FILE")"
+else
+  printf 'Prozess: gestoppt\n'
+fi
+
+STATUS="$(curl -s -m 3 "http://127.0.0.1:$PORT/status" 2>/dev/null || true)"
+if [ -n "$STATUS" ]; then
+  python3 - "$PORT" <<'PY' <<<"$STATUS" 2>/dev/null || printf 'HTTP %s antwortet (JSON nicht lesbar)\n' "$PORT"
+import json, sys
+s = json.load(sys.stdin)
+cfg = s.get("config", {})
+print(f"HTTP   : ok auf :{cfg.get('http')} (mock={cfg.get('mock')})")
+print(f"Mock   : {'ja (Simulator)' if cfg.get('mock') else 'nein (echtes BLE)'}")
+print(f"Whitelist: {s.get('whitelist', {}).get('count', 0)} Token, {s.get('whitelist', {}).get('locked', 0)} gesperrt")
+print(f"Uptime : {s.get('uptime_s', 0)} s")
+t = s.get("termux") or {}
+if t:
+    print(f"Termux : {'ja' if t.get('termux') else 'nein'} · API {t.get('api_present')}/{t.get('api_total')} · Widgets {(t.get('widgets') or {}).get('count', 0)}")
+PY
+else
+  printf 'HTTP   : keine Antwort auf :%s\n' "$PORT"
+  printf 'Start  : bash %s/termux/run-gateway.sh --daemon\n' "${REPO_DIR:-$HOME/DinGelSchwinG}"
+fi
+
+if command -v termux-notification >/dev/null 2>&1; then
+  termux-notification --title "DinGelSchwinG Gateway" --content "$(printf 'Port %s · %s' "$PORT" "$([ -n "$STATUS" ] && echo erreichbar || echo offline)")" --id dgs-status >/dev/null 2>&1 || true
+fi

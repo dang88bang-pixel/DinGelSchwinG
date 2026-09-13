@@ -130,10 +130,6 @@ class GatewayState:
             "imports": 0,
             "import_errors": 0,
             "import_bytes": 0,
-            # Termux-Bridge (mobile-server/termux_bridge.py)
-            "termux_calls": 0,
-            "termux_errors": 0,
-            "termux_widget_runs": 0,
         }
     )
     started_at: float = field(default_factory=time.time)
@@ -716,7 +712,6 @@ class GatewayState:
                 "locked": sum(1 for t in self.whitelist.get("tokens", []) if self.is_locked(t["token_id"])),
             },
             "usb": self.usb_block(),
-            "termux": self.termux_block(probe=False),
             "stores": self.stores_block(),
             "agent_auth": self.agent_auth_summary(),
             "open_challenges": len([v for v in self.open_challenges.values() if v]),
@@ -800,22 +795,6 @@ class GatewayState:
             "note": "Vorabprüfung liest nur getprop/dumpsys/sha256 – es wird nichts geflasht oder entsperrt.",
         }
 
-    def termux_block(self, *, probe: bool = False) -> dict:
-        """Termux-Anbindung für `/status` und das Panel (nie eine Ausnahme).
-
-        Read-only Bestandsaufnahme: Termux-Umgebung, Termux:API-Kommandos,
-        Widget-Skripte, Boot-/Service-Ordner. `probe=True` fragt zusätzlich
-        Akku/WLAN/Telefonie ab (nur wenn Termux wirklich vorhanden ist).
-        """
-        try:
-            import termux_bridge as T  # lokal: Start ohne Termux bleibt möglich
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": str(exc)[:160], "termux": False}
-        try:
-            return T.status(probe=probe)
-        except Exception as exc:  # noqa: BLE001 - optionale Erweiterung darf /status nicht killen
-            return {"ok": False, "error": str(exc)[:160], "termux": False}
-
     def metrics_text(self) -> str:
         up = time.time() - self.started_at
         lines = [
@@ -846,18 +825,6 @@ class GatewayState:
             "# HELP dingelschwing_gateway_suspended_agents suspendierte Agenten (zu viele Fehlversuche)",
             "# TYPE dingelschwing_gateway_suspended_agents gauge",
             f"dingelschwing_gateway_suspended_agents {len(auth.get('suspended_agents') or [])}",
-        ]
-        termux = self.termux_block(probe=False)
-        lines += [
-            "# HELP dingelschwing_gateway_termux_available 1 wenn das Gateway in Termux laeuft",
-            "# TYPE dingelschwing_gateway_termux_available gauge",
-            f"dingelschwing_gateway_termux_available {1 if termux.get('termux') else 0}",
-            "# HELP dingelschwing_gateway_termux_api_commands installierte Termux:API-Kommandos",
-            "# TYPE dingelschwing_gateway_termux_api_commands gauge",
-            f"dingelschwing_gateway_termux_api_commands {int(termux.get('api_present') or 0)}",
-            "# HELP dingelschwing_gateway_termux_widgets Termux:Widget-Skripte in ~/.shortcuts",
-            "# TYPE dingelschwing_gateway_termux_widgets gauge",
-            f"dingelschwing_gateway_termux_widgets {int((termux.get('widgets') or {}).get('count') or 0)}",
         ]
         store = self.imports
         if store is not None:
@@ -977,72 +944,9 @@ async def handle_command(state: GatewayState, payload: dict) -> dict:
         return await demo_handshake(state)
     if action == "selftest":
         return {"ok": True, "result": await asyncio.to_thread(run_loopback_test)}
-    # ── Termux (Termux:API + Termux:Widget) ──────────────────────────────
-    if action.startswith("termux_"):
-        return await termux_command(state, action, payload)
     return {"ok": False, "reason": f"unbekannte action: {action!r}", "allowed": [
-        "whitelist_add", "whitelist_revoke", "unlock", "grant", "ble_scan", "ble_advertise", "ble_stop",
-        "demo_handshake", "selftest", "termux_status", "termux_capabilities", "termux_run",
-        "termux_widgets", "termux_widget_run",
+        "whitelist_add", "whitelist_revoke", "unlock", "grant", "ble_scan", "ble_advertise", "ble_stop", "demo_handshake", "selftest",
     ]}
-
-
-# ── Termux-Anbindung ─────────────────────────────────────────────────────────
-# Freigegebene Termux:API-Kommandos, die über das Gateway erreichbar sind.
-# Alles andere bleibt gesperrt: keine Shell, keine beliebigen Prozesse.
-TERMUX_ACTIONS = {
-    "termux_status",
-    "termux_capabilities",
-    "termux_run",
-    "termux_widgets",
-    "termux_widget_run",
-}
-
-
-async def termux_command(state: GatewayState, action: str, payload: dict) -> dict:
-    """Führt eine Termux-Aktion aus (Whitelist, Timeout, Audit, Metriken)."""
-    try:
-        import termux_bridge as T
-    except Exception as exc:  # noqa: BLE001
-        state.metrics["termux_errors"] += 1
-        return {"ok": False, "action": action, "reason": f"termux_bridge nicht ladbar: {exc}"}
-
-    if action not in TERMUX_ACTIONS:
-        return {
-            "ok": False,
-            "action": action,
-            "reason": f"unbekannte termux-aktion: {action!r}",
-            "allowed": sorted(TERMUX_ACTIONS),
-        }
-
-    if action == "termux_status":
-        result = await asyncio.to_thread(T.status, probe=bool(payload.get("probe", True)))
-    elif action == "termux_capabilities":
-        result = await asyncio.to_thread(T.capabilities)
-    elif action == "termux_widgets":
-        result = {"ok": True, "dir": str(T.widget_dir()), "scripts": await asyncio.to_thread(T.list_widgets)}
-    elif action == "termux_widget_run":
-        name = str(payload.get("widget") or payload.get("name") or "")
-        raw_args = payload.get("args")
-        args = [str(a) for a in raw_args] if isinstance(raw_args, list) else []
-        timeout = float(payload.get("timeout") or 30.0)
-        result = await asyncio.to_thread(T.widget_run, name, timeout=timeout, args=args)
-        state.metrics["termux_widget_runs"] += 1
-        if not result.get("ok"):
-            state.metrics["termux_errors"] += 1
-        state.audit("termux_widget", {"widget": name, "ok": result.get("ok")})
-    else:  # termux_run
-        command = str(payload.get("command") or "")
-        params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
-        timeout = float(payload.get("timeout") or 8.0)
-        result = await asyncio.to_thread(T.run, command, params, timeout=timeout)
-        if not result.get("ok"):
-            state.metrics["termux_errors"] += 1
-
-    if action == "termux_run":
-        state.metrics["termux_calls"] += 1
-        state.audit("termux_run", {"command": payload.get("command"), "ok": result.get("ok")})
-    return {"action": action, **result}
 
 
 def _proof_payload(state: GatewayState, token_id: str, agent_name: str) -> dict:

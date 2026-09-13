@@ -1,6 +1,6 @@
-# Universe Inventory — 2026-09-13 01:04:14 UTC
+# Universe Inventory — 2026-09-13 02:06:55 UTC
 
-Repo: `DinGelSchwinG` @ `97ecd8a`
+Repo: `DinGelSchwinG` @ `1044233`
 Erzeugt von: `scripts/universe_audit.sh` (Schritt 1 der Auftragsbeschreibung)
 
 Status-Legende: `REAL` = produktive Implementierung · `MOCK` = Attrappe im Produktionspfad ·
@@ -46,10 +46,10 @@ gradle : fehlt
 
 ### Umfang
 ```
-Versionierte Dateien      : 402
-Quellcode (scanbar)       : 210
-Testdateien               : 15
-Dokumentation (Markdown)  : 29
+Versionierte Dateien      : 384
+Quellcode (scanbar)       : 209
+Testdateien               : 11
+Dokumentation (Markdown)  : 25
 ```
 
 ## Mocks / TODOs / Stubs
@@ -91,6 +91,7 @@ mobile-server/tests/test_gateway.py:466:         def log_message(self, fmt, *arg
 
 ### Dummy-Return-Dichte (Top 15 Dateien)
 ```
+ 16 Signale  mobile-server/termux_bridge.py
  14 Signale  mobile-server/mobile_ble_server.py
  13 Signale  server/wsutil.py
  12 Signale  mobile-server/vendors.py
@@ -105,7 +106,6 @@ mobile-server/tests/test_gateway.py:466:         def log_message(self, fmt, *arg
   6 Signale  src/lib/grabber.ts
   6 Signale  genesis-orchestrator/fastapi-backend/app/moe/parsers/ninebot.py
   6 Signale  desktop/utils/api_client.py
-  5 Signale  src/lib/agent/agentEngine.ts
 ```
 
 Hinweis: `return None/0/false` und `pass` sind **kein** Beweis für Attrappen.
@@ -113,26 +113,22 @@ Bewertet wird im Kontext: Fehlerpfad, Fallback oder Platzhalter?
 
 ## Testdateien
 
-Versionierte Testdateien: **15**.
+Versionierte Testdateien: **11**.
 Prüfen: echte Assertions? Ausführendes Kommando vorhanden?
 
 ### Dateiliste
 ```
 android/app/src/test/java/com/getcapacitor/myapp/ExampleUnitTest.java
-backups/phase3/agentEngine.test.ts.cbee3072f5c4c220.bak
 desktop/tests/test_core.py
 genesis-orchestrator/fastapi-backend/tests/test_api.py
 mobile-server/tests/test_gateway.py
 server/tests/test_discovery.py
-src/config/__tests__/enterprise-nodes.test.ts
 src/lib/__tests__/bugReport.test.ts
 src/lib/__tests__/retry.test.ts
 src/lib/agent/__tests__/agentEngine.test.ts
-src/lib/agent/__tests__/agentEngineLive.test.ts
 tests/chain.py
 tests/stress.py
 tests/suite.py
-tests/universe_harness.py
 ```
 
 ### Scheintests (assert true / expect(true)) (0 Treffer)
@@ -177,4 +173,4 @@ python3 -m pytest genesis-orchestrator/fastapi-backend   (bzw. python3 genesis-o
 
 ---
 
-_Erzeugt: 2026-09-13 01:04:15 UTC · Werkzeuge: bash, git, grep, awk (keine externen Abhängigkeiten)_
+_Erzeugt: 2026-09-13 02:06:56 UTC · Werkzeuge: bash, git, grep, awk (keine externen Abhängigkeiten)_

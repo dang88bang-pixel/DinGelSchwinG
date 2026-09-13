@@ -94,18 +94,6 @@ jobs:
           done
           exit $status
 
-      - name: Termux-Tests (mobile-server)
-        run: |
-          # Termux-Anbindung (Bridge, Widgets, Gateway-Routen) — eigene Suite.
-          set +e
-          output=$(python3 mobile-server/tests/test_termux.py 2>&1)
-          status=$?
-          printf '%s\n' "$output"
-          printf '%s\n' "$output" | grep -E "❌" | while IFS= read -r line; do
-            echo "::error title=Termux-Test fehlgeschlagen::$line"
-          done
-          exit $status
-
       - name: Desktop-Tests
         run: python3 desktop/tests/test_core.py
 

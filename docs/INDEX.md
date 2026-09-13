@@ -17,6 +17,7 @@ Diese Datei verlinkt die aktiven Projektbereiche, damit jede beschriebene Funkti
 | Internationalisierung | [docs/i18n.md](i18n.md) |
 | Enterprise-Knoten | [docs/enterprise-node-database.md](enterprise-node-database.md) |
 | BLE-WASM | [wasm-ble/BUILD.md](../wasm-ble/BUILD.md) |
+| Termux-Anbindung | [docs/termux.md](termux.md), [termux/install.sh](../termux/install.sh), [mobile-server/termux_bridge.py](../mobile-server/termux_bridge.py) |
 | Repo-Audit & Test-Harness | [.github/agents/universal-engineer.md](../.github/agents/universal-engineer.md), [scripts/universe_audit.sh](../scripts/universe_audit.sh), [tests/universe_harness.py](../tests/universe_harness.py), [reports/inventory.md](../reports/inventory.md) |
 
 ## Web-App / APK

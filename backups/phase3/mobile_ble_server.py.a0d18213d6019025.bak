@@ -324,14 +324,6 @@ class GatewayHttp:
                                      "manufacturer_usb": info.get("name"), "manufacturer_known": info.get("known")})
                     return self._send(200, {"ok": True, "devices": rows, "count": len(rows),
                                             "command": res.get("command") or "adb devices -l"})
-                if path == "/termux":
-                    # Termux-Anbindung (Termux:API + Termux:Widget). Lesend: die
-                    # Aktionen laufen über POST /command (Aktionen mit Audit).
-                    probe = (query.get("probe") or ["0"])[0].lower() in ("1", "true", "ja")
-                    return self._send(200, outer.state.termux_block(probe=probe))
-                if path == "/termux/widgets":
-                    import termux_bridge as T  # lokal: ohne Termux installierbar
-                    return self._send(200, {"ok": True, "dir": str(T.widget_dir()), "scripts": T.list_widgets()})
                 if path == "/devices/usb":
                     report = outer._run_async(usb_devices, usb_store())
                     return self._send(200, report)

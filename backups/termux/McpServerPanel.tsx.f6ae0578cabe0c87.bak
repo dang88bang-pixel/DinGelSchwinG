@@ -19,10 +19,6 @@ const GATEWAY_TOOLS: { name: string; description: string; action?: string; args?
   { name: 'gateway_ble_scan', description: 'BLE-Umfeld scannen (bluetoothctl oder mock)', action: 'ble_scan' },
   { name: 'gateway_demo_handshake', description: 'Kompletter AES-128-Handshake gegen den Simulator', action: 'demo_handshake' },
   { name: 'gateway_selftest', description: 'End-to-End-Selbsttest des Gateways (9 Prüfungen)', action: 'selftest' },
-  { name: 'gateway_termux_status', description: 'Termux-Anbindung: Umgebung, Termux:API-Kommandos, Widgets', action: 'termux_status' },
-  { name: 'gateway_termux_widgets', description: 'Termux:Widget-Skripte in ~/.shortcuts auflisten', action: 'termux_widgets' },
-  { name: 'gateway_termux_widget_run', description: 'Widget-Skript starten (nur ~/.shortcuts, kein Pfad)', action: 'termux_widget_run' },
-  { name: 'gateway_termux_run', description: 'Freigegebenes Termux:API-Kommando (z. B. battery, notify)', action: 'termux_run' },
 ];
 
 export default function McpServerPanel({ onClose }: { onClose: () => void }) {

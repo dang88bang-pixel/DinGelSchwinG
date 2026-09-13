@@ -1,0 +1,23 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# REAL-IMPLEMENTATION 2026-09-13 — echte Termux-Anbindung (kein Demo-/Mock-Pfad)
+# Termux:Widget — BLE-Umfeld scannen (über das laufende Gateway)
+set -uo pipefail
+[ -f "$HOME/.dgs/gateway.env" ] && { set -a; . "$HOME/.dgs/gateway.env"; set +a; }
+PORT="${DGS_HTTP_PORT:-8791}"
+OUT="$(curl -s -m 25 -X POST "http://127.0.0.1:$PORT/command" -H 'Content-Type: application/json' \
+      -d '{"action":"ble_scan","timeout":6}' 2>/dev/null || true)"
+if [ -z "$OUT" ]; then
+  echo "❌ Gateway nicht erreichbar auf :$PORT – erst 11-gateway-start ausführen"
+  exit 1
+fi
+OUT="$OUT" python3 - <<'PY'
+import json, os
+res = json.loads(os.environ["OUT"])
+if not res.get("ok"):
+    print(f"❌ Scan fehlgeschlagen: {res.get('reason')}")
+    raise SystemExit(1)
+devs = res.get("devices") or []
+print(f"📡 {len(devs)} Gerät(e) über {res.get('backend')}:")
+for d in devs[:12]:
+    print(f"  - {d.get('id') or d.get('name')} (RSSI {d.get('rssi', '—')})")
+PY
