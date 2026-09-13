@@ -411,49 +411,6 @@ def _tmp_dir(hint: str) -> Path:
     return data
 
 
-def _without_host_usb_sources(vendors):
-    """System-weite USB-Quellen für einen Test stilllegen.
-
-    `vendors.load()` liest zusätzlich die Host-Dateien (`/usr/share/hwdata/usb.ids`,
-    udev-Regeln, `adb_usb.ini`). Laut Dokumentation (docs/usb-hersteller.md)
-    gewinnt die Host-Quelle gegen die build-in-Kurzliste — ein installiertes
-    usb.ids ordnet z. B. `0c2e` als „Metrologic Instruments" ein. Auf Rechnern
-    *mit* dieser Datei (GitHub-Runner, übliche Linux-Desktops) schlugen die
-    beiden USB-Tests dadurch fehl, ohne dass etwas am Code kaputt war.
-
-    Für reproduzierbare Tests werden die Systempfade hier kurzzeitig geleert
-    (inkl. `_CACHE`, damit kein vorberechneter Store wiederverwendet wird).
-    """
-    import contextlib
-
-    @contextlib.contextmanager
-    def _ctx():
-        saved = (
-            vendors.USB_IDS_CANDIDATES,
-            vendors.UDEV_RULE_CANDIDATES,
-            vendors.ADB_INI_CANDIDATES,
-            os.environ.pop("DGS_USB_IDS", None),
-        )
-        vendors.USB_IDS_CANDIDATES = ()
-        vendors.UDEV_RULE_CANDIDATES = ()
-        vendors.ADB_INI_CANDIDATES = ()
-        vendors._CACHE.clear()
-        try:
-            yield
-        finally:
-            (
-                vendors.USB_IDS_CANDIDATES,
-                vendors.UDEV_RULE_CANDIDATES,
-                vendors.ADB_INI_CANDIDATES,
-                env_ids,
-            ) = saved
-            if env_ids is not None:
-                os.environ["DGS_USB_IDS"] = env_ids
-            vendors._CACHE.clear()
-
-    return _ctx()
-
-
 def _serve_dir(root: Path):
     """Kleiner Datei-Server als „externes Netz“ für den Grabber."""
     import threading
@@ -779,12 +736,6 @@ def test_bug_report_written_without_secrets():
 def test_usb_vendor_parsers_and_lookup():
     import vendors
 
-    with _without_host_usb_sources(vendors):
-        _usb_vendor_parsers_and_lookup(vendors)
-
-
-def _usb_vendor_parsers_and_lookup(vendors):
-    """Rumpf von test_usb_vendor_parsers_and_lookup — läuft ohne Host-Quellen."""
     devs = vendors.parse_adb_devices(
         "List of devices attached\n"
         "CT45-01  device product:ct45 model:CT45 device:ct45 transport_id:3\n"
@@ -822,12 +773,6 @@ def test_usb_store_prefers_host_sources():
     ini = root / "adb_usb.ini"
     ini.write_text("# extra\n0x2ae5\n", encoding="utf-8")
 
-    with _without_host_usb_sources(vendors):
-        _check_usb_host_source_priority(vendors, ids, rules, ini)
-
-
-def _check_usb_host_source_priority(vendors, ids, rules, ini):
-    """Rumpf von test_usb_store_prefers_host_sources — nur die übergebenen Pfade zählen."""
     store = vendors.load([str(ids), str(rules), str(ini)])
     assert store.lookup("0x0c2e")["name"] == "Honeywell (aus usb.ids)", store.lookup("0x0c2e")
     assert store.lookup("0x0c2e")["via"] == str(ids), store.lookup("0x0c2e")
