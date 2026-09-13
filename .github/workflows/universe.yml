@@ -83,7 +83,16 @@ jobs:
         run: python3 -m unittest discover -s server/tests -v
 
       - name: Gateway-Tests (mobile-server)
-        run: python3 mobile-server/tests/test_gateway.py
+        run: |
+          # Fehlgeschlagene Einzeltests als Annotation ausgeben (sichtbar auch ohne Log-Download).
+          set +e
+          output=$(python3 mobile-server/tests/test_gateway.py 2>&1)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -E "❌" | while IFS= read -r line; do
+            echo "::error title=Gateway-Test fehlgeschlagen::$line"
+          done
+          exit $status
 
       - name: Desktop-Tests
         run: python3 desktop/tests/test_core.py
