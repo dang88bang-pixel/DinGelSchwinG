@@ -79,6 +79,9 @@ OVERRIDES = {
         "Zeigt 'Mock-Gateway'-Pill nur bei simulated_token=true (ehrliche Kennzeichnung)"),
     "scripts/audit_inventar.py": ("REAL",
         "Das Audit-Skript selbst: enthaelt die Marker-Regexe als Literale (Selbsttreffer, kein Befund)"),
+    "scripts/check_docs.py": ("REAL",
+        "Doku-Drift-Waechter (D-1): nennt TODO.md als Pruefziel und Marker-Woerter als Zitat "
+        "(Selbsttreffer, kein Befund)"),
     # --- Funktionale Checks brauchen einen laufenden Dienst ---
     "tests/suite.py": ("REAL",
         "Funktionale REST-Checks gegen laufendes Backend :5000 (make smoke)"),

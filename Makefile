@@ -1,4 +1,4 @@
-.PHONY: install build up down logs reset test test-all test-py test-gw test-genesis test-web smoke inventar server
+.PHONY: help install build up down logs reset test test-all test-py test-gw test-genesis test-web smoke inventar docs server
 
 install:
 	npm ci || npm install
@@ -61,6 +61,30 @@ test-all: test-py test-gw test-genesis test-web smoke
 # Audit-Artefakt INVENTAR.csv neu erzeugen.
 inventar:
 	python3 scripts/audit_inventar.py
+
+# Doku-Drift prüfen (D-1): tote Markdown-Links, `/api/…`-Pfade ohne Code-Beleg,
+# INVENTAR.csv ⇄ Git-Index. Läuft zusätzlich als Unit-Test in `make test-py`.
+docs:
+	python3 scripts/check_docs.py
+
+# Kurzreferenz der Ziele.
+help:
+	@echo "make <ziel>:"
+	@echo "  install        Node-Abhängigkeiten installieren (npm ci)"
+	@echo "  build          Web-Build inkl. Budget-Wächter (npm run build)"
+	@echo "  up / down      Dev-Stack starten / stoppen"
+	@echo "  server         nur REST-Backend (:5000)"
+	@echo "  logs           Backend-Logs folgen"
+	@echo "  reset          Geräte-Datenbank zurücksetzen (Neuanlage + Seed)"
+	@echo "  test-py        Unit-Tests: server/tests + desktop/tests (ohne Dienste)"
+	@echo "  test-web       type-check + vitest + eslint"
+	@echo "  test           test-py + test-web"
+	@echo "  test-gw        BLE-Gateway-Tests + Selftest"
+	@echo "  test-genesis   Genesis-FastAPI-Tests"
+	@echo "  smoke          tests/suite.py + chain.py + stress.py (Backend muss laufen)"
+	@echo "  test-all       vollständige Matrix inkl. smoke"
+	@echo "  inventar       INVENTAR.csv neu erzeugen (scripts/audit_inventar.py)"
+	@echo "  docs           Doku-Drift prüfen (scripts/check_docs.py)"
 
 server:
 	python3 server/app.py

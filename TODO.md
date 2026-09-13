@@ -1,7 +1,7 @@
 # TODO — offene & teilfertige Punkte
 
 **Stand: 2026-09-13 · Quelle: [`GAP_MATRIX.md`](GAP_MATRIX.md) Fassung 2.0 (§ 12 Rest-Gaps `G-*`,
-§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (411 Dateien, 4 Nicht-REAL)**
+§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (413 Dateien, 4 Nicht-REAL)**
 
 Diese Liste ist die **Arbeitsliste** des Projekts. Jeder Eintrag nennt Ist-Zustand, Ziel,
 konkrete Schritte und — wichtig — den **Nachweis**, mit dem der Punkt als erledigt gilt.
@@ -36,7 +36,7 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 | [G-7](#g-7-ct45p-xon-protokoll-feldabgleich) | CT45P-Xon+-GATT: Feldabgleich | blockiert | B | L |
 | [G-10](#g-10--a-4-upstream-mcp-paket) | Upstream-MCP: 5 Tools „not implemented" | blockiert | B | – |
 | [N-1](#n-1--a-11-audio-loopback-und-jni) | Audio-Loopback / JNI-Callbacks | n/a | B | – |
-| [D-1](#d-1-doku-pflegen) | Doku-Pflege (README/INDEX nach Änderungen) | offen | P3 | S |
+| [D-1](#d-1-doku-pflegen) | Doku-Pflege (Drift-Wächter `make docs`) | **erledigt ✅ 2026-09-13** | P3 | S |
 
 ---
 
@@ -445,21 +445,57 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 ## P3 — Doku & Pflege
 
 ### D-1 Doku pflegen
-- **Status:** offen · **Quelle:** Befunde dieser Runde (README-Abhängigkeiten, `server/requirements.txt`)
-- **Ist:** Zwei Doku-Aussagen waren falsch und wurden korrigiert (xterm/Flask/PyJWT-Liste,
-  „Audit in-memory"). Drift entsteht leicht weiter.
-- **Schritte:**
-  - [ ] Nach jeder API-Änderung: `docs/openapi.yaml` + `README.md` + `docs/INDEX.md` prüfen
-  - [ ] `python3 server/tests/test_api_contract.py` (Spec ⇄ Code ⇄ Frontend) läuft in `make test-py`
-  - [ ] `python3 server/tests/test_todo_consistency.py` hält diese TODO-Liste zur GAP-Matrix synchron
-  - [ ] `make inventar` nach jeder größeren Änderung (Nicht-REAL-Befunde aktuell halten)
+- **Status:** ✅ **erledigt 2026-09-13** — Drift-Wächter statt Handarbeit ·
+  **Quelle:** Befunde dieser Runde (README-Abhängigkeiten, `server/requirements.txt`)
+- **Betroffen:** `scripts/check_docs.py` (neu), `server/tests/test_docs.py` (neu), `Makefile`
+  (`docs`, `help`), `README.md`, `docs/INDEX.md`, `docs/monitoring.md`, `INVENTAR.csv`, `.gitignore`
+- **Ist (vorher):** Zwei Doku-Aussagen waren falsch und wurden korrigiert (xterm/Flask/PyJWT-Liste,
+  „Audit in-memory“). Drift entstand trotzdem weiter — und fiel nicht auf, weil nichts dagegen lief:
+  `docs/INDEX.md` nannte `POST /api/workflows/start` (existiert nirgends), `docs/monitoring.md` <!-- docs-check:phantom-ok -->
+  `:5000/api/metrics` (heißt `/metrics`) <!-- docs-check:phantom-ok -->, README zweimal
+  „xterm.js“ (kein xterm-Paket installiert),
+  eine Abhängigkeitsliste mit Flask/PyJWT/websockets/pyserial/paramiko (Produktionspfad ist reine
+  Standardbibliothek), Testzahlen 16/53 statt 59/20 und `make help` (Ziel fehlte).
+- **Ziel:** Doku folgt dem Code — Abweichungen fallen automatisch auf, nicht erst beim Lesen.
+- **Umgesetzt:**
+  - [x] `scripts/check_docs.py` prüft drei Drift-Arten: **tote Markdown-Links** (alle versionierten
+        `.md`, Anker/Platzhalter ausgenommen), **Phantom-Endpunkte** (`/api/…` in der Doku ohne
+        Beleg in `.py/.ts/.tsx/.js/.kt/.sh` — `docs/openapi.yaml` zählt bewusst nicht, Spec ⇄ Code
+        prüft `test_api_contract.py`) und **INVENTAR-Drift** (Dateibestand + Zeilenstände ⇄
+        `git ls-files`). Doku-Kurzformen werden verstanden (`/api/diag/{ping,payload,throughput}`,
+        `/api/clients/<id>` ⇄ `{id}`, Präfix `/api/ws/…`); eine Allowlist mit Begründung deckt
+        Pfade ab, die der Code per `startswith` baut, und Fremddienst-APIs (Prometheus `/api/v1/…`)
+  - [x] `make docs` als Ziel, dazu `server/tests/test_docs.py` (8 Tests) — läuft in `make test-py`
+        mit; `make help` druckt jetzt alle Ziele (README verwies auf ein Ziel, das es nicht gab)
+  - [x] Gefundene Drift korrigiert: `POST /api/workflows/start` → `POST /api/workflows` <!-- docs-check:phantom-ok -->
+        (`docs/INDEX.md`, 2 Stellen), `:5000/api/metrics` → `:5000/metrics` <!-- docs-check:phantom-ok -->
+        (`docs/monitoring.md`) <!-- docs-check:phantom-ok -->,
+        README: xterm.js-Angabe (2×) → eigene WS-Zeilenkonsole, Abhängigkeitsliste gegen
+        `package.json`/`requirements.txt` ersetzt, Makefile-Block vervollständigt, Testzahlen
+        (`suite.py` **59** Checks, `chain.py` **20**, Unit-Suiten 90/93/102), Lizenz-Abschnitt
+        (Platzhalter → ehrlicher Stand: keine `LICENSE`, Fremdanteile benannt), Stand-Datum
+  - [x] `docs/INDEX.md` ergänzt: 8 fehlende Dokumente (Device-Control, MCP, Agent-Gallery,
+        PortView/Ingest, BLE-Gateway, USB-Hersteller, Store-Listing/-Compliance), neue Endpunkte
+        (`/api/adb/*`, `/api/workflows[/registry]`, `/api/scripts`, `/api/nodes/validate`,
+        `/api/diag/*`, `/metrics`), Web-Ketten (ADB aus dem Web, Offline-Ingest, RAG, MCP),
+        Desktop-Module und vollständige Prüfmatrix
+  - [x] Bestandszahlen synchron: `make inventar` → **413 Dateien / 4 Nicht-REAL**; `TODO.md` nennt
+        dieselben Zahlen und jeder Nicht-REAL-Befund hat einen Anhang-Eintrag (beides Test-Assert)
+  - [x] `.gitignore`: `__pycache__/` + `*.py[cod]` global — ein `scripts/__pycache__/*.pyc` war
+        bereits im Index gelandet und hätte das Inventar verfälscht
 - **Fertig wenn:** Beide Konsistenz-Tests grün sind und `INVENTAR.csv` zum Commit passt.
+- **Nachweis:** `test_api_contract.py` **5/5** · `test_todo_consistency.py` **5/5** ·
+  `test_docs.py` **8/8** (tote Links 0, Phantom-Endpunkte 0, INVENTAR-Drift 0, CLI-Exit 0) ·
+  `make docs` grün · `make inventar` → 413 Dateien / 4 Nicht-REAL, `INVENTAR.csv` liegt im
+  selben Commit. Gesamtstände: `server/tests` **98/98** · `desktop/tests` **93/93** ·
+  `npm test` **102/102** · `make smoke` (`suite.py` 59 + `chain.py` 20) **failed: 0** ·
+  `npm run lint`/`type-check`/`build` grün.
 
 ---
 
 ## Anhang — Nicht-REAL-Befunde aus `INVENTAR.csv`
 
-`python3 scripts/audit_inventar.py` meldet 411 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
+`python3 scripts/audit_inventar.py` meldet 413 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
 hier einen Eintrag — damit kein Marker unbemerkt liegen bleibt:
 
 | Befund | Datei | TODO-ID | Bewertung |
@@ -495,10 +531,12 @@ Desktop-Test-Isolation + `DGS_API_URL` · Frontend-Test-Isolation ·
 `tokenize()`-Backtracking in `src/lib/rag.ts` (84 s → 66 ms bei 400 000 Zeichen) ·
 **A-7** Ingest/Grabber ohne Gateway: `grabFromFile()`, `ingest_file()`, Quelle `lokal`,
 Drop-Zone im 📥-Panel, Markdown-Titel/Gliederung in beiden Spiegeln ·
+**D-1** Doku-Pflege: `scripts/check_docs.py` + `make docs`/`test_docs.py` (tote Links,
+Phantom-Endpunkte, INVENTAR-Drift), README/INDEX/monitoring korrigiert, `make help` ·
 **A-5** ADB-Ausführung aus dem Web: `server/adb.py` (10 Whitelist-Verben, argv ohne Shell),
 `POST /api/adb/run` + `/api/adb/carrier`, `GET /api/adb/status`, Träger-Pflicht (501 ohne Träger),
 Audit `adb_run` mit Exit-Code, Chat-Kette `parseAdbCommand()` → `intentAdbRunLive()` ·
-Teststände: `npm test` 36/36 → **102/102** · `server/tests` 18 → **90** · `desktop/tests` 62 → **93** ·
+Teststände: `npm test` 36/36 → **102/102** · `server/tests` 18 → **98** · `desktop/tests` 62 → **93** ·
 `tests/suite.py` **failed: 0** · Watchdog/Log-Rotation/Bug-Reports · Gateway-Session-Persistenz ·
 Genesis-`/graph` + Polar-Switch.
 
@@ -508,7 +546,13 @@ Genesis-`/graph` + Polar-Switch.
 python3 server/tests/test_todo_consistency.py   # jede G-*/A-*-ID der GAP-Matrix steht hier
 make test-py                                    # läuft zusammen mit den Unit-Suites
 make inventar                                   # Nicht-REAL-Befunde aktuell halten
+make docs                                       # tote Links, /api-Phantome, INVENTAR-Stand (D-1)
+make help                                       # welche Ziele es überhaupt gibt
 ```
+
+Reihenfolge nach Doku-/Strukturänderungen: Dateien ändern → `git add -A` → `make inventar` →
+erneut `git add -A` → `make test-py` (der Doku-Test vergleicht gegen den **Index**, nicht gegen
+den Arbeitsbaum).
 
 Neue Punkte: erst in `GAP_MATRIX.md` (mit Nachweis) aufnehmen, dann hier mit ID, Ist, Ziel,
 Schritten und „Fertig wenn" eintragen — der Konsistenz-Test schlägt sonst fehl.

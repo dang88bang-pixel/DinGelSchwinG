@@ -39,6 +39,9 @@ desktop/data/config.json
 desktop/data/audit*.json
 desktop/data/cache/
 desktop/data/models/
+# Python-Bytecode überall (D-1: auch scripts/, tests/, genesis-*)
+__pycache__/
+*.py[cod]
 desktop/**/__pycache__/
 desktop/data/system_instruction_custom.txt
 

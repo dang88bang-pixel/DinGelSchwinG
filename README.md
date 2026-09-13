@@ -110,6 +110,13 @@ HyperOS 2, sekundär jedes Gerät mit USB-Debugging):
   Codename-Kompatibilität, Akku ≥ 60 %), Backup-Pflicht, 5-Schritte-Assistent
 - **Native Konsole** (`DeviceControlActivity`) + Capacitor-API
   (`DeviceControl.*`) für die Web-Schicht
+- **ADB-Ausführung aus dem Web** (A-5): läuft ein Träger (`adb`-Binary auf dem
+  Backend-Host via `NEXUS_ADB=…` oder ein mit `NEXUS_ADB_REMOTE=1` registrierter
+  Host), führt `POST /api/adb/run` zehn Whitelist-Verben als argv ohne Shell aus —
+  mit Seriennummer-Muster, Read-only-`shell`, Timeout, Freigabe für Risiko-Verben
+  und `adb_run`-Audit inkl. Exit-Code. Ohne Träger bleibt es ehrlich beim
+  Plan + Skript (501 `KEIN_ADB_TRAEGER`), Details in
+  [`docs/device-control.md`](docs/device-control.md) §4a
 
 zu installieren : IMEI-Reparatur und FRP-Bypass – (IMEI-suche, FRP = Diebstahlschutz).
 Details: [`docs/device-control.md`](docs/device-control.md)
@@ -125,13 +132,17 @@ und Terminal-Zugriff – getrennt vom mobilen BLE-Gateway (`mobile-server/`):
 ```bash
 npm run server          # python3 server/app.py → REST auf :5000
 npm run server:all      # start.sh --backend-only (REST + WS 8766–8768)
-python3 server/tests/test_discovery.py   # 5 Unit-Tests
-python3 tests/suite.py                   # 13 E2E-Checks (Backend muss laufen)
-make help                                # Build-/Deploy-Ziele (Docker optional)
+python3 -m unittest discover -s server/tests   # 90 Unit-Tests (inkl. Spec- + Doku-Vertrag)
+python3 tests/suite.py                          # 59 E2E-Checks (Backend muss laufen)
+make help                                       # alle Ziele: Build, Tests, Inventar, Doku-Check
 ```
 
-- **REST :5000** – `/api/health`, Login (JWT,argon2-Hashes), `/api/devices`,
-  `/api/clients`, `/api/audit`, `/api/discovery/scan`, `/metrics`
+- **REST :5000** (36 Pfade in [`docs/openapi.yaml`](docs/openapi.yaml)) – `/api/health`, Login
+  (JWT, argon2-Hashes), `/api/devices`, `/api/clients`, `/api/audit`, `/api/discovery/scan`,
+  `/api/scripts` + `/api/scripts/run` (SHA-256-gepinnte Whitelist), `/api/workflows` +
+  `/api/workflows/registry` (Schrittverlauf mit Exit-Codes), `/api/nodes/validate`
+  (Enterprise-Knoten echt geprobt), `/api/adb/status` + `/api/adb/run` + `/api/adb/carrier`
+  (ADB-Ausführung aus dem Web, nur mit Träger), `/api/diag/*`, `/api/webauthn/*`, `/metrics`
 - **WebSockets** – Terminal `:8768`, Discovery `:8766`, Live-Status `:8767`
   (Vite-Proxy `/api` → Dev-Backend, siehe `vite.config.ts`).
   TCP `:8765` gehört **nicht** dazu — das ist das Frame-Protokoll des mobilen
@@ -200,7 +211,7 @@ Offline-Anzeige) — Details in [`public/sw.js`](public/sw.js).
 | Thema | Entscheidung & Begründung |
 |-------|---------------------------|
 | **RBAC-Erweiterung** | Neue Rollen `service` (L2) und `developer` (L3) in die Hierarchie `guest(0) < operator(1) < service(2) < developer(3) < expert(4) < emergency(5)` eingefügt. Begründung: Service darf interaktiv auf Hardware zugreifen, aber nicht flashen/SSH; Developer (L3) darf zusätzlich Dongle-Flash + Netzwerk-SSH. Alternative/Trade-off: flache Bitmap-Rechte wären flexibler, aber weniger übersichtlich → explizite Action-Matrix kombiniert mit Hierarchie. |
-| **Sicheres Terminal** | Neues Modul `AccessConsole` + Terminal (xterm.js) mit WebSocket-PTY-Bridge (Python). Begründung: echte PTY/SSH erfordert serverseitige Prozesse; Passwörter/SSH-Keys verlassen den Client nie (Privacy-First). Trade-off: WS-Session vs. REST — WebSockets gewählt für bidirektionales Streaming + Push. |
+| **Sicheres Terminal** | Neues Modul `AccessConsole` + Terminal (eigene zeilenbasierte Konsole `hooks/useTerminal.ts`, **kein** xterm) mit WebSocket-PTY-Bridge (Python). Begründung: echte PTY/SSH erfordert serverseitige Prozesse; Passwörter/SSH-Keys verlassen den Client nie (Privacy-First). Trade-off: WS-Session vs. REST — WebSockets gewählt für bidirektionales Streaming + Push. |
 | **USB-C-Dongles** | Erkennung via Web-USB (`navigator.usb.getDevices`), Zugriff über `/dev/ttyACM*` an der Bridge (Docker devices). Interlock-Gate mit VID/PID-Whitelist. |
 | **Kommunikation** | REST (`/api/login`, `/api/health`) für Auth, WS (`/api/ws/terminal`) für Terminals. Dev-Server proxied `/api` → Flask (kein CORS, kein localhost im Client). |
 
@@ -237,7 +248,7 @@ flowchart LR
 | **Agenten-Galerie + RAG (neu)** | `src/config/agentGallery.ts`, `src/lib/{galleryStore,rag,liveMetrics,mcpClient}.ts` | Personas, Skills, Wissensindex, Live-Metriken, MCP-Client |
 | **PortView + Grabber (neu)** | `android/…/PortViewPlugin.java`, `mobile-server/{discovery,importer}.py`, `src/lib/{portview,endpoint,grabber,assetStore,packs}.ts` | Automatische Endpunkt-Findung (App + Desktop) und URL-Import von Assets inkl. Offline-Cache |
 | **Terminal-Client** | `hooks/useTerminal.ts` | WS-Client mit Backoff + Circuit Breaker + Idle-Timeout |
-| **Terminal-UI** | `components/AccessConsole.tsx` / `hooks/useTerminal.ts` | xterm.js-Anbindung, RBAC-Preflight |
+| **Terminal-UI** | `components/AccessConsole.tsx` / `hooks/useTerminal.ts` | eigene WS-Zeilenkonsole (kein xterm-Paket), RBAC-Preflight |
 | **Zugriffs-Konsole** | `components/AccessConsole.tsx` | Geräteauswahl, Ziel-Öffnung (rollenabhängig) |
 | **Auth-Backend** | `auth.py` | JWT, Rollen-Guard, Login |
 | **Terminal-Bridge** | `pty_bridge.py` | WS↔PTY/SSH, serverseitiger RBAC + Interlock + Audit |
@@ -496,15 +507,20 @@ server {
 
 **Reproduzierbarer Start:** installiert Abhängigkeiten (falls fehlend), baut und startet alle 5 Dienste mit PID-/Log-Dateien; `./start.sh --docker` nutzt docker compose.
 
-**Makefile:**
+**Makefile** (`make help` druckt dieselbe Liste):
 ```bash
-make install   # Dependencies
-make build     # Frontend + Backend
-make up        # Start alle Services
-make down      # Stop
-make logs      # Tail logs
-make reset     # SQLite zurücksetzen
-make test      # Test-Suites
+make install     # Node-Abhängigkeiten (npm ci)
+make build       # Web-Build inkl. Budget-Wächter
+make up/down     # Dev-Stack starten/stoppen      · make server   # nur REST :5000
+make logs        # Backend-Logs folgen            · make reset    # SQLite neu anlegen
+make test-py     # server/tests (90) + desktop/tests (93), ohne Dienste
+make test-web    # type-check + vitest (102) + eslint
+make test        # test-py + test-web
+make test-gw     # BLE-Gateway-Tests + Selftest   · make test-genesis
+make smoke       # tests/suite.py (59) + chain.py (20) + stress.py — Backend muss laufen
+make test-all    # vollständige Matrix inkl. smoke
+make inventar    # INVENTAR.csv neu schreiben (Bestands-/Marker-Audit)
+make docs        # Doku-Drift: tote Links, /api-Pfade ohne Code-Beleg, INVENTAR-Stand
 ```
 
 ### Persistenz (SQLite)
@@ -559,16 +575,20 @@ Alle durch den Vite-Proxy (simulierter Browser-Traffic). RBAC-Grenzen (operator)
 
 ### Wiederholbare Test-Suites (`tests/`)
 
-- **suite.py** — funktional (16 Checks: Auth/CRUD/Pairing/Audit/WebAuthn/RBAC/WS). Verifiziert: 16/16, 0 Fehler.
+- **suite.py** — funktional (**59 Checks**: Auth/CRUD/Pairing/Audit/WebAuthn/RBAC, Skript-Whitelist,
+  Workflow-Registry mit `steps[]`, Enterprise-Knoten-Proben, ADB-Proxy inkl. 501 ohne Träger).
+  Verifiziert: 59/59, `failed: 0`.
 - **stress.py** — parallele Last (Auth-Flut, Terminal-/Scanner-/Status-Sturm, Frontend). Verifiziert: 0 Fehler.
-- **chain.py** — Anbindungs-/Abhängigkeitskette (53 Checks):
-  - A) JS/Python-Dependency-Kette (Deklaration == Import)
-  - B) Ports/Erreichbarkeit
-  - C) Proxy-Kette (REST+WS durch Vite)
-  - D) JWT/RBAC-Attribute (sub/role/iat/exp)
-  - E) Datenfluss & Attribut-Übertragung
-  - F) WebAuthn-Challenge-Attribute
-  - Verifiziert: zweimal hintereinander 53/53, 0 Fehler.
+- **chain.py** — Anbindungs-/Abhängigkeitskette (**20 Checks**):
+  - A) Dateien der Kette vorhanden (Backend, Bridge, Scanner, Status-Board, RBAC, Frontend, Deploy)
+  - B) Port 5000 erreichbar (sonst werden die Live-Checks übersprungen)
+  - C) JWT-Struktur + Claims (`sub`, `role`, `iat`, `exp`)
+  - Verifiziert: 20/20, `failed: 0`.
+- **Unit-Suiten** (ohne Dienste): `server/tests` **90** (u. a. `test_api_contract.py` = Spec ⇄ Code ⇄
+  Frontend, `test_adb_proxy.py` = ADB-Whitelist mit Fake-`adb`, `test_docs.py` = Doku-Drift,
+  `test_todo_consistency.py` = TODO ⇄ GAP-Matrix) · `desktop/tests` **93** · `npm test` **102** (Vitest).
+- **Doku-/Bestands-Drift**: `make docs` (tote Markdown-Links, `/api/…` ohne Code-Beleg,
+  `INVENTAR.csv` ⇄ Git-Index) und `make inventar` (Befundtabelle neu schreiben).
 
 **Aufruf:**
 ```bash
@@ -618,25 +638,41 @@ Der Scanner (WS `/api/ws/discovery`, Port 8766) wurde geprüft und gehärtet:
 
 ## 📦 Abhängigkeiten
 
-### JavaScript / Node.js
-- `react` — UI Framework
-- `react-dom` — DOM Rendering
-- `xterm` — Terminal UI
-- `xterm-addon-fit` — Terminal Auto-Fit
-- `xterm-addon-web-links` — Link Support
+Gegen `package.json` bzw. die `requirements.txt`-Kommentare geprüft (Stand 2026-09-13);
+`tests/chain.py` verlangt die Dateien der Kette, `make docs` die Belege in der Doku.
+
+### JavaScript / Node.js (`package.json`)
+- **UI:** `react` 19.2.8, `react-dom` 19.2.8, `lucide-react`, `i18next` + `react-i18next`
+- **Capacitor (APK):** `@capacitor/core`, `-android`, `-app`, `-device`, `-network` (8.x)
+- **3D-Dashboard (lazy):** `three`, `@react-three/fiber`, `@react-three/drei`
+- **Lazy/optional:** `@huggingface/transformers` (eingebettetes Qwen2.5-0.5B-Instruct, ~400 MB),
+  `html5-qrcode` (Pairing-QR)
+- **MCP:** `@cristianoaredes/mcp-mobile-server` (MIT) + eigene Bridge `mcp/bridge.mjs` (Node-Bordmittel)
+- **Build/Test:** `vite`, `typescript`, `vitest`, `happy-dom`, `eslint`, `tailwindcss`, `terser`
+- **Kein `xterm`:** das Terminal ist eine Eigenimplementierung (`src/hooks/useTerminal.ts`)
 
 ### Python
-- `flask` 3.0.3 — Web Framework
-- `pyjwt` 2.9.0 — JWT Token Handling
-- `websockets` 13.0 — WebSocket Server
-- `pyserial` 3.5 — Serial Port Access
-- `paramiko` 3.5.0 — SSH Client
+- **Backend `server/`:** reine Standardbibliothek (`http.server`, `socket`, `sqlite3`,
+  `hashlib/pbkdf2`, `hmac`, `subprocess`) — **kein** Flask/PyJWT/pyserial/paramiko im
+  Produktionspfad; die Flask-Variante ist laut `server/requirements.txt` nicht implementiert
+- **Gateway `mobile-server/`:** Standardbibliothek; optionale BLE-/NFC-Extras in
+  `mobile-server/requirements.txt` und `mobile-server/requirements-nfc.txt`
+- **Desktop-Konsole `desktop/`:** `customtkinter` (Pflicht, plus Systempaket `python3-tk`),
+  optional `websocket-client` (Live-Status) und `llama-cpp-python` (lokales GGUF-Modell)
+- **Tests/Skripte:** Standardbibliothek (`unittest`, `urllib`) — keine Zusatzpakete nötig
 
 ---
 
 ## 📄 Lizenz
 
-[Lizenzangabe hier einfügen]
+Es liegt **bewusst keine** `LICENSE`-Datei im Repository: ohne Lizenzangabe gelten die
+gesetzlichen Standardrechte (es wird keine Nutzung/Weitergabe eingeräumt). Vor einer
+Veröffentlichung ist das eine Entscheidung des Projekts — Lizenz wählen (z. B. MIT oder
+Apache-2.0), als `LICENSE` ablegen und diesen Abschnitt ersetzen.
+
+Unabhängig davon sind mitgelieferte Fremdanteile jeweils eigenständig lizenziert: `adb`
+aus LADB (Apache-2.0), das MCP-Paket `@cristianoaredes/mcp-mobile-server` (MIT) und das
+optionale Modell Qwen2.5-0.5B-Instruct (Apache-2.0).
 
 ---
 
@@ -646,4 +682,4 @@ Fragen? Fehler gefunden? Verbessern Sie das Projekt — PRs willkommen!
 
 ---
 
-**Version:** 2.2 | **Status:** Production-Ready | **Last Updated:** 2026-08-08
+**Version:** 2.2 | **Status:** Production-Ready | **Last Updated:** 2026-09-13 (TODO-Runde: A-1/A-2/A-3/A-5/A-6/A-7/A-8/A-10/A-12, G-2/G-4/G-5/G-9, D-1)

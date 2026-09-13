@@ -68,7 +68,7 @@ bringt es mit).`alert-rules.yml` ist ebenfalls gemountet, weil `prometheus.yml` 
 | `dingelschwing_gateway_open_challenges` | gauge | offene Challenges (TTL 20 s, aktiv bereinigt) |
 | `dingelschwing_gateway_ble_advertising` | gauge | 1 wenn BLE-Werbung läuft |
 
-### NEXUS-Backend (`:5000/api/metrics`)
+### NEXUS-Backend (`:5000/metrics`)
 `up`, `http_requests_total{status,route}`, Latenz-Histogramme, plus Trace-Ketten-Label `trace_id` in den JSON-Logs (Loki).
 
 ## 2️⃣ Live-Statusleiste in der App
