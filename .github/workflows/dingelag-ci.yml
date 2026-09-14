@@ -185,14 +185,17 @@ jobs:
             else
               echo "::error::${datei}: Rückgabewert ${rc}"
             fi
+            # Alle Fehlschläge der Datei, nicht nur der erste: Prüfungsname
+            # ([E]) je Fehlschlag, dazu jede Expected/Actual/Which-Zeile.
             {
-              echo '-- letzte Zählerstände:'
-              grep -E '^[0-9]{2}:[0-9]{2} \+[0-9]+' "$protokoll" | tail -n 3
-              echo '-- Fehlerblock:'
-              awk '/\[E\]|EXCEPTION CAUGHT|The following|Timer is still pending|Failed to load|All tests passed|Some tests failed/{f=1} f' \
-                "$protokoll" | head -n 14
+              echo '-- Zählerstände:'
+              grep -E '^[0-9]{2}:[0-9]{2} \+[0-9]+' "$protokoll" | tail -n 2
+              echo '-- fehlgeschlagene Prüfungen:'
+              grep -E '\[E\]$|\[E\] *$' "$protokoll" | head -n 4
+              echo '-- Erwartungen:'
+              grep -E '^ *(Expected|Actual|Which|The following|Test failed|A Timer)' "$protokoll" | head -n 10
               echo '-- Protokollende:'
-              tail -n 8 "$protokoll"
+              tail -n 5 "$protokoll"
             } | cut -c1-140 > befund-roh.txt
             for teil in 1 2 3; do
               anfang=$(( (teil - 1) * 8 + 1 ))

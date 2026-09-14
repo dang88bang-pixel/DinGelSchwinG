@@ -31,9 +31,14 @@ void main() {
 
   /// Einige Frames weiterschalten — bewusst kein `pumpAndSettle`, weil
   /// Ladeanzeigen endlose Animationen sind und das Absetzen nie „fertig" wäre.
+  ///
+  /// 300 ms je Durchgang statt 30 ms: Löst eine Änderung eine Meldung aus,
+  /// während noch eine SnackBar läuft, meldet `ScaffoldMessenger` die alte erst
+  /// ab (250 ms) und zeigt dann die neue (250 ms). Mit 30 ms stand der neue
+  /// Text noch nicht im Baum, und `find.text` fand nichts.
   Future<void> settle(WidgetTester tester) async {
     for (int i = 0; i < 4; i++) {
-      await tester.pump(const Duration(milliseconds: 30));
+      await tester.pump(const Duration(milliseconds: 300));
     }
   }
 
