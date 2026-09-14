@@ -154,24 +154,31 @@ jobs:
         timeout-minutes: 20
         shell: bash
         run: |
+          # `shell: bash` ruft bash mit -eo pipefail auf. -e würde die Schleife
+          # nach der ersten fehlerhaften Datei beenden — gerade die übrigen
+          # Dateien sind aber der Befund. Also ausdrücklich ausschalten.
+          set +e
           set -uo pipefail
           : > test.log
           status=0
           for datei in test/*_test.dart; do
-            echo "=== ${datei} ===" | tee -a test.log
-            timeout 240 flutter test --reporter expanded "$datei" 2>&1 | tee -a test.log
-            rc=${PIPESTATUS[0]}
+            echo "=== ${datei} ===" >> test.log
+            # --kill-after: SIGTERM erreicht den Testprozess hinter `flutter`
+            # mitunter nicht; ohne zweite Stufe bleibt die Schleife stehen.
+            timeout --kill-after=30 180 flutter test --reporter expanded \
+              "$datei" >> test.log 2>&1
+            rc=$?
             if [ "$rc" -ne 0 ]; then
-              if [ "$rc" -eq 124 ]; then
-                echo "::error::${datei}: Zeitüberschreitung nach 240 s — ein Test hängt"
+              if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+                echo "::error::${datei}: Zeitüberschreitung nach 180 s — ein Test hängt (Rückgabewert ${rc})"
               else
                 echo "::error::${datei}: Rückgabewert ${rc}"
               fi
-              grep -E '^\s+[0-9:]+ \+[0-9]+' test.log | tail -n 3 | sed 's/^/::error::letzter Stand: /'
+              tail -n 6 test.log | sed 's/^/::error::letzter Stand: /'
               status=1
             fi
           done
-          tail -n 30 test.log >> "$GITHUB_STEP_SUMMARY"
+          tail -n 40 test.log >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
       - name: APK bauen (debug — auf dem CT45P installierbar)

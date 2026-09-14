@@ -10,6 +10,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// [HidScanner.onKeyEvent] — dieselbe Stelle, an der die Hardware-Tastatur
 /// (und ab Schritt 2 der Honeywell-Intent) einsetzt.
 void main() {
+  // `attach()`/`detach()` arbeiten an `HardwareKeyboard.instance`; die Instanz
+  // gibt es erst, sobald eine Bindung steht. `testWidgets` legt sie selbst an,
+  // einfache `test()`-Prüfungen nicht — also hier ausdrücklich.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   /// Feste Uhr, damit das Zeitfenster im Puffer nicht vom Testablauf abhängt.
   HidScanner scannerWithFixedClock({int minLength = 3}) {
     return HidScanner(
