@@ -80,6 +80,9 @@ jobs:
     name: Flutter (analyze, test, APK, Web)
     runs-on: ubuntu-latest
     needs: referenz
+    # Grenze für den ganzen Job: Ohne sie läuft ein hängender Test bis zur
+    # Vorgabe von GitHub (6 Stunden) und blockiert die Kette.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: dingelag
@@ -143,18 +146,32 @@ jobs:
           fi
           exit "$status"
 
+      # Jede Testdatei einzeln und unter `timeout`: Hängt ein Test, ist die
+      # Zeitüberschreitung von package:test wirkungslos — sie läuft in derselben
+      # Fake-Async-Zone wie der Test selbst und feuert deshalb nie. Nur eine
+      # äußere Grenze beendet den Lauf, und der Dateiname nennt den Ort.
       - name: Tests (Dart-VM mit echtem SQLite)
+        timeout-minutes: 20
         shell: bash
         run: |
           set -uo pipefail
-          flutter test --reporter expanded 2>&1 | tee test.log
-          status=${PIPESTATUS[0]}
+          : > test.log
+          status=0
+          for datei in test/*_test.dart; do
+            echo "=== ${datei} ===" | tee -a test.log
+            timeout 240 flutter test --reporter expanded "$datei" 2>&1 | tee -a test.log
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              if [ "$rc" -eq 124 ]; then
+                echo "::error::${datei}: Zeitüberschreitung nach 240 s — ein Test hängt"
+              else
+                echo "::error::${datei}: Rückgabewert ${rc}"
+              fi
+              grep -E '^\s+[0-9:]+ \+[0-9]+' test.log | tail -n 3 | sed 's/^/::error::letzter Stand: /'
+              status=1
+            fi
+          done
           tail -n 30 test.log >> "$GITHUB_STEP_SUMMARY"
-          if [ "$status" -ne 0 ]; then
-            grep -E '\[E\]|Expected:|Actual:|Test failed|Failed to load|Error:' test.log \
-              | head -n 60 | sed 's/^/::error::/'
-            tail -n 5 test.log | sed 's/^/::error::/'
-          fi
           exit "$status"
 
       - name: APK bauen (debug — auf dem CT45P installierbar)
@@ -238,7 +255,7 @@ jobs:
             for log in analyze.log test.log build-apk.log build-web.log; do
               echo
               if [ -s "$log" ]; then
-                echo "### ${log} — $(wc -l < "$log") Zeilen, letzte 150"
+                echo "### ${log} — $(wc -l < "$log") Zeilen, letzte 250"
               elif [ -f "$log" ]; then
                 echo "### ${log} — LEER (Befehl lieferte keine Ausgabe)"
               else
@@ -246,7 +263,7 @@ jobs:
                 continue
               fi
               echo '```'
-              tail -n 150 "$log"
+              tail -n 250 "$log"
               echo '```'
             done
           } > befund.md
