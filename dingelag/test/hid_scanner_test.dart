@@ -20,26 +20,40 @@ void main() {
     );
   }
 
+  // `KeyEvent` verlangt eine Zeitmarke; dem Scanner ist ihr Wert gleichgültig,
+  // er rechnet mit der Uhr des Puffers.
+  const Duration stamp = Duration.zero;
+
+  // Logische Taste zur Beschriftung: Flutter legt druckbare Zeichen auf ihre
+  // Unicode-Position (digit4 = 0x34, keyA = 0x61), also passt die Zuordnung
+  // für Buchstaben, Ziffern und Trennzeichen in Barcodes.
+  LogicalKeyboardKey logicalFor(String character) =>
+      LogicalKeyboardKey(character.toLowerCase().codeUnitAt(0));
+
   KeyDownEvent keyDown(String character) => KeyDownEvent(
-        physicalKey: PhysicalKeyboardKey.any,
-        logicalKey: LogicalKeyboardKey.keyA,
+        physicalKey: PhysicalKeyboardKey.keyA,
+        logicalKey: logicalFor(character),
         character: character,
+        timeStamp: stamp,
       );
 
   KeyDownEvent enter() => KeyDownEvent(
-        physicalKey: PhysicalKeyboardKey.any,
+        physicalKey: PhysicalKeyboardKey.enter,
         logicalKey: LogicalKeyboardKey.enter,
+        timeStamp: stamp,
       );
 
   KeyDownEvent numpadEnter() => KeyDownEvent(
-        physicalKey: PhysicalKeyboardKey.any,
+        physicalKey: PhysicalKeyboardKey.numpadEnter,
         logicalKey: LogicalKeyboardKey.numpadEnter,
+        timeStamp: stamp,
       );
 
-  KeyUpEvent keyUp(String character) => KeyUpEvent(
-        physicalKey: PhysicalKeyboardKey.any,
+  // `KeyUpEvent` trägt kein Zeichen — hochgenommen wird nichts mitgezählt.
+  KeyUpEvent keyUp() => KeyUpEvent(
+        physicalKey: PhysicalKeyboardKey.keyA,
         logicalKey: LogicalKeyboardKey.keyA,
-        character: character,
+        timeStamp: stamp,
       );
 
   /// Zeichenkette wie ein Scanner einspielen.
@@ -86,12 +100,13 @@ void main() {
         scanner.barcodes.listen(received.add);
 
     type(scanner, 'ART-002');
-    scanner.onKeyEvent(keyUp('2'));
+    scanner.onKeyEvent(keyUp());
     scanner.onKeyEvent(
       KeyRepeatEvent(
-        physicalKey: PhysicalKeyboardKey.any,
-        logicalKey: LogicalKeyboardKey.keyA,
+        physicalKey: PhysicalKeyboardKey.keyA,
+        logicalKey: LogicalKeyboardKey.digit2,
         character: '2',
+        timeStamp: stamp,
       ),
     );
     scanner.onKeyEvent(enter());

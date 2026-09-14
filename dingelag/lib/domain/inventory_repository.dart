@@ -26,7 +26,7 @@ class InventoryRepository implements InventoryStore {
 
   Database get _db => store.database;
 
-  String _now() => _clock == null ? isoUtcNow() : isoUtc(_clock!());
+  String _now() => _clock == null ? isoUtcNow() : isoUtc(_clock());
 
   // -----------------------------------------------------------------------
   // Einstellungen (`app_settings`, Lastenheft § 3 `AppSettings`)

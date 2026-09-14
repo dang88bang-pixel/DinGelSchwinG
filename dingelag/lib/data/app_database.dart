@@ -43,14 +43,19 @@ class AppDatabase {
   }) async {
     final DatabaseFactory used = factory ?? databaseFactory;
     final String resolved = path ?? await defaultPath(name);
+    // `DatabaseFactory.openDatabase` nimmt die Angaben gebündelt — dieselben
+    // Optionen gelten für das sqflite-Plugin am Gerät und für die FFI-Fabrik
+    // in den Tests.
     final Database db = await used.openDatabase(
       resolved,
-      version: 1,
-      onConfigure: (Database target) async {
-        // Fremdschlüssel sind in SQLite standardmäßig aus — die Historie
-        // hängt per ON DELETE CASCADE an den Artikeln, also einschalten.
-        await target.execute('PRAGMA foreign_keys = ON');
-      },
+      options: OpenDatabaseOptions(
+        version: 1,
+        onConfigure: (Database target) async {
+          // Fremdschlüssel sind in SQLite standardmäßig aus — die Historie
+          // hängt per ON DELETE CASCADE an den Artikeln, also einschalten.
+          await target.execute('PRAGMA foreign_keys = ON');
+        },
+      ),
     );
     final AppDatabase store = AppDatabase._(db, resolved);
     await store.applySchema();

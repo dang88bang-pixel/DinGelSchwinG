@@ -115,5 +115,5 @@ class ScanBuffer {
     }
   }
 
-  DateTime _now() => _clock == null ? DateTime.now() : _clock!();
+  DateTime _now() => _clock == null ? DateTime.now() : _clock();
 }

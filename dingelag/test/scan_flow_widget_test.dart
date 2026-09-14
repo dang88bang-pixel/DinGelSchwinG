@@ -33,6 +33,14 @@ void main() {
     controller.dispose();
   });
 
+  /// Einige Frames weiterschalten — bewusst kein `pumpAndSettle`, weil
+  /// Ladeanzeigen endlose Animationen sind und das Absetzen nie „fertig" wäre.
+  Future<void> settle(WidgetTester tester) async {
+    for (int i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 30));
+    }
+  }
+
   Future<void> start(WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -45,14 +53,6 @@ void main() {
     controller.scanner.start();
     await controller.bootstrap();
     await settle(tester);
-  }
-
-  /// Einige Frames weiterschalten — bewusst kein `pumpAndSettle`, weil
-  /// Ladeanzeigen endlose Animationen sind und das Absetzen nie „fertig" wäre.
-  Future<void> settle(WidgetTester tester) async {
-    for (int i = 0; i < 4; i++) {
-      await tester.pump(const Duration(milliseconds: 30));
-    }
   }
 
   /// Treffer innerhalb eines Bereichs suchen. Nötig, weil `IndexedStack` alle
