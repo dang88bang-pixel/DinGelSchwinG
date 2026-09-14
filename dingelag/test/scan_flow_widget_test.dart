@@ -21,10 +21,13 @@ void main() {
   late FakeInventoryStore store;
   late InventoryController controller;
 
-  setUp(() {
-    store = FakeInventoryStore();
-    controller = InventoryController(repository: store);
-  });
+  // Bewusst KEIN `setUp`: Der Controller legt im Konstruktor einen
+  // `StreamController.broadcast` und das Abonnement darauf an. `setUp` läuft
+  // außerhalb der Fake-Async-Zone der Prüfung (`testWidgets` ruft
+  // `binding.runTest` erst danach auf), und Ereignisse, die in eine fremde Zone
+  // geliefert werden sollen, warten auf die echte Ereignisschleife — die
+  // Prüfung bleibt stehen, bis die äußere Zeitgrenze sie beendet. Im Prüfkörper
+  // angelegt, liegen Strom und Zone beisammen.
 
   /// Einige Frames weiterschalten — bewusst kein `pumpAndSettle`, weil
   /// Ladeanzeigen endlose Animationen sind und das Absetzen nie „fertig" wäre.
@@ -35,6 +38,8 @@ void main() {
   }
 
   Future<void> start(WidgetTester tester) async {
+    store = FakeInventoryStore();
+    controller = InventoryController(repository: store);
     // Aufräumen am Testende, in dieser Reihenfolge: Scanner abmelden (kein
     // Handler darf in den nächsten Test ragen), Hinweis-Timer auslaufen lassen
     // (die SnackBar läuft 2 s, bei Fehlern 5 s — bleibt ein Timer stehen,
