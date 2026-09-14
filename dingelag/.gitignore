@@ -1,0 +1,22 @@
+# Bau-Artefakte und lokale Werkzeugdateien — nichts davon gehört ins Repo.
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+# pubspec.lock: ohne Flutter-SDK in dieser Umgebung nicht erzeugbar; die
+# Versionen werden über die Bereiche in pubspec.yaml gehalten. Für einen
+# reproduzierbaren Release-Build (Schritt 4) gehört die Datei dann ins Repo.
+pubspec.lock
+*.iml
+.idea/
+.vscode/
+
+# Die Plattformverzeichnisse android/ und web/ erzeugt CI mit
+# `flutter create --platforms=android,web .` (siehe dingelag-ci.yml).
+# Sie werden bewusst NICHT ignoriert: Sobald dort echte Konfiguration
+# (Berechtigungen, App-Name, Symbole) eingezogen ist, muss sie versioniert sein.
+
+# Referenz: Python-Bytecode bleibt draußen (globale .gitignore deckt
+# __pycache__ ab, hier noch einmal ausdrücklich für diesen Ordner).
+*.pyc

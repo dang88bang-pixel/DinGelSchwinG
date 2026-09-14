@@ -1,0 +1,29 @@
+name: dingelag
+description: >-
+  DinGelAg V0.1 — Offline-Inventur für Honeywell CT45P und Android.
+  Barcode scannen, Artikel finden, Menge ändern, lokal in SQLite speichern,
+  Historie und Suche. Ohne Backend, ohne Cloud, ohne KI.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Lokale Persistenz — die einzige Datenquelle der App (V0.1 hat kein Backend).
+  # `getDatabasesPath()` kommt aus sqflite selbst, deshalb kein path_provider.
+  sqflite: ^2.3.3
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # Echtes SQLite im Dart-VM-Test (openDatabase ohne Gerät/Emulator).
+  sqflite_common_ffi: ^2.3.3
+
+flutter:
+  uses-material-design: true

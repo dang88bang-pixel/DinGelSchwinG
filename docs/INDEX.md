@@ -12,6 +12,7 @@ Diese Datei verlinkt die aktiven Projektbereiche, damit jede beschriebene Funkti
 | Datei-Inventar | [INVENTAR.csv](../INVENTAR.csv) |
 | Web-/APK-Build | [BUILD_INSTRUCTIONS.md](../BUILD_INSTRUCTIONS.md) |
 | Desktop-Konsole | [desktop/README.md](../desktop/README.md) |
+| Offline-Inventur DinGelAg (Flutter) | [dingelag/README.md](../dingelag/README.md), [dingelag/TODO.md](../dingelag/TODO.md) |
 | API-Spezifikation | [docs/openapi.yaml](openapi.yaml) |
 | WebSocket-Protokolle | [docs/api-websockets.md](api-websockets.md) |
 | Hardware-Setup | [docs/hardware-setup.md](hardware-setup.md) |

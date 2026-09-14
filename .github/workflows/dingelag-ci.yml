@@ -1,0 +1,178 @@
+# DinGelAg V0.1 — Bau- und Prüfkette für den Inventur-App-Teil des Repos.
+#
+# Warum ein eigener Workflow? `build-apk.yml` baut die Capacitor-App des
+# Hauptprojekts. DinGelAg ist Flutter und lebt in `dingelag/`; beide Ketten
+# sollen unabhängig voneinander grün werden und sich nicht gegenseitig
+# ausbremsen.
+#
+# Zwei Jobs:
+#   referenz  — Python-Referenz + Paritätsprüfungen (läuft ohne Flutter-SDK,
+#               also auch dann, wenn der App-Bau hakt)
+#   app       — Flutter: Plattformen erzeugen, pub get, analyze, test,
+#               APK (debug) und Web (release) bauen, Artefakte hochladen
+name: DinGelAg CI
+
+on:
+  push:
+    branches: [main, 'arena/**']
+    paths:
+      - 'dingelag/**'
+      - '.github/workflows/dingelag-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'dingelag/**'
+      - '.github/workflows/dingelag-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: dingelag-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  referenz:
+    name: Referenz & Parität (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository holen
+        uses: actions/checkout@v4
+
+      - name: Python bereitstellen
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Schema-Spiegel ist aktuell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 dingelag/reference/generate_schema_dart.py
+          if ! git diff --exit-code -- dingelag/lib/data/schema.dart; then
+            echo "::error::lib/data/schema.dart weicht von schema/schema.sql ab — Generator laufen lassen und einreichen."
+            exit 1
+          fi
+          echo "Schema-Spiegel stimmt mit schema/schema.sql überein." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Inventur-Kern und Parität prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s dingelag/reference/tests -v 2>&1 | tee reference.log
+          tail -n 20 reference.log >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ergebnis bei Fehlschlag zusammenfassen
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '## DinGelAg-Referenz fehlgeschlagen'
+            echo '```'
+            tail -n 60 reference.log 2>/dev/null || echo 'kein Protokoll vorhanden'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  app:
+    name: Flutter (analyze, test, APK, Web)
+    runs-on: ubuntu-latest
+    needs: referenz
+    defaults:
+      run:
+        working-directory: dingelag
+    steps:
+      - name: Repository holen
+        uses: actions/checkout@v4
+
+      - name: Java 17 bereitstellen
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter bereitstellen
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.24.3'
+          cache: true
+
+      # Die Plattformverzeichnisse (android/, web/) liegen bewusst nicht im
+      # Git: Sie sind erzeugbarer Ballast. `flutter create .` ergänzt sie
+      # fehlertolerant, ohne `lib/` oder `pubspec.yaml` anzufassen.
+      - name: Plattformen erzeugen (android, web)
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter config --no-analytics
+          flutter create --platforms=android,web --org app.dingelag --project-name dingelag .
+          # `flutter create` ergänzt fehlende Vorlagendateien und fasst
+          # vorhandene nicht an: `lib/`, `pubspec.yaml` und `test/` bleiben
+          # also, wie sie eingereicht wurden. Falls die Vorlage trotzdem ein
+          # Zähler-Beispiel einschleust, fliegt es hier raus — es gehört nicht
+          # zu dieser App und würde den Testlauf abbrechen.
+          if grep -rl "Counter increments" test/ >/dev/null 2>&1; then
+            grep -rl "Counter increments" test/ | xargs rm -f
+            echo "::warning::Vorlagen-Test (Zähler-Beispiel) entfernt"
+          fi
+          ls test/
+
+      - name: Abhängigkeiten auflösen
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+
+      - name: Statische Analyse
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter analyze 2>&1 | tee analyze.log
+
+      - name: Tests (Dart-VM mit echtem SQLite)
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter test --reporter expanded 2>&1 | tee test.log
+          tail -n 30 test.log >> "$GITHUB_STEP_SUMMARY"
+
+      - name: APK bauen (debug — auf dem CT45P installierbar)
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build apk --debug 2>&1 | tee build-apk.log
+          ls -l build/app/outputs/flutter-apk/ >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Web bauen (release — Verwaltungsansicht)
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build web --release 2>&1 | tee build-web.log
+
+      - name: APK als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: dingelag-apk-debug
+          path: dingelag/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+      - name: Web-Build als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: dingelag-web
+          path: dingelag/build/web
+          if-no-files-found: error
+
+      - name: Ergebnis bei Fehlschlag zusammenfassen
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '## DinGelAg-App-Bau fehlgeschlagen'
+            for log in analyze.log test.log build-apk.log build-web.log; do
+              if [ -f "$log" ]; then
+                echo "### $log"
+                echo '```'
+                tail -n 80 "$log"
+                echo '```'
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

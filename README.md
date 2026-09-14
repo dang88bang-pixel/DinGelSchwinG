@@ -185,6 +185,7 @@ Details: [`docs/api-websockets.md`](docs/api-websockets.md) ·
 | [`docs/mobile-ble-gateway.md`](docs/mobile-ble-gateway.md) | 🔐 Mobiles BLE-Gateway (Honeywell CT45P Xon+): AES-128-Challenge/Response, Whitelist, Lockout, Tamper, Ports,_HW_, rechtlicher Rand |
 | [`docs/agent-gallery.md`](docs/agent-gallery.md) | 🖼️ Agenten-Galerie (13 Profile, Skills, JSON-Import/-Export), RAG-Wissensdatenbank, Live-Statusleiste |
 | [`docs/portview-import.md`](docs/portview-import.md) | 🧭📥 PortView (UDP-Discovery, HTTP-Probe, Endpoint-Layer, native Capacitor-Brücke), Software-Grabber (URL/Pack-Import, SSRF-Filter, Dedupe, Offline-Cache, UI-Styles) und Seiten-Ingest per Drag & Drop (Inhalt prüfen → Seite + Software + Wissensbasis) |
+| [`dingelag/README.md`](dingelag/README.md) | 📦 DinGelAg V0.1 — Offline-Inventur als Flutter-App für Honeywell CT45P/Android: Barcode scannen → Artikel → Menge → lokales SQLite, Historie, Echtzeitsuche; dazu sprachunabhängige Referenzimplementation (Python) mit Paritätsprüfungen und eigener CI-Kette (`dingelag-ci.yml`) |
 | [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) | APK-Build lokal & via GitHub Actions (Android 11–16 / API 30–36, Tag → Release, Signing-Secrets, APK-Prüfung) |
 
 Die Web-App ist außerdem **offline-fähig** (Service Worker, App-Shell-Caching,

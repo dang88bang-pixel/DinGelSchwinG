@@ -1,7 +1,7 @@
 # TODO — offene & teilfertige Punkte
 
 **Stand: 2026-09-13 · Quelle: [`GAP_MATRIX.md`](GAP_MATRIX.md) Fassung 2.0 (§ 12 Rest-Gaps `G-*`,
-§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (413 Dateien, 4 Nicht-REAL)**
+§ 14.3 Aktionsketten `A-*`) + Befundtabelle `INVENTAR.csv` (456 Dateien, 4 Nicht-REAL)**
 
 Diese Liste ist die **Arbeitsliste** des Projekts. Jeder Eintrag nennt Ist-Zustand, Ziel,
 konkrete Schritte und — wichtig — den **Nachweis**, mit dem der Punkt als erledigt gilt.
@@ -479,14 +479,14 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
         (`/api/adb/*`, `/api/workflows[/registry]`, `/api/scripts`, `/api/nodes/validate`,
         `/api/diag/*`, `/metrics`), Web-Ketten (ADB aus dem Web, Offline-Ingest, RAG, MCP),
         Desktop-Module und vollständige Prüfmatrix
-  - [x] Bestandszahlen synchron: `make inventar` → **413 Dateien / 4 Nicht-REAL**; `TODO.md` nennt
+  - [x] Bestandszahlen synchron: `make inventar` → **456 Dateien / 4 Nicht-REAL**; `TODO.md` nennt
         dieselben Zahlen und jeder Nicht-REAL-Befund hat einen Anhang-Eintrag (beides Test-Assert)
   - [x] `.gitignore`: `__pycache__/` + `*.py[cod]` global — ein `scripts/__pycache__/*.pyc` war
         bereits im Index gelandet und hätte das Inventar verfälscht
 - **Fertig wenn:** Beide Konsistenz-Tests grün sind und `INVENTAR.csv` zum Commit passt.
 - **Nachweis:** `test_api_contract.py` **5/5** · `test_todo_consistency.py` **5/5** ·
   `test_docs.py` **8/8** (tote Links 0, Phantom-Endpunkte 0, INVENTAR-Drift 0, CLI-Exit 0) ·
-  `make docs` grün · `make inventar` → 413 Dateien / 4 Nicht-REAL, `INVENTAR.csv` liegt im
+  `make docs` grün · `make inventar` → 456 Dateien / 4 Nicht-REAL, `INVENTAR.csv` liegt im
   selben Commit. Gesamtstände: `server/tests` **98/98** · `desktop/tests` **93/93** ·
   `npm test` **102/102** · `make smoke` (`suite.py` 59 + `chain.py` 20) **failed: 0** ·
   `npm run lint`/`type-check`/`build` grün.
@@ -495,7 +495,7 @@ am 2026-09-13 gegen den Arbeitsbaum geprüft.
 
 ## Anhang — Nicht-REAL-Befunde aus `INVENTAR.csv`
 
-`python3 scripts/audit_inventar.py` meldet 413 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
+`python3 scripts/audit_inventar.py` meldet 456 Dateien, davon 4 Nicht-REAL. Jeder Befund hat
 hier einen Eintrag — damit kein Marker unbemerkt liegen bleibt:
 
 | Befund | Datei | TODO-ID | Bewertung |

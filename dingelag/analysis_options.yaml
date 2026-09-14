@@ -1,0 +1,16 @@
+# DinGelAg — Analyse-Regeln.
+# `flutter_lints` bleibt die Basis; zwei Stil-Infos sind abgeschaltet, weil sie
+# in handgeschriebenem Widget-Code ständig umbauen lassen, ohne etwas zu sagen.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - reference/**
+
+linter:
+  rules:
+    prefer_const_constructors: false
+    prefer_const_literals_to_create_immutables: false
+    avoid_print: true
+    prefer_final_locals: true

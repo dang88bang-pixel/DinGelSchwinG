@@ -1,4 +1,4 @@
-.PHONY: help install build up down logs reset test test-all test-py test-gw test-genesis test-web smoke inventar docs server
+.PHONY: help install build up down logs reset test test-all test-py test-gw test-genesis test-web smoke inventar docs server dingelag
 
 install:
 	npm ci || npm install
@@ -67,6 +67,15 @@ inventar:
 docs:
 	python3 scripts/check_docs.py
 
+# DinGelAg V0.1 (dingelag/): Schema-Spiegel erneuern, auf Drift prüfen und die
+# Referenz- plus Paritätstests laufen lassen. Braucht kein Flutter-SDK — die
+# Dart-Seite prüft .github/workflows/dingelag-ci.yml (analyze, test, APK, Web).
+dingelag:
+	python3 dingelag/reference/generate_schema_dart.py
+	@git diff --exit-code -- dingelag/lib/data/schema.dart || \
+		(echo "dingelag/lib/data/schema.dart einreichen (Spiegel von schema.sql)" && exit 1)
+	python3 -m unittest discover -s dingelag/reference/tests
+
 # Kurzreferenz der Ziele.
 help:
 	@echo "make <ziel>:"
@@ -85,6 +94,7 @@ help:
 	@echo "  test-all       vollständige Matrix inkl. smoke"
 	@echo "  inventar       INVENTAR.csv neu erzeugen (scripts/audit_inventar.py)"
 	@echo "  docs           Doku-Drift prüfen (scripts/check_docs.py)"
+	@echo "  dingelag       DinGelAg: Schema-Spiegel + Referenz-/Paritätstests (ohne Flutter)"
 
 server:
 	python3 server/app.py
