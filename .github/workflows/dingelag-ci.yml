@@ -90,8 +90,11 @@ jobs:
       - name: Repository holen
         uses: actions/checkout@v4
 
+      # v5, weil GitHub v4 als veraltet meldet („will no longer receive
+      # updates"). Die übrigen Warnungen der Läufe (Node.js 20) sind Hinweise
+      # der Plattform: Sie führt diese Actions selbst auf Node.js 24 aus.
       - name: Java 17 bereitstellen
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'

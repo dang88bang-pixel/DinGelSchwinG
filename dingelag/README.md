@@ -123,6 +123,12 @@ flutter build web --release
 CI läuft genau diese Kette bei Änderungen an `dingelag/**` und lädt
 `dingelag-apk-debug` sowie `dingelag-web` als Artefakte hoch.
 
+Nachgewiesen: Lauf #10 der Kette auf Commit `10d1b1b` ist grün — `analyze`
+ohne Befund, 89 Dart-Prüfungen (sieben Dateien, je einzeln unter
+`timeout 180`), 56 Referenzprüfungen, APK 81,8 MB und Web-Build 7,15 MB als
+Artefakt. Die Debug-APK ist groß, weil Symbole und Debug-Laufzeit enthalten
+sind; ein signierter Release-Bau folgt in Schritt 4.
+
 ## Definition of Done — Stand
 
 | # | Schritt | Nachweis |

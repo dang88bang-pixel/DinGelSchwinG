@@ -3,8 +3,12 @@
 Reihenfolge ist Absicht: **erst der Offline-Kern auf dem Gerät, dann alles
 andere.** Kein Schritt beginnt, bevor der vorige nachgewiesen ist.
 
-Stand: Schritt 1 ist gebaut und geprüft (Referenz + Dart-Tests + CI-Kette).
-Offen sind die Handprüfungen am Gerät und die Schritte 2–4.
+Stand: Schritt 1 ist gebaut **und in CI grün** — Lauf #10 der Kette
+`DinGelAg CI` auf Commit `10d1b1b` (14.09.2026, 5 m 15 s): `flutter analyze`
+ohne Befund, 89 Dart-Prüfungen in sieben Dateien, 56 Referenz- und
+Paritätsprüfungen, dazu die Artefakte `dingelag-apk-debug` (81,8 MB) und
+`dingelag-web` (7,15 MB). Offen sind die Handprüfungen am Gerät und die
+Schritte 2–4.
 
 ---
 
@@ -50,6 +54,9 @@ Datenmodell → Scan → Menge → Ereignis → Persistenz → Inventar/Suche/Hi
 - [x] CI-Kette: Referenz + Parität, dann `flutter create`, `pub get`,
       `analyze`, `test`, `build apk --debug`, `build web --release`,
       Artefakte ([`../.github/workflows/dingelag-ci.yml`](../.github/workflows/dingelag-ci.yml))
+      — grün seit Lauf #10; jede Testdatei läuft einzeln unter `timeout 180`,
+      weil die Zeitüberschreitung von `package:test` in der Fake-Async-Zone
+      einer Bildschirmprüfung nicht greift
 
 ### Handprüfung am Gerät (offen — kein CT45P im Entwicklungsrechner)
 
