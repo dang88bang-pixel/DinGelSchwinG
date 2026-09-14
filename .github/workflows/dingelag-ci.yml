@@ -150,6 +150,11 @@ jobs:
       # Zeitüberschreitung von package:test wirkungslos — sie läuft in derselben
       # Fake-Async-Zone wie der Test selbst und feuert deshalb nie. Nur eine
       # äußere Grenze beendet den Lauf, und der Dateiname nennt den Ort.
+      #
+      # Der Befund geht als Annotation raus (je Datei drei Blöcke à acht
+      # Zeilen): Die Protokoll-Ablage der Läufe antwortet aus der
+      # Entwicklungsumgebung mit EOF, Annotationen sind ohne Anmeldung auf der
+      # Laufseite lesbar — GitHub zeigt allerdings höchstens zehn je Stufe.
       - name: Tests (Dart-VM mit echtem SQLite)
         timeout-minutes: 20
         shell: bash
@@ -162,23 +167,43 @@ jobs:
           : > test.log
           status=0
           for datei in test/*_test.dart; do
+            protokoll="test-$(basename "$datei" .dart).log"
             echo "=== ${datei} ===" >> test.log
             # --kill-after: SIGTERM erreicht den Testprozess hinter `flutter`
             # mitunter nicht; ohne zweite Stufe bleibt die Schleife stehen.
             timeout --kill-after=30 180 flutter test --reporter expanded \
-              "$datei" >> test.log 2>&1
+              "$datei" > "$protokoll" 2>&1
             rc=$?
-            if [ "$rc" -ne 0 ]; then
-              if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
-                echo "::error::${datei}: Zeitüberschreitung nach 180 s — ein Test hängt (Rückgabewert ${rc})"
-              else
-                echo "::error::${datei}: Rückgabewert ${rc}"
-              fi
-              tail -n 6 test.log | sed 's/^/::error::letzter Stand: /'
-              status=1
+            cat "$protokoll" >> test.log
+            if [ "$rc" -eq 0 ]; then
+              echo "${datei}: grün" >> "$GITHUB_STEP_SUMMARY"
+              continue
             fi
+            status=1
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+              echo "::error::${datei}: hängt — Zeitüberschreitung nach 180 s (Rückgabewert ${rc})"
+            else
+              echo "::error::${datei}: Rückgabewert ${rc}"
+            fi
+            {
+              echo '-- letzte Zählerstände:'
+              grep -E '^[0-9]{2}:[0-9]{2} \+[0-9]+' "$protokoll" | tail -n 3
+              echo '-- Fehlerblock:'
+              awk '/\[E\]|EXCEPTION CAUGHT|The following|Timer is still pending|Failed to load|All tests passed|Some tests failed/{f=1} f' \
+                "$protokoll" | head -n 14
+              echo '-- Protokollende:'
+              tail -n 8 "$protokoll"
+            } | cut -c1-140 > befund-roh.txt
+            for teil in 1 2 3; do
+              anfang=$(( (teil - 1) * 8 + 1 ))
+              meldung=$(sed -n "${anfang},$(( anfang + 7 ))p" befund-roh.txt \
+                | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+              if [ -n "$meldung" ]; then
+                echo "::error::${datei} Befund ${teil}/3: ${meldung}"
+              fi
+            done
           done
-          tail -n 40 test.log >> "$GITHUB_STEP_SUMMARY"
+          tail -n 60 test.log >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
       - name: APK bauen (debug — auf dem CT45P installierbar)

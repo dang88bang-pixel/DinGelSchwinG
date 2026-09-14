@@ -202,7 +202,7 @@ void main() {
       barcode: 'ART-002',
       name: 'Hammer 500 g',
       category: 'Werkzeug',
-      location: 'Regal 1',
+      location: 'Regal 10',
     );
 
     expect((await repo.listItems(query: '4006381333931')).single.name,
@@ -213,7 +213,10 @@ void main() {
         'Schraube M8',
         reason: 'Suche ist nicht von Groß-/Kleinschreibung abhängig');
     expect((await repo.listItems(query: 'werkzeug')).single.name, 'Hammer 500 g');
-    expect((await repo.listItems(query: 'Regal 1')).single.name, 'Hammer 500 g');
+    // Ort mit zweistelliger Nummer: „Regal 1" träfe auch die Schraube, denn
+    // ihr Barcode 4006381333931 enthält die 1 — und die Suche prüft Barcode,
+    // Name, Kategorie und Ort mit UND.
+    expect((await repo.listItems(query: 'Regal 10')).single.name, 'Hammer 500 g');
     expect((await repo.listItems(query: 'm8')).single.barcode, '4006381333931');
   });
 
@@ -224,7 +227,7 @@ void main() {
       barcode: 'ART-002',
       name: 'Hammer 500 g',
       category: 'Werkzeug',
-      location: 'Regal 1',
+      location: 'Regal 10',
     );
 
     final List<Item> hits = await repo.listItems(query: 'regal schraube');

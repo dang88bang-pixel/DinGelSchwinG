@@ -26,13 +26,6 @@ void main() {
     controller = InventoryController(repository: store);
   });
 
-  tearDown(() {
-    // Scanner abmelden, damit kein Handler in den nächsten Test hineinragt,
-    // dann Controller samt Scanner-Diensten entsorgen.
-    controller.scanner.stop();
-    controller.dispose();
-  });
-
   /// Einige Frames weiterschalten — bewusst kein `pumpAndSettle`, weil
   /// Ladeanzeigen endlose Animationen sind und das Absetzen nie „fertig" wäre.
   Future<void> settle(WidgetTester tester) async {
@@ -42,6 +35,18 @@ void main() {
   }
 
   Future<void> start(WidgetTester tester) async {
+    // Aufräumen am Testende, in dieser Reihenfolge: Scanner abmelden (kein
+    // Handler darf in den nächsten Test ragen), Hinweis-Timer auslaufen lassen
+    // (die SnackBar läuft 2 s, bei Fehlern 5 s — bleibt ein Timer stehen,
+    // meldet die Prüfung „A Timer is still pending"), Abmelde-Animation
+    // beenden, Baum abwerfen und erst dann den Controller entsorgen.
+    addTearDown(() async {
+      controller.scanner.stop();
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
     await tester.pumpWidget(
       MaterialApp(
         home: HomeShell(
