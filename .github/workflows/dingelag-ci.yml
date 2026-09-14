@@ -121,31 +121,63 @@ jobs:
           set -euo pipefail
           flutter pub get
 
+      # Befunde werden zusätzlich als Annotationen ausgegeben: Die
+      # Protokoll-Ablage der Läufe (Blob-Speicher) ist aus der
+      # Entwicklungsumgebung nicht erreichbar, Annotationen über die
+      # GitHub-API dagegen schon. So bleibt der Fehlerbefund lesbar.
       - name: Statische Analyse
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           flutter analyze 2>&1 | tee analyze.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E '^[[:space:]]*(info|warning|error)[[:space:]]+' analyze.log \
+              | head -n 60 | sed 's/^/::error::/'
+            tail -n 3 analyze.log | sed 's/^/::error::/'
+          fi
+          exit "$status"
 
       - name: Tests (Dart-VM mit echtem SQLite)
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           flutter test --reporter expanded 2>&1 | tee test.log
+          status=${PIPESTATUS[0]}
           tail -n 30 test.log >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then
+            grep -E '\[E\]|Expected:|Actual:|Test failed|Failed to load|Error:' test.log \
+              | head -n 60 | sed 's/^/::error::/'
+            tail -n 5 test.log | sed 's/^/::error::/'
+          fi
+          exit "$status"
 
       - name: APK bauen (debug — auf dem CT45P installierbar)
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           flutter build apk --debug 2>&1 | tee build-apk.log
+          status=${PIPESTATUS[0]}
           ls -l build/app/outputs/flutter-apk/ >> "$GITHUB_STEP_SUMMARY" || true
+          if [ "$status" -ne 0 ]; then
+            grep -E 'FAILURE|error:|Exception|What went wrong|> ' build-apk.log \
+              | head -n 40 | sed 's/^/::error::/'
+            tail -n 5 build-apk.log | sed 's/^/::error::/'
+          fi
+          exit "$status"
 
       - name: Web bauen (release — Verwaltungsansicht)
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           flutter build web --release 2>&1 | tee build-web.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            grep -E 'Error:|error:|Exception|Failed' build-web.log \
+              | head -n 40 | sed 's/^/::error::/'
+            tail -n 5 build-web.log | sed 's/^/::error::/'
+          fi
+          exit "$status"
 
       - name: APK als Artefakt hochladen
         uses: actions/upload-artifact@v4
