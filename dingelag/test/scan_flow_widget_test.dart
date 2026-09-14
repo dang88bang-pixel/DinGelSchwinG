@@ -158,7 +158,8 @@ void main() {
     expect(find.text('Schraube M8'), findsWidgets);
     expect(find.textContaining('Menge 0 → 1'), findsOneWidget);
     expect(store.storedItems.single.quantity, 1);
-    expect(store.storedEvents.first.type, 'scan');
+    expect(store.storedEvents.last.type, 'scan',
+        reason: 'storedEvents ist das Schreibprotokoll — .last ist das jüngste');
 
     await controller.scan('4006381333931');
     await settle(tester);
@@ -181,7 +182,7 @@ void main() {
 
     expect(find.textContaining('Menge 0 → 1'), findsOneWidget);
     expect(store.storedItems.single.quantity, 1);
-    expect(store.storedEvents.first.source, 'ui',
+    expect(store.storedEvents.last.source, 'ui',
         reason: 'Quelle unterscheidet Handeingabe vom Scanner');
   });
 
@@ -234,7 +235,7 @@ void main() {
     expect(inView(ItemDetailView, find.text('6 Stk')),
         findsOneWidget);
     expect(store.storedItems.single.quantity, 6);
-    expect(store.storedEvents.first.type, 'manual');
+    expect(store.storedEvents.last.type, 'manual');
   });
 
   testWidgets('Suche trifft in Echtzeit über Name und Kategorie',

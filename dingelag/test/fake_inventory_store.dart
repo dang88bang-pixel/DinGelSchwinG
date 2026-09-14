@@ -31,8 +31,13 @@ class FakeInventoryStore implements InventoryStore {
   /// Uhr weiterdrehen, damit sich Zeitstempel unterscheiden.
   void advance(Duration step) => _clock = _clock.add(step);
 
+  /// Bestand in **Schreibreihenfolge** (ältester zuerst) — für Prüfungen, die
+  /// zählen oder vergleichen wollen, was angekommen ist. Die Ansicht der App
+  /// kommt aus `listItems()` (nach Name) bzw. `history()` (neueste zuerst).
   List<Item> get storedItems => List<Item>.unmodifiable(_items);
 
+  /// Ereignisse in **Schreibreihenfolge**: `.last` ist das jüngste. `history()`
+  /// sortiert wie der echte Kern (`ORDER BY id DESC`) und liefert newest-first.
   List<InventoryEvent> get storedEvents =>
       List<InventoryEvent>.unmodifiable(_events);
 
