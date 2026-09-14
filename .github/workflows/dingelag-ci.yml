@@ -25,6 +25,11 @@ on:
       - '.github/workflows/dingelag-ci.yml'
   workflow_dispatch:
 
+# `contents: write` braucht nur der Fehlschlag-Kommentar am Commit (siehe
+# „Befund am Commit melden"). Ohne dieses Recht läuft der Bau trotzdem.
+permissions:
+  contents: write
+
 concurrency:
   group: dingelag-${{ github.ref }}
   cancel-in-progress: true
@@ -208,3 +213,51 @@ jobs:
               fi
             done
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Die Protokoll-Ablage der Läufe und die Job-Zusammenfassung sind aus der
+      # Entwicklungsumgebung nicht abrufbar (Blob-Speicher antwortet mit EOF).
+      # Ein Kommentar am Commit liegt dagegen auf api.github.com und ist lesbar:
+      # `gh api repos/<inhaber>/<repo>/commits/<sha>/comments`.
+      - name: Befund am Commit melden
+        if: failure()
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          {
+            echo '## DinGelAg-App-Bau fehlgeschlagen'
+            echo
+            echo "Lauf: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "Commit: ${GITHUB_SHA}"
+            echo
+            echo '```'
+            which flutter || true
+            flutter --version || true
+            echo '```'
+            for log in analyze.log test.log build-apk.log build-web.log; do
+              echo
+              if [ -s "$log" ]; then
+                echo "### ${log} — $(wc -l < "$log") Zeilen, letzte 150"
+              elif [ -f "$log" ]; then
+                echo "### ${log} — LEER (Befehl lieferte keine Ausgabe)"
+              else
+                echo "### ${log} — fehlt (Schritt kam nicht bis hierher)"
+                continue
+              fi
+              echo '```'
+              tail -n 150 "$log"
+              echo '```'
+            done
+          } > befund.md
+          python3 - <<'PY' > payload.json
+          import json, pathlib
+          text = pathlib.Path('befund.md').read_text(encoding='utf-8')
+          print(json.dumps({'body': text[:60000]}))
+          PY
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+            --data @payload.json -o antwort.json -w 'HTTP %{http_code}\n'
+          head -c 400 antwort.json || true
